@@ -59,3 +59,16 @@ Issue 讨论"要解决什么"，PR 讨论"具体改了什么"，文档只存**�
 - Windows 11 + git-bash，`env.sh` 设置 `ANDROID_HOME` / `JAVA_HOME` / `PATH` / `ADB`。
 - JDK 17（Temurin）、Android SDK cmdline-tools、platform-tools 37.x。
 - 真机通过官方无线调试（TLS + mDNS 自动发现）连接，USB 仅作兜底。
+
+## 协作入口
+
+| 用途 | 位置 |
+|---|---|
+| 仓库（Private） | https://github.com/mo-mx/AndroidAgent |
+| 待办 / 技术讨论 | Issues（每个 Issue 写清：要解决什么 / 为什么 / 如何验收） |
+| 代码修改与审查 | Pull Requests（用 `.github/PULL_REQUEST_TEMPLATE.md`） |
+| 当前真实进度 | `docs/PROJECT_STATUS.md`（首要入口） |
+| 已确认决策（勿反复推翻） | `docs/DECISIONS.md` |
+| 实机验收结果 | `docs/TEST_RESULTS.md` |
+
+协作通道初始化验收记录：Issue #1。
