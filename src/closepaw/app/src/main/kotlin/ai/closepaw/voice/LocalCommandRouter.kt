@@ -4,6 +4,10 @@ import ai.closepaw.voice.tools.ToolResult
 import ai.closepaw.voice.tools.ToolStatus
 import ai.closepaw.voice.tools.TorchControl
 import ai.closepaw.voice.tools.WifiControl
+import ai.closepaw.voice.semantics.Action
+import ai.closepaw.voice.semantics.IntentGate
+import ai.closepaw.voice.semantics.SemanticTask
+import ai.closepaw.voice.semantics.Target as SemanticTarget
 import android.content.Context
 import android.content.Intent
 import android.os.BatteryManager
@@ -43,6 +47,8 @@ object LocalCommandRouter {
     private val timeWords = listOf("几点", "时间", "现在钟点")
     private val helpWords = listOf("帮助", "能做什么", "会什么")
     private val cancelTaskWords = listOf("取消", "停止任务", "算了")
+    /** Words that mean the user is cancelling a *thing*, not the assistant session. */
+    private val thingWords = listOf("倒计时", "计时", "定时器", "闹钟", "闹铃")
 
     private val torchOff = listOf(
         "关闭手电筒", "关手电筒", "关掉手电筒", "手电筒关", "把灯关", "关灯", "别亮了", "关掉灯"
@@ -80,25 +86,35 @@ object LocalCommandRouter {
                 )
             )
         }
-        if (cancelTaskWords.any { text.contains(it) }) {
+        // "取消五分钟倒计时" is a clock command, not "stop talking": let it fall through to the
+        // semantic layer instead of answering 已取消 while nothing was cancelled.
+        if (cancelTaskWords.any { text.contains(it) } && thingWords.none { text.contains(it) }) {
             return log("cancel", Reply(true, "已取消，还有什么要做的"))
         }
 
         // Torch: off must be tested before on — "关闭手电筒" also contains "手电筒".
         if (torchOff.any { text.contains(it) }) {
-            val r = TorchControl.set(ctx, false)
-            return Reply(true, r.speak, keepListening = true, result = r).also { log("torch", it) }
+            return gated(ctx, text, Action.DISABLE, SemanticTarget.TORCH, keepListeningOnSuccess = true) {
+                TorchControl.set(ctx, false)
+            }.also { log("torch", it) }
         }
         if (torchOn.any { text.contains(it) }) {
-            val r = TorchControl.set(ctx, true)
-            return Reply(true, r.speak, keepListening = true, result = r).also { log("torch", it) }
+            return gated(ctx, text, Action.ENABLE, SemanticTarget.TORCH, keepListeningOnSuccess = true) {
+                TorchControl.set(ctx, true)
+            }.also { log("torch", it) }
         }
 
-        if (wifiOff.any { low.contains(it) } || wifiOn.any { low.contains(it) }) {
-            // Deliberately the same path for both: Android does not let us toggle either way,
-            // and pretending otherwise is exactly the "虚报成功" this project forbids.
-            val r = WifiControl.enable(ctx)
-            return Reply(true, r.speak, keepListening = false, result = r).also { log("wifi", it) }
+        // Turning Wi-Fi *off* must never call enable(). Android 10+ blocks both directions for
+        // normal apps, so each direction reports SYSTEM_RESTRICTED with its own panel fallback.
+        if (wifiOff.any { low.contains(it) }) {
+            return gated(ctx, text, Action.DISABLE, SemanticTarget.WIFI, keepListeningOnSuccess = false) {
+                WifiControl.disable(ctx)
+            }.also { log("wifi_off", it) }
+        }
+        if (wifiOn.any { low.contains(it) }) {
+            return gated(ctx, text, Action.ENABLE, SemanticTarget.WIFI, keepListeningOnSuccess = false) {
+                WifiControl.enable(ctx)
+            }.also { log("wifi_on", it) }
         }
 
         if (text.contains("打开设置") || text.contains("设置")) {
@@ -144,6 +160,30 @@ object LocalCommandRouter {
                 result = ToolResult.error("launch", "打不开应用", t.javaClass.simpleName)
             )
         }
+    }
+
+    /**
+     * Same final-boundary check as the semantic runner, so this offline path cannot drift from the
+     * online one: the requested action must match the call before it runs.
+     */
+    private fun gated(
+        ctx: Context,
+        utterance: String,
+        action: Action,
+        target: SemanticTarget,
+        keepListeningOnSuccess: Boolean,
+        body: () -> ToolResult,
+    ): Reply {
+        val task = SemanticTask(action, target, raw = utterance)
+        val call = IntentGate.ToolCall(action, target, identity = target.name.lowercase())
+        val d = IntentGate.check(utterance, task, call)
+        if (!d.allowed) {
+            Log.w(TAG, "gate refused $action/$target: ${d.reason}")
+            val r = ToolResult.blocked(action.name.lowercase(), d.ask ?: "这个操作和你说的是反的，我没有执行", d.reason)
+            return Reply(true, r.speak, keepListening = true, result = r)
+        }
+        val r = body()
+        return Reply(true, r.speak, keepListening = keepListeningOnSuccess || !r.ok, result = r)
     }
 
     /** Battery in a human sentence, including charging state. */

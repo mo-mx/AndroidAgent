@@ -100,10 +100,4 @@ object CapabilityGuard {
         }
         return Verdict(true)
     }
-
-    /** Hard safety net used by the executor: block create-vs-cancel inversions at call time. */
-    fun assertNotInverted(requested: Action, aboutToDo: Action): Boolean {
-        val cancelish = setOf(Action.CANCEL, Action.CLOSE, Action.DELETE, Action.DISABLE)
-        return !(requested in cancelish && aboutToDo == Action.CREATE)
-    }
 }

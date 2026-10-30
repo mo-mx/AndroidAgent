@@ -90,9 +90,17 @@ object AppNavigator {
             return ToolResult(ToolStatus.DEVICE_UNAVAILABLE, "app", it, r.why)
         }
         val app = r.app ?: return ToolResult.unavailable("app", "没有找到这个应用", r.why)
+        return openResolved(ctx, app, r.why)
+    }
+
+    /**
+     * Launch an already-resolved app. Split out so the semantic gate can compare the concrete
+     * package before the launch happens instead of re-resolving (and possibly re-deciding) here.
+     */
+    fun openResolved(ctx: Context, app: AppRegistry.App, why: String): ToolResult {
         val res = AppRegistry.launch(ctx, app)
         if (res.ok) ActionMemory.record(Action.OPEN, Target.APP, mapOf("pkg" to app.packageName), res.speak)
-        return ToolResult(res.status, "app", res.speak, "${res.detail} (${r.why})", res.verified)
+        return ToolResult(res.status, "app", res.speak, "${res.detail} ($why)", res.verified)
     }
 
     /**
@@ -105,12 +113,21 @@ object AppNavigator {
         r.ambiguity?.let { return ToolResult(ToolStatus.DEVICE_UNAVAILABLE, "app_feature", it, r.why) }
         val app = r.app
             ?: return ToolResult.unavailable("app_feature", "没有找到「$appName」", r.why)
+        return openFeatureResolved(ctx, app, feature, r.why)
+    }
 
+    /** Same multi-step flow, for an app the caller already resolved. */
+    fun openFeatureResolved(
+        ctx: Context,
+        app: AppRegistry.App,
+        feature: String,
+        why: String,
+    ): ToolResult {
         val launch = AppRegistry.launch(ctx, app)
         if (!launch.ok) {
             return ToolResult(
                 ToolStatus.TIMEOUT, "app_feature",
-                "打不开${app.label}，所以到不了$feature", launch.detail, false
+                "打不开${app.label}，所以到不了$feature", "${launch.detail} ($why)", false
             )
         }
 

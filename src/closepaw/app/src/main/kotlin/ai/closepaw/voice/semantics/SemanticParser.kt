@@ -174,8 +174,12 @@ object SemanticParser {
             action = when (effectiveTarget) {
                 Target.TIMER -> if (params["seconds"] != null) Action.CREATE else Action.QUERY
                 Target.ALARM -> if (params["hour"] != null) Action.CREATE else Action.QUERY
-                Target.TORCH, Target.WIFI, Target.BLUETOOTH, Target.VOLUME -> Action.QUERY
-                Target.APP, Target.APP_FEATURE -> Action.OPEN
+                Target.VOLUME -> if (params["percent"] != null) Action.SET else Action.QUERY
+                Target.TORCH, Target.WIFI, Target.BLUETOOTH -> Action.QUERY
+                // Everything below opens/dials/captures something: declaring it QUERY here made a
+                // mutating tool look like a read, which is exactly what the semantic gate refuses.
+                Target.APP, Target.APP_FEATURE, Target.CALL, Target.CAMERA,
+                Target.SETTINGS_PAGE, Target.MAPS, Target.WEB -> Action.OPEN
                 else -> Action.QUERY
             }
         }

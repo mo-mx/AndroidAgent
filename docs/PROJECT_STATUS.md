@@ -1,6 +1,6 @@
 # PROJECT_STATUS — 当前真实状态
 
-最后更新：2026-10-31（本次更新内容：GitHub 协作仓库初始化）
+最后更新：2026-10-31（本次更新内容：阶段 6 第 1 步「语义闸门」代码+单测完成，待实机）
 设备：Samsung SM-F731U1（Z Flip5，美版）/ Android 17（SDK 37）/ One UI 9
 状态标注约定：`实机验证` = 真机跑过且有日志；`源码分析` = 只读了代码；`未验证` = 没测过。
 
@@ -24,7 +24,7 @@
 | 4.6 | Direct Boot 救援通道（未解锁也能被查询/拉起/播报） | 完成 | `docs/direct-boot-rescue-report.md`（实机） |
 | 4.7 | scrcpy 无线投屏 | 视频链路完成，控制注入待人工确认 | `docs/scrcpy-wireless.md` |
 | 5 | 唤醒词 + 声纹（sherpa-onnx KWS + SpeakerEmbedding） | **未开始** | — |
-| 6 | 语义闸门 + 把自研能力包成 ClosePaw ToolSpec | **未开始（已有方案）** | `docs/closepaw-reuse-review.md`（源码分析） |
+| 6 | 语义闸门 + 把自研能力包成 ClosePaw ToolSpec | **进行中（第 1 步完成，未实机）** | `docs/phase6-stage1-semantic-gate.md`（源码 + JVM 单测） |
 | 7 | GitHub 协作仓库 | 完成（本次） | 本仓库 |
 
 ## 3. 已验证可用的功能（实机）
@@ -68,8 +68,10 @@
 
 ## 5. 正在执行的任务
 
-无进行中的开发任务。本次提交只做协作环境部署（仓库、文档、Issue 模板），不改源码、不构建 APK、
-不操作手机。下一轮功能开发需用户指定目标。
+Issue #3 阶段 6，第 1 步「语义闸门」已在 `feat/semantic-gate` 分支完成代码与 JVM 单测
+（20/20 通过，全量 2110 tests 中 6 个失败经干净 main 复跑确认为既有 Windows 环境问题）。
+**未构建 APK、未上机**；阶段 1 的实机回归与阶段 2（ToolSpec 适配）等用户批准。
+细节与验收对照见 `docs/phase6-stage1-semantic-gate.md`。
 
 ## 6. 代码现状（与上游的关系）
 
