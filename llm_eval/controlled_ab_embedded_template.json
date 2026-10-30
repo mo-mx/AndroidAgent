@@ -1,0 +1,3803 @@
+[
+  {
+    "model": "Qwen3-0.6B-Q4_K_M.gguf",
+    "load_s": 3.980119799991371,
+    "rows": [
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 1,
+        "input": "设置五分钟倒计时",
+        "elapsed_s": 3.3387176000105683,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5,\"profile\":\"timer_last\"},\"conditions\":[],\"expectedState\":\"5 seconds left\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387168,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 45,
+            "prompt_tokens": 222,
+            "total_tokens": 267,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-oh9SAXkgZ229v1Z6Dd8DEx1KpXvzaahO",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 222,
+            "prompt_ms": 1415.237,
+            "prompt_per_token_ms": 6.374941441441441,
+            "prompt_per_second": 156.86418599852885,
+            "predicted_n": 45,
+            "predicted_ms": 1010.149,
+            "predicted_per_token_ms": 22.95793181818182,
+            "predicted_per_second": 43.557930562718965
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5,\"profile\":\"timer_last\"},\"conditions\":[],\"expectedState\":\"5 seconds left\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "duration"
+          ],
+          "canonical": {
+            "action": "SET",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 5,
+              "profile": "timer_last"
+            },
+            "conditions": [],
+            "expectedState": "5 seconds left",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1289480
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 1,
+        "input": "设置五分钟倒计时",
+        "elapsed_s": 1.371888099994976,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"TIMER\",\"rawParameters\":\"五分钟倒计时\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387170,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 30,
+            "prompt_tokens": 192,
+            "total_tokens": 222,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-gVcy3fPJgRtSf3XBCpmaesypPdTIe2bF",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 192,
+            "prompt_ms": 717.562,
+            "prompt_per_token_ms": 3.7373020833333332,
+            "prompt_per_second": 267.57269755087367,
+            "predicted_n": 30,
+            "predicted_ms": 581.32,
+            "predicted_per_token_ms": 20.04551724137931,
+            "predicted_per_second": 49.886465285901046
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"TIMER\",\"rawParameters\":\"五分钟倒计时\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "SET",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1289628
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 2,
+        "input": "取消五分钟倒计时",
+        "elapsed_s": 1.605727600021055,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"rawParameters\":\"取消五分钟倒计时\",\"objectReference\":\"timer_last\"}]}"
+              }
+            }
+          ],
+          "created": 1793387172,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 192,
+            "total_tokens": 224,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-qOGxRve86SrbIpw98vAlr1afuyKhaoR2",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 192,
+            "prompt_ms": 959.573,
+            "prompt_per_token_ms": 4.997776041666667,
+            "prompt_per_second": 200.088997918866,
+            "predicted_n": 32,
+            "predicted_ms": 619.738,
+            "predicted_per_token_ms": 19.991548387096778,
+            "predicted_per_second": 50.02113796475284
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"rawParameters\":\"取消五分钟倒计时\",\"objectReference\":\"timer_last\"}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "targetIdentity": "timer_last"
+          }
+        },
+        "rss_KiB": 1289716
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 2,
+        "input": "取消五分钟倒计时",
+        "elapsed_s": 2.272245100000873,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"CANCELLED\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387174,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 39,
+            "prompt_tokens": 222,
+            "total_tokens": 261,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-HRm8qhUVeAH9iGjRcBcMaVqQzdWi7m3D",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 222,
+            "prompt_ms": 893.761,
+            "prompt_per_token_ms": 4.02595045045045,
+            "prompt_per_second": 248.38855130174622,
+            "predicted_n": 39,
+            "predicted_ms": 1294.79,
+            "predicted_per_token_ms": 34.07342105263158,
+            "predicted_per_second": 29.34838854177125
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"CANCELLED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "duration"
+          ],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 5
+            },
+            "conditions": [],
+            "expectedState": "CANCELLED",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1289868
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 3,
+        "input": "再次取消不存在的五分钟倒计时",
+        "elapsed_s": 2.114017200015951,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"CANCELLED\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387176,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 39,
+            "prompt_tokens": 225,
+            "total_tokens": 264,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-NfDsgihSy2jIP26AM0Oa0yV01cqlemgU",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 225,
+            "prompt_ms": 1340.963,
+            "prompt_per_token_ms": 5.959835555555555,
+            "prompt_per_second": 167.7898644481615,
+            "predicted_n": 39,
+            "predicted_ms": 747.025,
+            "predicted_per_token_ms": 19.658552631578946,
+            "predicted_per_second": 50.86844483116362
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"CANCELLED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "duration"
+          ],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 5
+            },
+            "conditions": [],
+            "expectedState": "CANCELLED",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1290148
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 3,
+        "input": "再次取消不存在的五分钟倒计时",
+        "elapsed_s": 1.6800387999974191,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"rawParameters\":\"五分钟倒计时\",\"objectReference\":\"timer_last\"}]}"
+              }
+            }
+          ],
+          "created": 1793387178,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 31,
+            "prompt_tokens": 195,
+            "total_tokens": 226,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-rL1adIw3cXcarHen8UxUZLFggsgYu2ck",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 195,
+            "prompt_ms": 821.51,
+            "prompt_per_token_ms": 4.212871794871795,
+            "prompt_per_second": 237.36777397718834,
+            "predicted_n": 31,
+            "predicted_ms": 820.032,
+            "predicted_per_token_ms": 27.334400000000002,
+            "predicted_per_second": 36.58393818777803
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"rawParameters\":\"五分钟倒计时\",\"objectReference\":\"timer_last\"}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "targetIdentity": "timer_last"
+          }
+        },
+        "rss_KiB": 1290232
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 4,
+        "input": "暂停三分钟计时器",
+        "elapsed_s": 1.4792259999958333,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"PAUSE\",\"target\":\"TIMER\",\"rawParameters\":\"暂停三分钟计时器\",\"objectReference\":\"timer_last\"}]}"
+              }
+            }
+          ],
+          "created": 1793387179,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 30,
+            "prompt_tokens": 193,
+            "total_tokens": 223,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-MRvxhEQjt00BP0TH5mRYhd6b6qdCzhSI",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 193,
+            "prompt_ms": 878.689,
+            "prompt_per_token_ms": 4.552792746113989,
+            "prompt_per_second": 219.64540355006153,
+            "predicted_n": 30,
+            "predicted_ms": 554.473,
+            "predicted_per_token_ms": 19.119758620689655,
+            "predicted_per_second": 52.301915512567795
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"PAUSE\",\"target\":\"TIMER\",\"rawParameters\":\"暂停三分钟计时器\",\"objectReference\":\"timer_last\"}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "PAUSE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 180
+            },
+            "conditions": [],
+            "targetIdentity": "timer_last"
+          }
+        },
+        "rss_KiB": 1276800
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 4,
+        "input": "暂停三分钟计时器",
+        "elapsed_s": 2.329416799999308,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\n  \"tasks\": [\n    {\n      \"action\": \"PAUSE\",\n      \"target\": \"TIMER\",\n      \"parameters\": {\n        \"seconds\": 3\n      },\n      \"conditions\": [],\n      \"expectedState\": \"paused\",\n      \"targetIdentity\": null,\n      \"ambiguity\": null\n    }\n  ]\n}"
+              }
+            }
+          ],
+          "created": 1793387182,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 71,
+            "prompt_tokens": 223,
+            "total_tokens": 294,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-hdCG84V6We6pyPi9YXMgKai4hG9MoZox",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 223,
+            "prompt_ms": 938.415,
+            "prompt_per_token_ms": 4.208139013452914,
+            "prompt_per_second": 237.6347351651455,
+            "predicted_n": 71,
+            "predicted_ms": 1363.458,
+            "predicted_per_token_ms": 19.47797142857143,
+            "predicted_per_second": 51.340048611691735
+          }
+        },
+        "raw": "{\n  \"tasks\": [\n    {\n      \"action\": \"PAUSE\",\n      \"target\": \"TIMER\",\n      \"parameters\": {\n        \"seconds\": 3\n      },\n      \"conditions\": [],\n      \"expectedState\": \"paused\",\n      \"targetIdentity\": null,\n      \"ambiguity\": null\n    }\n  ]\n}",
+        "score": {
+          "core": true,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "duration"
+          ],
+          "canonical": {
+            "action": "PAUSE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 3
+            },
+            "conditions": [],
+            "expectedState": "paused",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1276840
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 5,
+        "input": "继续刚才的计时器",
+        "elapsed_s": 2.004570999997668,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5,\"hour\":0,\"minute\":0},\"conditions\":[],\"expectedState\":\"TIMER_ACTIVE\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387184,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 47,
+            "prompt_tokens": 223,
+            "total_tokens": 270,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-mfIfZeW9sbC9Hqr0cUgsKD4VAT62V1lV",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 223,
+            "prompt_ms": 976.586,
+            "prompt_per_token_ms": 4.379309417040359,
+            "prompt_per_second": 228.34650506970198,
+            "predicted_n": 47,
+            "predicted_ms": 969.686,
+            "predicted_per_token_ms": 21.08013043478261,
+            "predicted_per_second": 47.43803664278951
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5,\"hour\":0,\"minute\":0},\"conditions\":[],\"expectedState\":\"TIMER_ACTIVE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "reference"
+          ],
+          "canonical": {
+            "action": "QUERY",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 5,
+              "hour": 0,
+              "minute": 0
+            },
+            "conditions": [],
+            "expectedState": "TIMER_ACTIVE",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1131260
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 5,
+        "input": "继续刚才的计时器",
+        "elapsed_s": 1.5442153999756556,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"继续刚才的计时器\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387186,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 34,
+            "prompt_tokens": 193,
+            "total_tokens": 227,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-G5iglu9v5Yni5bDoHShyM0hxDNHJ2UqK",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 193,
+            "prompt_ms": 820.229,
+            "prompt_per_token_ms": 4.249891191709845,
+            "prompt_per_second": 235.30014178967093,
+            "predicted_n": 34,
+            "predicted_ms": 659.944,
+            "predicted_per_token_ms": 19.998303030303028,
+            "predicted_per_second": 50.00424278423624
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"继续刚才的计时器\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "reference"
+          ],
+          "canonical": {
+            "action": "QUERY",
+            "target": "BLUETOOTH",
+            "parameters": {},
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1131244
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 6,
+        "input": "设置十点闹钟",
+        "elapsed_s": 1.3649105000076815,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"TIMER\",\"rawParameters\":\"10:00\",\"objectReference\":\"timer_last\"}]}"
+              }
+            }
+          ],
+          "created": 1793387187,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 28,
+            "prompt_tokens": 192,
+            "total_tokens": 220,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-2k60AhfChGMWiEz6h6VI8mMR75kXjlBf",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 192,
+            "prompt_ms": 803.187,
+            "prompt_per_token_ms": 4.183265625,
+            "prompt_per_second": 239.04769375002337,
+            "predicted_n": 28,
+            "predicted_ms": 525.705,
+            "predicted_per_token_ms": 19.470555555555556,
+            "predicted_per_second": 51.359602819071526
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"TIMER\",\"rawParameters\":\"10:00\",\"objectReference\":\"timer_last\"}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "clock_time"
+          ],
+          "canonical": {
+            "action": "SET",
+            "target": "TIMER",
+            "parameters": {},
+            "conditions": [],
+            "targetIdentity": "timer_last",
+            "unfaithfulRaw": true
+          }
+        },
+        "rss_KiB": 1131284
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 6,
+        "input": "设置十点闹钟",
+        "elapsed_s": 1.9424606999964453,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":10,\"profile\":\"default\",\"feature\":\"alarm\"},\"conditions\":[],\"expectedState\":\"alarm set\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387189,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 49,
+            "prompt_tokens": 222,
+            "total_tokens": 271,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-6ixp9oNV9MIbT2oGGDq81uMvs0AFlDyT",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 222,
+            "prompt_ms": 926.594,
+            "prompt_per_token_ms": 4.173846846846847,
+            "prompt_per_second": 239.58713309173163,
+            "predicted_n": 49,
+            "predicted_ms": 946.675,
+            "predicted_per_token_ms": 19.722395833333334,
+            "predicted_per_second": 50.7037790160298
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":10,\"profile\":\"default\",\"feature\":\"alarm\"},\"conditions\":[],\"expectedState\":\"alarm set\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "clock_time"
+          ],
+          "canonical": {
+            "action": "SET",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 10,
+              "profile": "default",
+              "feature": "alarm"
+            },
+            "conditions": [],
+            "expectedState": "alarm set",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1078396
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 7,
+        "input": "关闭十点闹钟",
+        "elapsed_s": 1.9874200999911409,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":10,\"profile\":\"timer_last\"},\"conditions\":[],\"expectedState\":\"DISABLED\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387191,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 45,
+            "prompt_tokens": 222,
+            "total_tokens": 267,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-IPSwk0WmC9fveBZTehQNc0pY02OR4Jkz",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 222,
+            "prompt_ms": 990.191,
+            "prompt_per_token_ms": 4.46031981981982,
+            "prompt_per_second": 224.1991696551473,
+            "predicted_n": 45,
+            "predicted_ms": 967.687,
+            "predicted_per_token_ms": 21.992886363636362,
+            "predicted_per_second": 45.46924780430035
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":10,\"profile\":\"timer_last\"},\"conditions\":[],\"expectedState\":\"DISABLED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "clock_time"
+          ],
+          "canonical": {
+            "action": "DISABLE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 10,
+              "profile": "timer_last"
+            },
+            "conditions": [],
+            "expectedState": "DISABLED",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 926824
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 7,
+        "input": "关闭十点闹钟",
+        "elapsed_s": 1.6370527000108268,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"APP\",\"rawParameters\":\"关闭十点闹钟\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387193,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 33,
+            "prompt_tokens": 192,
+            "total_tokens": 225,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-mQu7TV1fd3z1xGU3pc2DDMkNq4UnAPlO",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 192,
+            "prompt_ms": 837.472,
+            "prompt_per_token_ms": 4.361833333333333,
+            "prompt_per_second": 229.26139620190287,
+            "predicted_n": 33,
+            "predicted_ms": 772.026,
+            "predicted_per_token_ms": 24.1258125,
+            "predicted_per_second": 41.4493812384557
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"APP\",\"rawParameters\":\"关闭十点闹钟\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "APP",
+            "parameters": {
+              "hour": 10,
+              "minute": 0
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 873908
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 8,
+        "input": "关闭不存在的十一点闹钟",
+        "elapsed_s": 1.73765789999743,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"APP\",\"rawParameters\":\"关闭不存在的十一点闹钟\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387195,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 35,
+            "prompt_tokens": 194,
+            "total_tokens": 229,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-81hBZwY19SuTDZbnzVyiEISdmEuQudQP",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 194,
+            "prompt_ms": 931.735,
+            "prompt_per_token_ms": 4.802757731958763,
+            "prompt_per_second": 208.21370883352023,
+            "predicted_n": 35,
+            "predicted_ms": 746.223,
+            "predicted_per_token_ms": 21.947735294117646,
+            "predicted_per_second": 45.56278753134117
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"APP\",\"rawParameters\":\"关闭不存在的十一点闹钟\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "APP",
+            "parameters": {
+              "hour": 11,
+              "minute": 0
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 860520
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 8,
+        "input": "关闭不存在的十一点闹钟",
+        "elapsed_s": 2.013703300006455,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":10,\"profile\":\"none\",\"feature\":\"none\"},\"conditions\":[],\"expectedState\":\"none\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387197,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 47,
+            "prompt_tokens": 224,
+            "total_tokens": 271,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-7bhhjDDMPLv4PaKY0pBBIk0DvTUUQiMF",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 224,
+            "prompt_ms": 958.677,
+            "prompt_per_token_ms": 4.279808035714286,
+            "prompt_per_second": 233.6553395982171,
+            "predicted_n": 47,
+            "predicted_ms": 991.564,
+            "predicted_per_token_ms": 21.55573913043478,
+            "predicted_per_second": 46.39135749180083
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":10,\"profile\":\"none\",\"feature\":\"none\"},\"conditions\":[],\"expectedState\":\"none\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "clock_time"
+          ],
+          "canonical": {
+            "action": "DISABLE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 10,
+              "profile": "none",
+              "feature": "none"
+            },
+            "conditions": [],
+            "expectedState": "none",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 860540
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 9,
+        "input": "查询闹钟，不要修改",
+        "elapsed_s": 2.6607839000062086,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"TIMER_DISABLED\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387200,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 39,
+            "prompt_tokens": 223,
+            "total_tokens": 262,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-OgDqMM8QcouJJChDa6rYnAXohZTnXPDs",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 223,
+            "prompt_ms": 1503.215,
+            "prompt_per_token_ms": 6.740874439461883,
+            "prompt_per_second": 148.34870594026805,
+            "predicted_n": 39,
+            "predicted_ms": 1102.681,
+            "predicted_per_token_ms": 29.01792105263158,
+            "predicted_per_second": 34.461462562608766
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"TIMER_DISABLED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "QUERY",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 5
+            },
+            "conditions": [],
+            "expectedState": "TIMER_DISABLED",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 860624
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 9,
+        "input": "查询闹钟，不要修改",
+        "elapsed_s": 2.217802200000733,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"TIMER\",\"rawParameters\":\"查询闹钟\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387202,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 29,
+            "prompt_tokens": 193,
+            "total_tokens": 222,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-1wHfCsHwUaJyo8Qj8BvboRCQCyyDy0xh",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 193,
+            "prompt_ms": 1316.731,
+            "prompt_per_token_ms": 6.822440414507772,
+            "prompt_per_second": 146.57511670948736,
+            "predicted_n": 29,
+            "predicted_ms": 827.721,
+            "predicted_per_token_ms": 29.561464285714287,
+            "predicted_per_second": 33.82782362656016
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"TIMER\",\"rawParameters\":\"查询闹钟\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "QUERY",
+            "target": "TIMER",
+            "parameters": {},
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 860596
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 10,
+        "input": "打开三星应用商店",
+        "elapsed_s": 1.9022048999904655,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"三星应用商店\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387204,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 25,
+            "prompt_tokens": 191,
+            "total_tokens": 216,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-LOxYFJ6HLdGtgZoz8OfYKPiS5CRsixhz",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 191,
+            "prompt_ms": 1143.811,
+            "prompt_per_token_ms": 5.988539267015707,
+            "prompt_per_second": 166.98562961887936,
+            "predicted_n": 25,
+            "predicted_ms": 689.144,
+            "predicted_per_token_ms": 28.714333333333332,
+            "predicted_per_second": 34.825812892515934
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"三星应用商店\",\"objectReference\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "OPEN",
+            "target": "APP",
+            "parameters": {
+              "appName": "三星应用商店"
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 860628
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 10,
+        "input": "打开三星应用商店",
+        "elapsed_s": 2.4619638999865856,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"parameters\":{\"appName\":\"三星应用商店\"},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387207,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 40,
+            "prompt_tokens": 221,
+            "total_tokens": 261,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-mJBXgr3R1hGB0WusBGGddPJCQf8HAW9I",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 221,
+            "prompt_ms": 1309.337,
+            "prompt_per_token_ms": 5.924601809954751,
+            "prompt_per_second": 168.78771469835496,
+            "predicted_n": 40,
+            "predicted_ms": 1068.334,
+            "predicted_per_token_ms": 27.393179487179488,
+            "predicted_per_second": 36.505437438104565
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"parameters\":{\"appName\":\"三星应用商店\"},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "OPEN",
+            "target": "APP",
+            "parameters": {
+              "appName": "三星应用商店"
+            },
+            "conditions": [],
+            "expectedState": "OPEN",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 860604
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 11,
+        "input": "打开Google Play",
+        "elapsed_s": 2.4700158999767154,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"parameters\":{\"appName\":\"Google Play\"},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387209,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 39,
+            "prompt_tokens": 220,
+            "total_tokens": 259,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-dFD7ZizLS6GVFavf41iHYW7OusYdmEKQ",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 220,
+            "prompt_ms": 1270.041,
+            "prompt_per_token_ms": 5.772913636363636,
+            "prompt_per_second": 173.22275422604469,
+            "predicted_n": 39,
+            "predicted_ms": 1115.429,
+            "predicted_per_token_ms": 29.35339473684211,
+            "predicted_per_second": 34.067609861317926
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"parameters\":{\"appName\":\"Google Play\"},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "OPEN",
+            "target": "APP",
+            "parameters": {
+              "appName": "Google Play"
+            },
+            "conditions": [],
+            "expectedState": "OPEN",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 860688
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 11,
+        "input": "打开Google Play",
+        "elapsed_s": 3.3363328000123147,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"Google Play\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387213,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 28,
+            "prompt_tokens": 190,
+            "total_tokens": 218,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-G2310wt02eBGYOmT6dUheEzoAyQ9PLc5",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 190,
+            "prompt_ms": 2093.345,
+            "prompt_per_token_ms": 11.017605263157893,
+            "prompt_per_second": 90.76382536084593,
+            "predicted_n": 28,
+            "predicted_ms": 1203.549,
+            "predicted_per_token_ms": 44.57588888888889,
+            "predicted_per_second": 22.43365247281166
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"Google Play\",\"objectReference\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "OPEN",
+            "target": "APP",
+            "parameters": {
+              "appName": "Google Play"
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 814864
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 12,
+        "input": "打开微信分身",
+        "elapsed_s": 1.9164629000006244,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"打开微信分身\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387215,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 26,
+            "prompt_tokens": 191,
+            "total_tokens": 217,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-VuYfVYNWSMMjZSuxbyDTvkv3BtIFQZrH",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 191,
+            "prompt_ms": 1128.275,
+            "prompt_per_token_ms": 5.907198952879582,
+            "prompt_per_second": 169.28497041944559,
+            "predicted_n": 26,
+            "predicted_ms": 699.738,
+            "predicted_per_token_ms": 27.989520000000002,
+            "predicted_per_second": 35.72765806630481
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"打开微信分身\",\"objectReference\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "OPEN",
+            "target": "APP",
+            "parameters": {
+              "appName": "微信",
+              "profile": "clone"
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 814852
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 12,
+        "input": "打开微信分身",
+        "elapsed_s": 3.976493499998469,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP_FEATURE\",\"parameters\":{\"appName\":\"weChatProfile\"},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387219,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 41,
+            "prompt_tokens": 221,
+            "total_tokens": 262,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-nXmBy4ohTkfRxkUiWOrauEzdBRKFe05x",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 221,
+            "prompt_ms": 2451.118,
+            "prompt_per_token_ms": 11.091031674208145,
+            "prompt_per_second": 90.162937892015,
+            "predicted_n": 41,
+            "predicted_ms": 1436.832,
+            "predicted_per_token_ms": 35.9208,
+            "predicted_per_second": 27.839023629763254
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP_FEATURE\",\"parameters\":{\"appName\":\"weChatProfile\"},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "profile"
+          ],
+          "canonical": {
+            "action": "OPEN",
+            "target": "APP_FEATURE",
+            "parameters": {
+              "appName": "weChatProfile"
+            },
+            "conditions": [],
+            "expectedState": "OPEN",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 493312
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 13,
+        "input": "打开微信扫一扫",
+        "elapsed_s": 2.85833299998194,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"WIFI\",\"parameters\":{\"profile\":\"wechat_scan\",\"feature\":\"wechat_scan_app\"},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387222,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 49,
+            "prompt_tokens": 220,
+            "total_tokens": 269,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-My5l5UkPIXwblQBuZycqep4uxSNZudQ3",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 220,
+            "prompt_ms": 1288.004,
+            "prompt_per_token_ms": 5.854563636363636,
+            "prompt_per_second": 170.8069229598666,
+            "predicted_n": 49,
+            "predicted_ms": 1484.371,
+            "predicted_per_token_ms": 30.924395833333335,
+            "predicted_per_second": 32.33692924477775
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"WIFI\",\"parameters\":{\"profile\":\"wechat_scan\",\"feature\":\"wechat_scan_app\"},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "app_identity",
+            "feature"
+          ],
+          "canonical": {
+            "action": "OPEN",
+            "target": "WIFI",
+            "parameters": {
+              "profile": "wechat_scan",
+              "feature": "wechat_scan_app"
+            },
+            "conditions": [],
+            "expectedState": "OPEN",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 493496
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 13,
+        "input": "打开微信扫一扫",
+        "elapsed_s": 1.8273198000097182,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"打开微信扫一扫\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387224,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 25,
+            "prompt_tokens": 190,
+            "total_tokens": 215,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-LB6P13WKNURj9fTMC15roL1gTzpM62UB",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 190,
+            "prompt_ms": 1067.267,
+            "prompt_per_token_ms": 5.617194736842105,
+            "prompt_per_second": 178.0248054142028,
+            "predicted_n": 25,
+            "predicted_ms": 692.68,
+            "predicted_per_token_ms": 28.861666666666665,
+            "predicted_per_second": 34.64803372408616
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"打开微信扫一扫\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "OPEN",
+            "target": "APP",
+            "parameters": {
+              "appName": "微信",
+              "feature": "扫一扫"
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 493492
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 14,
+        "input": "如果蓝牙已经打开，就不要修改",
+        "elapsed_s": 2.057197400019504,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"蓝牙已打开\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387226,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 195,
+            "total_tokens": 227,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-SmR5azZOHeJ1jkV3BkfC1kf3bGsCC396",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 195,
+            "prompt_ms": 1175.038,
+            "prompt_per_token_ms": 6.025835897435898,
+            "prompt_per_second": 165.95207984763047,
+            "predicted_n": 32,
+            "predicted_ms": 828.287,
+            "predicted_per_token_ms": 26.71893548387097,
+            "predicted_per_second": 37.42664076582151
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"蓝牙已打开\",\"objectReference\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "condition"
+          ],
+          "canonical": {
+            "action": "QUERY",
+            "target": "BLUETOOTH",
+            "parameters": {},
+            "conditions": [],
+            "targetIdentity": null,
+            "unfaithfulRaw": true
+          }
+        },
+        "rss_KiB": 493632
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 14,
+        "input": "如果蓝牙已经打开，就不要修改",
+        "elapsed_s": 3.2839335999742616,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\n  \"tasks\": [\n    {\n      \"action\": \"DISABLE\",\n      \"target\": \"TIMER\",\n      \"parameters\": {\n        \"seconds\": 5\n      },\n      \"conditions\": [],\n      \"expectedState\": \"disabled\",\n      \"targetIdentity\": null,\n      \"ambiguity\": null\n    }\n  ]\n}"
+              }
+            }
+          ],
+          "created": 1793387230,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 70,
+            "prompt_tokens": 225,
+            "total_tokens": 295,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-TAPquEqpUVYbBpZtXKSDcGE5e5AeeaSx",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 225,
+            "prompt_ms": 1321.493,
+            "prompt_per_token_ms": 5.873302222222222,
+            "prompt_per_second": 170.2619688488702,
+            "predicted_n": 70,
+            "predicted_ms": 1899.266,
+            "predicted_per_token_ms": 27.525594202898553,
+            "predicted_per_second": 36.32982425842405
+          }
+        },
+        "raw": "{\n  \"tasks\": [\n    {\n      \"action\": \"DISABLE\",\n      \"target\": \"TIMER\",\n      \"parameters\": {\n        \"seconds\": 5\n      },\n      \"conditions\": [],\n      \"expectedState\": \"disabled\",\n      \"targetIdentity\": null,\n      \"ambiguity\": null\n    }\n  ]\n}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": true,
+          "issues": [
+            "action_target",
+            "condition"
+          ],
+          "canonical": {
+            "action": "DISABLE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 5
+            },
+            "conditions": [],
+            "expectedState": "disabled",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 493672
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 15,
+        "input": "取消刚才创建的五分钟倒计时",
+        "elapsed_s": 2.42027020000387,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"CANCELLED\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387232,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 39,
+            "prompt_tokens": 225,
+            "total_tokens": 264,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-qR6zzcTKBbVwOT8dXTPQ8DPBVYuX9d7u",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 225,
+            "prompt_ms": 1290.77,
+            "prompt_per_token_ms": 5.736755555555556,
+            "prompt_per_second": 174.31455642755876,
+            "predicted_n": 39,
+            "predicted_ms": 1035.491,
+            "predicted_per_token_ms": 27.249763157894737,
+            "predicted_per_second": 36.697566661612704
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"CANCELLED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "duration",
+            "reference"
+          ],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 5
+            },
+            "conditions": [],
+            "expectedState": "CANCELLED",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 493712
+      },
+      {
+        "model": "Qwen3-0.6B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 15,
+        "input": "取消刚才创建的五分钟倒计时",
+        "elapsed_s": 2.1847198999894317,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"rawParameters\":\"取消创建五分钟倒计时\",\"objectReference\":\"timer_last\"}]}"
+              }
+            }
+          ],
+          "created": 1793387234,
+          "model": "Qwen3-0.6B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 33,
+            "prompt_tokens": 195,
+            "total_tokens": 228,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-9XsUvyILZ0eX3bplCL8XTOF2hvNKWQSk",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 195,
+            "prompt_ms": 1179.53,
+            "prompt_per_token_ms": 6.048871794871795,
+            "prompt_per_second": 165.32008511864896,
+            "predicted_n": 33,
+            "predicted_ms": 901.781,
+            "predicted_per_token_ms": 28.18065625,
+            "predicted_per_second": 35.48533402234024
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"TIMER\",\"rawParameters\":\"取消创建五分钟倒计时\",\"objectReference\":\"timer_last\"}]}",
+        "score": {
+          "core": true,
+          "semantic": false,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "targetIdentity": "timer_last",
+            "unfaithfulRaw": true
+          }
+        },
+        "rss_KiB": 493680
+      }
+    ]
+  },
+  {
+    "model": "Qwen3-1.7B-Q4_K_M.gguf",
+    "load_s": 6.250032899988582,
+    "rows": [
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 1,
+        "input": "设置五分钟倒计时",
+        "elapsed_s": 14.820445599994855,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"ACTIVE\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387256,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 38,
+            "prompt_tokens": 222,
+            "total_tokens": 260,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-88bRv3SnGy9rSNs1rw7aIoOp2K6N64FT",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 222,
+            "prompt_ms": 12727.543,
+            "prompt_per_token_ms": 57.331274774774776,
+            "prompt_per_second": 17.442486739192315,
+            "predicted_n": 38,
+            "predicted_ms": 2013.998,
+            "predicted_per_token_ms": 54.43237837837838,
+            "predicted_per_second": 18.371418442322188
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"ACTIVE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "duration"
+          ],
+          "canonical": {
+            "action": "CREATE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 5
+            },
+            "conditions": [],
+            "expectedState": "ACTIVE",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1959348
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 1,
+        "input": "设置五分钟倒计时",
+        "elapsed_s": 4.3452199999883305,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"TIMER\",\"rawParameters\":\"五分钟倒计时\",\"objectReference\":\"timer_last\"}]}"
+              }
+            }
+          ],
+          "created": 1793387260,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 27,
+            "prompt_tokens": 192,
+            "total_tokens": 219,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-oq6KeDY4aAZFuYUN87ARfpfScCly6SbN",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 192,
+            "prompt_ms": 2822.891,
+            "prompt_per_token_ms": 14.702557291666666,
+            "prompt_per_second": 68.01537856048994,
+            "predicted_n": 27,
+            "predicted_ms": 1457.844,
+            "predicted_per_token_ms": 56.07092307692308,
+            "predicted_per_second": 17.834555686342295
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"TIMER\",\"rawParameters\":\"五分钟倒计时\",\"objectReference\":\"timer_last\"}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "CREATE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "targetIdentity": "timer_last"
+          }
+        },
+        "rss_KiB": 1943588
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 2,
+        "input": "取消五分钟倒计时",
+        "elapsed_s": 4.412785299995448,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"五分钟倒计时\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387265,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 29,
+            "prompt_tokens": 192,
+            "total_tokens": 221,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-fZ2WMt8XZONvdcNlmWWAX93i8S3TZBNa",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 192,
+            "prompt_ms": 2809.248,
+            "prompt_per_token_ms": 14.6315,
+            "prompt_per_second": 68.34569251272939,
+            "predicted_n": 29,
+            "predicted_ms": 1542.452,
+            "predicted_per_token_ms": 55.08757142857143,
+            "predicted_per_second": 18.15291496915301
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"五分钟倒计时\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "BLUETOOTH",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1943724
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 2,
+        "input": "取消五分钟倒计时",
+        "elapsed_s": 5.6595133999944665,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387271,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 40,
+            "prompt_tokens": 222,
+            "total_tokens": 262,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-q0oyZckI390ML7c7XsfyVVYG85vpqXEU",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 222,
+            "prompt_ms": 3398.164,
+            "prompt_per_token_ms": 15.307045045045045,
+            "prompt_per_second": 65.32939552063996,
+            "predicted_n": 40,
+            "predicted_ms": 2229.824,
+            "predicted_per_token_ms": 57.17497435897436,
+            "predicted_per_second": 17.490169627737433
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "DISABLE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "expectedState": "DISABLE",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1943904
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 3,
+        "input": "再次取消不存在的五分钟倒计时",
+        "elapsed_s": 5.729875999997603,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387277,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 40,
+            "prompt_tokens": 225,
+            "total_tokens": 265,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-Qr4GNnDIKyBOAcyOYlNeJn9mZ90WVNEX",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 225,
+            "prompt_ms": 3476.209,
+            "prompt_per_token_ms": 15.449817777777778,
+            "prompt_per_second": 64.72568248917139,
+            "predicted_n": 40,
+            "predicted_ms": 2176.397,
+            "predicted_per_token_ms": 55.80505128205128,
+            "predicted_per_second": 17.9195247925815
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "DISABLE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "expectedState": "DISABLE",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1944516
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 3,
+        "input": "再次取消不存在的五分钟倒计时",
+        "elapsed_s": 4.7943581999861635,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"再次取消不存在的五分钟倒计时\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387282,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 33,
+            "prompt_tokens": 195,
+            "total_tokens": 228,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-G7Ncjhw73Cs9rCM2W3wLlYIf1KmBS8iV",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 195,
+            "prompt_ms": 3007.303,
+            "prompt_per_token_ms": 15.422066666666666,
+            "prompt_per_second": 64.84215258655347,
+            "predicted_n": 33,
+            "predicted_ms": 1716.032,
+            "predicted_per_token_ms": 53.626,
+            "predicted_per_second": 18.647670905903855
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"再次取消不存在的五分钟倒计时\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "BLUETOOTH",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1944624
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 4,
+        "input": "暂停三分钟计时器",
+        "elapsed_s": 4.754344099987065,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"PAUSE\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"暂停三分钟计时器\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387286,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 193,
+            "total_tokens": 225,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-CeNxl66QHbQ8XvmrziSyAjYQ5Tq4avXs",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 193,
+            "prompt_ms": 2967.515,
+            "prompt_per_token_ms": 15.375725388601035,
+            "prompt_per_second": 65.03758194988062,
+            "predicted_n": 32,
+            "predicted_ms": 1712.183,
+            "predicted_per_token_ms": 55.23170967741935,
+            "predicted_per_second": 18.105541288518808
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"PAUSE\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"暂停三分钟计时器\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "PAUSE",
+            "target": "BLUETOOTH",
+            "parameters": {
+              "seconds": 180
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1944900
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 4,
+        "input": "暂停三分钟计时器",
+        "elapsed_s": 5.617791900003795,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"PAUSE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":30},\"conditions\":[],\"expectedState\":\"PAUSED\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387292,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 41,
+            "prompt_tokens": 223,
+            "total_tokens": 264,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-v74yEfXMTaEh2lnQ8pe5kjP8aijgdO8D",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 223,
+            "prompt_ms": 3384.407,
+            "prompt_per_token_ms": 15.176713004484306,
+            "prompt_per_second": 65.89042038974627,
+            "predicted_n": 41,
+            "predicted_ms": 2188.284,
+            "predicted_per_token_ms": 54.707100000000004,
+            "predicted_per_second": 18.279163033683012
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"PAUSE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":30},\"conditions\":[],\"expectedState\":\"PAUSED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "duration"
+          ],
+          "canonical": {
+            "action": "PAUSE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 30
+            },
+            "conditions": [],
+            "expectedState": "PAUSED",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1944964
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 5,
+        "input": "继续刚才的计时器",
+        "elapsed_s": 5.667991099995561,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387298,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 39,
+            "prompt_tokens": 223,
+            "total_tokens": 262,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-6gTJ3ayALWqamHvtPAF70zrcFMTgmnHf",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 223,
+            "prompt_ms": 3374.895,
+            "prompt_per_token_ms": 15.134058295964126,
+            "prompt_per_second": 66.07612977588933,
+            "predicted_n": 39,
+            "predicted_ms": 2223.287,
+            "predicted_per_token_ms": 58.50755263157894,
+            "predicted_per_second": 17.09181045901856
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": true,
+          "issues": [
+            "action_target",
+            "reference"
+          ],
+          "canonical": {
+            "action": "CREATE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 5
+            },
+            "conditions": [],
+            "expectedState": "CREATED",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1862228
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 5,
+        "input": "继续刚才的计时器",
+        "elapsed_s": 6.015462400013348,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"RESUME\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"继续刚才的计时器\",\"objectReference\":\"timer_last\"}]}"
+              }
+            }
+          ],
+          "created": 1793387304,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 33,
+            "prompt_tokens": 193,
+            "total_tokens": 226,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-VYBL9ESHpfLWquHtKFZYoMzWrlX7sX1g",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 193,
+            "prompt_ms": 3736.462,
+            "prompt_per_token_ms": 19.359906735751295,
+            "prompt_per_second": 51.6531413941852,
+            "predicted_n": 33,
+            "predicted_ms": 2216.537,
+            "predicted_per_token_ms": 69.26678125,
+            "predicted_per_second": 14.43693473197154
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"RESUME\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"继续刚才的计时器\",\"objectReference\":\"timer_last\"}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "RESUME",
+            "target": "BLUETOOTH",
+            "parameters": {},
+            "conditions": [],
+            "targetIdentity": "timer_last"
+          }
+        },
+        "rss_KiB": 1862232
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 6,
+        "input": "设置十点闹钟",
+        "elapsed_s": 5.196566400001757,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"十点\",\"objectReference\":\"timer_last\"}]}"
+              }
+            }
+          ],
+          "created": 1793387310,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 28,
+            "prompt_tokens": 192,
+            "total_tokens": 220,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-9pgNQn1teiEsqZ4VZr5NQiGVA6WKRQGI",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 192,
+            "prompt_ms": 3349.825,
+            "prompt_per_token_ms": 17.447005208333334,
+            "prompt_per_second": 57.31642697752868,
+            "predicted_n": 28,
+            "predicted_ms": 1763.151,
+            "predicted_per_token_ms": 65.3018888888889,
+            "predicted_per_second": 15.313492718434214
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"十点\",\"objectReference\":\"timer_last\"}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "CREATE",
+            "target": "BLUETOOTH",
+            "parameters": {
+              "hour": 10,
+              "minute": 0
+            },
+            "conditions": [],
+            "targetIdentity": "timer_last"
+          }
+        },
+        "rss_KiB": 1862356
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 6,
+        "input": "设置十点闹钟",
+        "elapsed_s": 7.175344100018265,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"ENABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"ENABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387317,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 40,
+            "prompt_tokens": 222,
+            "total_tokens": 262,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-oXnlTUTxgP3MI9X41IVWmBK6bfpmmeCh",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 222,
+            "prompt_ms": 4263.748,
+            "prompt_per_token_ms": 19.20607207207207,
+            "prompt_per_second": 52.066866991201174,
+            "predicted_n": 40,
+            "predicted_ms": 2848.232,
+            "predicted_per_token_ms": 73.03158974358975,
+            "predicted_per_second": 13.692704807754424
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"ENABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"ENABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "clock_time"
+          ],
+          "canonical": {
+            "action": "ENABLE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "expectedState": "ENABLE",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1862412
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 7,
+        "input": "关闭十点闹钟",
+        "elapsed_s": 6.68111589999171,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387324,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 40,
+            "prompt_tokens": 222,
+            "total_tokens": 262,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-mGGcaHbgnS5zGPbtFPRCKhQwhy6r6aBY",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 222,
+            "prompt_ms": 3997.077,
+            "prompt_per_token_ms": 18.004851351351352,
+            "prompt_per_second": 55.540586283426606,
+            "predicted_n": 40,
+            "predicted_ms": 2545.258,
+            "predicted_per_token_ms": 65.26302564102564,
+            "predicted_per_second": 15.322611695945952
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "clock_time"
+          ],
+          "canonical": {
+            "action": "DISABLE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "expectedState": "DISABLE",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1862480
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 7,
+        "input": "关闭十点闹钟",
+        "elapsed_s": 5.305174300010549,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"十点\",\"objectReference\":\"timer_last\"}]}"
+              }
+            }
+          ],
+          "created": 1793387329,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 28,
+            "prompt_tokens": 192,
+            "total_tokens": 220,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-zQvveJLMMgP8awZIN4GdJ1FTRrK1F6iN",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 192,
+            "prompt_ms": 3408.812,
+            "prompt_per_token_ms": 17.754229166666665,
+            "prompt_per_second": 56.32460810393768,
+            "predicted_n": 28,
+            "predicted_ms": 1844.171,
+            "predicted_per_token_ms": 68.30262962962964,
+            "predicted_per_second": 14.64072474840999
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"十点\",\"objectReference\":\"timer_last\"}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "BLUETOOTH",
+            "parameters": {
+              "hour": 10,
+              "minute": 0
+            },
+            "conditions": [],
+            "targetIdentity": "timer_last"
+          }
+        },
+        "rss_KiB": 1862448
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 8,
+        "input": "关闭不存在的十一点闹钟",
+        "elapsed_s": 5.552720300009241,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"关闭不存在的十一点闹钟\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387335,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 194,
+            "total_tokens": 226,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-o1MD4WMOLSeQcuVIX5KWrN8bgrY4cEGa",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 194,
+            "prompt_ms": 3469.397,
+            "prompt_per_token_ms": 17.88348969072165,
+            "prompt_per_second": 55.91749805513753,
+            "predicted_n": 32,
+            "predicted_ms": 2026.57,
+            "predicted_per_token_ms": 65.37322580645161,
+            "predicted_per_second": 15.296782247837479
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"关闭不存在的十一点闹钟\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "BLUETOOTH",
+            "parameters": {
+              "hour": 11,
+              "minute": 0
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1862528
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 8,
+        "input": "关闭不存在的十一点闹钟",
+        "elapsed_s": 6.658433700009482,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":60},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387342,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 39,
+            "prompt_tokens": 224,
+            "total_tokens": 263,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-yvq7n00vsZIwuoahxLsO60Fjefd7GfQI",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 224,
+            "prompt_ms": 4025.988,
+            "prompt_per_token_ms": 17.973160714285715,
+            "prompt_per_second": 55.638516557923175,
+            "predicted_n": 39,
+            "predicted_ms": 2537.029,
+            "predicted_per_token_ms": 66.76392105263157,
+            "predicted_per_second": 14.978149638809803
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":60},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "clock_time"
+          ],
+          "canonical": {
+            "action": "DISABLE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 60
+            },
+            "conditions": [],
+            "expectedState": "DISABLE",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1862528
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 9,
+        "input": "查询闹钟，不要修改",
+        "elapsed_s": 6.606316300021717,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387349,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 38,
+            "prompt_tokens": 223,
+            "total_tokens": 261,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-Br7zluUayT7wT7jVIUqiCDijlynaEHgr",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 223,
+            "prompt_ms": 4081.225,
+            "prompt_per_token_ms": 18.30145739910314,
+            "prompt_per_second": 54.64045721566441,
+            "predicted_n": 38,
+            "predicted_ms": 2454.244,
+            "predicted_per_token_ms": 66.33091891891893,
+            "predicted_per_second": 15.07592562108739
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "QUERY",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 5
+            },
+            "conditions": [],
+            "expectedState": "OPEN",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1862600
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 9,
+        "input": "查询闹钟，不要修改",
+        "elapsed_s": 5.385872299986659,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"查询闹钟\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387354,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 28,
+            "prompt_tokens": 193,
+            "total_tokens": 221,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-FFOfpavwrcKOy1lWKMrjZ0L2nwkoi2Br",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 193,
+            "prompt_ms": 3551.234,
+            "prompt_per_token_ms": 18.40017616580311,
+            "prompt_per_second": 54.34730575343669,
+            "predicted_n": 28,
+            "predicted_ms": 1755.318,
+            "predicted_per_token_ms": 65.01177777777778,
+            "predicted_per_second": 15.381828249923945
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"查询闹钟\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "QUERY",
+            "target": "BLUETOOTH",
+            "parameters": {},
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1862588
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 10,
+        "input": "打开三星应用商店",
+        "elapsed_s": 4.914720400003716,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"三星应用商店\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387359,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 25,
+            "prompt_tokens": 191,
+            "total_tokens": 216,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-5VKq3LXWBFP4wvsHOp1D6yPyl7RcsnDl",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 191,
+            "prompt_ms": 3310.569,
+            "prompt_per_token_ms": 17.332821989528796,
+            "prompt_per_second": 57.69400970044726,
+            "predicted_n": 25,
+            "predicted_ms": 1518.919,
+            "predicted_per_token_ms": 63.28829166666667,
+            "predicted_per_second": 15.800710900317922
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"三星应用商店\",\"objectReference\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "OPEN",
+            "target": "APP",
+            "parameters": {
+              "appName": "三星应用商店"
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1862776
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 10,
+        "input": "打开三星应用商店",
+        "elapsed_s": 7.4896985000232235,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"SAMSUNG\",\"profile\":\"DEFAULT\",\"feature\":\"STORE\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387367,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 49,
+            "prompt_tokens": 221,
+            "total_tokens": 270,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-UASopemJkuUKkrqbIXZ5EqNzKk4A8D5V",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 221,
+            "prompt_ms": 4104.361,
+            "prompt_per_token_ms": 18.57176923076923,
+            "prompt_per_second": 53.84516615375694,
+            "predicted_n": 49,
+            "predicted_ms": 3315.967,
+            "predicted_per_token_ms": 69.08264583333333,
+            "predicted_per_second": 14.475415467041742
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"SAMSUNG\",\"profile\":\"DEFAULT\",\"feature\":\"STORE\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "app_identity"
+          ],
+          "canonical": {
+            "action": "CREATE",
+            "target": "APP",
+            "parameters": {
+              "appName": "SAMSUNG",
+              "profile": "DEFAULT",
+              "feature": "STORE"
+            },
+            "conditions": [],
+            "expectedState": "CREATED",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1863060
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 11,
+        "input": "打开Google Play",
+        "elapsed_s": 6.9920879999990575,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"GOOGLE_PLAY\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387374,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 41,
+            "prompt_tokens": 220,
+            "total_tokens": 261,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-DjU1KzcMewzTYXuNvYX9hoBgrPi8cDkk",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 220,
+            "prompt_ms": 4151.508,
+            "prompt_per_token_ms": 18.870490909090908,
+            "prompt_per_second": 52.992792016780406,
+            "predicted_n": 41,
+            "predicted_ms": 2784.994,
+            "predicted_per_token_ms": 69.62485000000001,
+            "predicted_per_second": 14.362688034516411
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"GOOGLE_PLAY\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "CREATE",
+            "target": "APP",
+            "parameters": {
+              "appName": "GOOGLE_PLAY"
+            },
+            "conditions": [],
+            "expectedState": "CREATED",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1863296
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 11,
+        "input": "打开Google Play",
+        "elapsed_s": 4.991831199993612,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"Google Play\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387379,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 24,
+            "prompt_tokens": 190,
+            "total_tokens": 214,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-V0ICWg8bKPgy9wibHVfNUSLA3qL8ZEnK",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 190,
+            "prompt_ms": 3395.181,
+            "prompt_per_token_ms": 17.869373684210526,
+            "prompt_per_second": 55.96167037928169,
+            "predicted_n": 24,
+            "predicted_ms": 1529.944,
+            "predicted_per_token_ms": 66.51930434782608,
+            "predicted_per_second": 15.033229974430435
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"Google Play\",\"objectReference\":null}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "OPEN",
+            "target": "APP",
+            "parameters": {
+              "appName": "Google Play"
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1862432
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 12,
+        "input": "打开微信分身",
+        "elapsed_s": 5.018540399993071,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"微信分身\",\"objectReference\":\"timer_last\"}]}"
+              }
+            }
+          ],
+          "created": 1793387384,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 26,
+            "prompt_tokens": 191,
+            "total_tokens": 217,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-DrbsGLBq6jOhfDiGMqdsAmJeG748GlnG",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 191,
+            "prompt_ms": 3340.113,
+            "prompt_per_token_ms": 17.487502617801045,
+            "prompt_per_second": 57.183694084601335,
+            "predicted_n": 26,
+            "predicted_ms": 1597.246,
+            "predicted_per_token_ms": 63.88984000000001,
+            "predicted_per_second": 15.65194090327977
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"微信分身\",\"objectReference\":\"timer_last\"}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "OPEN",
+            "target": "APP",
+            "parameters": {
+              "appName": "微信",
+              "profile": "clone"
+            },
+            "conditions": [],
+            "targetIdentity": "timer_last"
+          }
+        },
+        "rss_KiB": 1862500
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 12,
+        "input": "打开微信分身",
+        "elapsed_s": 7.911117300012847,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP_FEATURE\",\"parameters\":{\"appName\":\"WECHAT\",\"profile\":\"WECHAT_PROFILE\",\"feature\":\"WECHAT_PROFILE\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387392,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 53,
+            "prompt_tokens": 221,
+            "total_tokens": 274,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-VtsY4h4cdw1R6wdHJ9xMI9EeDafvf6r5",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 221,
+            "prompt_ms": 4120.359,
+            "prompt_per_token_ms": 18.644158371040724,
+            "prompt_per_second": 53.636103067718125,
+            "predicted_n": 53,
+            "predicted_ms": 3726.237,
+            "predicted_per_token_ms": 71.65840384615385,
+            "predicted_per_second": 13.955097327411005
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP_FEATURE\",\"parameters\":{\"appName\":\"WECHAT\",\"profile\":\"WECHAT_PROFILE\",\"feature\":\"WECHAT_PROFILE\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "CREATE",
+            "target": "APP_FEATURE",
+            "parameters": {
+              "appName": "WECHAT",
+              "profile": "WECHAT_PROFILE",
+              "feature": "WECHAT_PROFILE"
+            },
+            "conditions": [],
+            "expectedState": "CREATED",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1862568
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 13,
+        "input": "打开微信扫一扫",
+        "elapsed_s": 7.29180749997613,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"WECHAT\",\"profile\":\"DEFAULT\",\"feature\":\"SCAN\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387400,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 48,
+            "prompt_tokens": 220,
+            "total_tokens": 268,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-MylRWVCcQIhXC8sRe6j0dw9uZAdtDGyR",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 220,
+            "prompt_ms": 4015.756,
+            "prompt_per_token_ms": 18.253436363636364,
+            "prompt_per_second": 54.78420501644024,
+            "predicted_n": 48,
+            "predicted_ms": 3210.063,
+            "predicted_per_token_ms": 68.29921276595745,
+            "predicted_per_second": 14.641457192584694
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"WECHAT\",\"profile\":\"DEFAULT\",\"feature\":\"SCAN\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "CREATE",
+            "target": "APP",
+            "parameters": {
+              "appName": "WECHAT",
+              "profile": "DEFAULT",
+              "feature": "SCAN"
+            },
+            "conditions": [],
+            "expectedState": "CREATED",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1830464
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 13,
+        "input": "打开微信扫一扫",
+        "elapsed_s": 4.85678200001712,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"微信扫一扫\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387405,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 24,
+            "prompt_tokens": 190,
+            "total_tokens": 214,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-TlbzzKMZ1HgnI7Ms6IKOsv3Rxf9msny3",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 190,
+            "prompt_ms": 3311.584,
+            "prompt_per_token_ms": 17.42938947368421,
+            "prompt_per_second": 57.374356199329384,
+            "predicted_n": 24,
+            "predicted_ms": 1475.933,
+            "predicted_per_token_ms": 64.171,
+            "predicted_per_second": 15.583363201446137
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"rawParameters\":\"微信扫一扫\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "OPEN",
+            "target": "APP",
+            "parameters": {
+              "appName": "微信",
+              "feature": "扫一扫"
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1830460
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 14,
+        "input": "如果蓝牙已经打开，就不要修改",
+        "elapsed_s": 6.144492400024319,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\": [{\"action\": \"QUERY\", \"target\": \"BLUETOOTH\", \"rawParameters\": \"如果蓝牙已经打开，就不要修改\", \"objectReference\": null}]}"
+              }
+            }
+          ],
+          "created": 1793387411,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 40,
+            "prompt_tokens": 195,
+            "total_tokens": 235,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-laNmBBCDz7zAHRZVzS1i3jSnFidevPt4",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 195,
+            "prompt_ms": 3538.791,
+            "prompt_per_token_ms": 18.147646153846154,
+            "prompt_per_second": 55.103565031108076,
+            "predicted_n": 40,
+            "predicted_ms": 2492.534,
+            "predicted_per_token_ms": 63.91112820512821,
+            "predicted_per_second": 15.646727386667543
+          }
+        },
+        "raw": "{\"tasks\": [{\"action\": \"QUERY\", \"target\": \"BLUETOOTH\", \"rawParameters\": \"如果蓝牙已经打开，就不要修改\", \"objectReference\": null}]}",
+        "score": {
+          "core": true,
+          "semantic": true,
+          "reverse": false,
+          "issues": [],
+          "canonical": {
+            "action": "QUERY",
+            "target": "BLUETOOTH",
+            "parameters": {},
+            "conditions": [
+              "如果蓝牙已经打开，就不要修改"
+            ],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1830744
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 14,
+        "input": "如果蓝牙已经打开，就不要修改",
+        "elapsed_s": 7.675481499987654,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"BLUETOOTH\",\"parameters\":{\"seconds\":5},\"conditions\":[\"BLUETOOTH\",\"OPEN\"],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387419,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 47,
+            "prompt_tokens": 225,
+            "total_tokens": 272,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-Lkny9TOfaRA4GY1ZuG79dcf306UHFjM3",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 225,
+            "prompt_ms": 4302.221,
+            "prompt_per_token_ms": 19.12098222222222,
+            "prompt_per_second": 52.298568576556164,
+            "predicted_n": 47,
+            "predicted_ms": 3321.712,
+            "predicted_per_token_ms": 72.2111304347826,
+            "predicted_per_second": 13.84828064564297
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"BLUETOOTH\",\"parameters\":{\"seconds\":5},\"conditions\":[\"BLUETOOTH\",\"OPEN\"],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": true,
+          "issues": [
+            "action_target"
+          ],
+          "canonical": {
+            "action": "DISABLE",
+            "target": "BLUETOOTH",
+            "parameters": {
+              "seconds": 5
+            },
+            "conditions": [
+              "BLUETOOTH",
+              "OPEN"
+            ],
+            "expectedState": "DISABLE",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1830828
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "A",
+        "case": 15,
+        "input": "取消刚才创建的五分钟倒计时",
+        "elapsed_s": 6.755118900007801,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387426,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 40,
+            "prompt_tokens": 225,
+            "total_tokens": 265,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-9Ql2A44tgt1wIsi8HwYBcQ9XFwcYcCJW",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 225,
+            "prompt_ms": 4067.745,
+            "prompt_per_token_ms": 18.078866666666666,
+            "prompt_per_second": 55.31320178624766,
+            "predicted_n": 40,
+            "predicted_ms": 2597.578,
+            "predicted_per_token_ms": 66.6045641025641,
+            "predicted_per_second": 15.013986105518294
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "reference"
+          ],
+          "canonical": {
+            "action": "DISABLE",
+            "target": "TIMER",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "expectedState": "DISABLE",
+            "targetIdentity": null,
+            "ambiguity": null
+          }
+        },
+        "rss_KiB": 1830908
+      },
+      {
+        "model": "Qwen3-1.7B-Q4_K_M.gguf",
+        "mode": "B",
+        "case": 15,
+        "input": "取消刚才创建的五分钟倒计时",
+        "elapsed_s": 6.021527400007471,
+        "response": {
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"五分钟倒计时\",\"objectReference\":null}]}"
+              }
+            }
+          ],
+          "created": 1793387432,
+          "model": "Qwen3-1.7B-Q4_K_M.gguf",
+          "system_fingerprint": "b11960-8642541b2",
+          "object": "chat.completion",
+          "usage": {
+            "completion_tokens": 29,
+            "prompt_tokens": 195,
+            "total_tokens": 224,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "id": "chatcmpl-r0S67CthQ7dvzVtOxqQQQADUETSj0O4M",
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 195,
+            "prompt_ms": 3967.161,
+            "prompt_per_token_ms": 20.344415384615385,
+            "prompt_per_second": 49.15353826073608,
+            "predicted_n": 29,
+            "predicted_ms": 1982.676,
+            "predicted_per_token_ms": 70.80985714285714,
+            "predicted_per_second": 14.122327601685802
+          }
+        },
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"BLUETOOTH\",\"rawParameters\":\"五分钟倒计时\",\"objectReference\":null}]}",
+        "score": {
+          "core": false,
+          "semantic": false,
+          "reverse": false,
+          "issues": [
+            "action_target",
+            "reference"
+          ],
+          "canonical": {
+            "action": "CANCEL",
+            "target": "BLUETOOTH",
+            "parameters": {
+              "seconds": 300
+            },
+            "conditions": [],
+            "targetIdentity": null
+          }
+        },
+        "rss_KiB": 1780756
+      }
+    ]
+  }
+]

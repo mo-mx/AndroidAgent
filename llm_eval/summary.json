@@ -1,0 +1,199 @@
+[
+  {
+    "model": "Qwen3-0.6B-Q4_K_M.gguf",
+    "n": 15,
+    "valid_json": 14,
+    "action_target_correct": 6,
+    "full_semantic_correct": 1,
+    "full_pass_cases": [
+      11
+    ],
+    "hazardous_plans": 11,
+    "hazards": [
+      {
+        "case": 1,
+        "reasons": [
+          "wrong duration"
+        ]
+      },
+      {
+        "case": 2,
+        "reasons": [
+          "wrong duration"
+        ]
+      },
+      {
+        "case": 3,
+        "reasons": [
+          "wrong duration"
+        ]
+      },
+      {
+        "case": 4,
+        "reasons": [
+          "wrong duration"
+        ]
+      },
+      {
+        "case": 7,
+        "reasons": [
+          "wrong target"
+        ]
+      },
+      {
+        "case": 8,
+        "reasons": [
+          "wrong target"
+        ]
+      },
+      {
+        "case": 9,
+        "reasons": [
+          "wrong target"
+        ]
+      },
+      {
+        "case": 10,
+        "reasons": [
+          "wrong/ambiguous application plan"
+        ]
+      },
+      {
+        "case": 13,
+        "reasons": [
+          "wrong/ambiguous application plan"
+        ]
+      },
+      {
+        "case": 14,
+        "reasons": [
+          "unsafe action"
+        ]
+      },
+      {
+        "case": 15,
+        "reasons": [
+          "wrong duration"
+        ]
+      }
+    ],
+    "transport_errors": 1,
+    "load_s": 4.783003299991833,
+    "ttft_median_s": 0.2006338500068523,
+    "elapsed_median_s": 1.1340246500039939,
+    "elapsed_max_s": 11.04539320000913,
+    "rss_MiB": 1261.9453125
+  },
+  {
+    "model": "Qwen3-1.7B-Q4_K_M.gguf",
+    "n": 15,
+    "valid_json": 15,
+    "action_target_correct": 2,
+    "full_semantic_correct": 0,
+    "full_pass_cases": [],
+    "hazardous_plans": 13,
+    "hazards": [
+      {
+        "case": 1,
+        "reasons": [
+          "wrong duration"
+        ]
+      },
+      {
+        "case": 2,
+        "reasons": [
+          "unsafe action"
+        ]
+      },
+      {
+        "case": 3,
+        "reasons": [
+          "unsafe action"
+        ]
+      },
+      {
+        "case": 4,
+        "reasons": [
+          "wrong duration"
+        ]
+      },
+      {
+        "case": 7,
+        "reasons": [
+          "wrong target"
+        ]
+      },
+      {
+        "case": 8,
+        "reasons": [
+          "wrong target"
+        ]
+      },
+      {
+        "case": 9,
+        "reasons": [
+          "wrong target"
+        ]
+      },
+      {
+        "case": 10,
+        "reasons": [
+          "wrong/ambiguous application plan"
+        ]
+      },
+      {
+        "case": 11,
+        "reasons": [
+          "wrong/ambiguous application plan"
+        ]
+      },
+      {
+        "case": 12,
+        "reasons": [
+          "wrong/ambiguous application plan"
+        ]
+      },
+      {
+        "case": 13,
+        "reasons": [
+          "wrong/ambiguous application plan"
+        ]
+      },
+      {
+        "case": 14,
+        "reasons": [
+          "unsafe action"
+        ]
+      },
+      {
+        "case": 15,
+        "reasons": [
+          "wrong duration",
+          "unsafe action"
+        ]
+      }
+    ],
+    "transport_errors": 0,
+    "load_s": 4.465738200000487,
+    "ttft_median_s": 0.42117159999907017,
+    "elapsed_median_s": 2.7816381999873556,
+    "elapsed_max_s": 29.757154799997807,
+    "rss_MiB": 2622.7734375
+  },
+  {
+    "model": "functiongemma-270m-it-Q4_K_M.gguf",
+    "n": 15,
+    "valid_json": 0,
+    "action_target_correct": 0,
+    "full_semantic_correct": 0,
+    "full_pass_cases": [],
+    "hazardous_plans": 0,
+    "hazards": [],
+    "transport_errors": 2,
+    "load_s": 1.3316434000153095,
+    "ttft_median_s": 0.19137630000477657,
+    "elapsed_median_s": 3.3007131000049412,
+    "elapsed_max_s": 5.971209599985741,
+    "rss_MiB": 579.62109375
+  }
+]

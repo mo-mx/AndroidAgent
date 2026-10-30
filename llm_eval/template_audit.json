@@ -1,0 +1,16 @@
+[
+  {
+    "model": "0.6B",
+    "native_template_matches_official": false,
+    "official_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+    "actual_sha256": "5da44855ab7e0641774d5ed0ff0b4f89671d01df7d316e54d06557a962211cb4",
+    "template_has_enable_thinking": true
+  },
+  {
+    "model": "1.7B",
+    "native_template_matches_official": false,
+    "official_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+    "actual_sha256": "8428c815ac94d82064e35ff1e841dcbe260e7e53a8d0bd3b94afa2eefa9bccab",
+    "template_has_enable_thinking": true
+  }
+]

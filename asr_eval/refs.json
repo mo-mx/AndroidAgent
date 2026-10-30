@@ -1,0 +1,152 @@
+﻿[
+    {
+        "id":  "01",
+        "text":  "打开相机",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\01.wav"
+    },
+    {
+        "id":  "02",
+        "text":  "查询电量",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\02.wav"
+    },
+    {
+        "id":  "03",
+        "text":  "打开手电筒",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\03.wav"
+    },
+    {
+        "id":  "04",
+        "text":  "现在几点",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\04.wav"
+    },
+    {
+        "id":  "05",
+        "text":  "打开设置",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\05.wav"
+    },
+    {
+        "id":  "06",
+        "text":  "关闭手电筒",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\06.wav"
+    },
+    {
+        "id":  "07",
+        "text":  "打开蓝牙",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\07.wav"
+    },
+    {
+        "id":  "08",
+        "text":  "查询剩余电量",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\08.wav"
+    },
+    {
+        "id":  "09",
+        "text":  "给妈妈打电话",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\09.wav"
+    },
+    {
+        "id":  "10",
+        "text":  "给爸爸打电话",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\10.wav"
+    },
+    {
+        "id":  "11",
+        "text":  "联系紧急联系人",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\11.wav"
+    },
+    {
+        "id":  "12",
+        "text":  "给张三发短信",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\12.wav"
+    },
+    {
+        "id":  "13",
+        "text":  "拨打最近的通话记录",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\13.wav"
+    },
+    {
+        "id":  "14",
+        "text":  "给李四打电话",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\14.wav"
+    },
+    {
+        "id":  "15",
+        "text":  "打开相机录制五秒视频",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\15.wav"
+    },
+    {
+        "id":  "16",
+        "text":  "查询当前位置并播报",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\16.wav"
+    },
+    {
+        "id":  "17",
+        "text":  "帮我查一下今天的天气",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\17.wav"
+    },
+    {
+        "id":  "18",
+        "text":  "打开浏览器搜索三星折叠屏手机",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\18.wav"
+    },
+    {
+        "id":  "19",
+        "text":  "导航回家",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\19.wav"
+    },
+    {
+        "id":  "20",
+        "text":  "定一个十分钟的闹钟",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\20.wav"
+    },
+    {
+        "id":  "21",
+        "text":  "提醒我半小时后吃药",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\21.wav"
+    },
+    {
+        "id":  "22",
+        "text":  "把屏幕亮度调到一半",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\22.wav"
+    },
+    {
+        "id":  "23",
+        "text":  "嗯那个帮我看看还剩多少电",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\23.wav"
+    },
+    {
+        "id":  "24",
+        "text":  "我看看啊，现在几点了",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\24.wav"
+    },
+    {
+        "id":  "25",
+        "text":  "那个，打开一下相机",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\25.wav"
+    },
+    {
+        "id":  "26",
+        "text":  "帮我看下电量呗",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\26.wav"
+    },
+    {
+        "id":  "27",
+        "text":  "电量还剩多少来着",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\27.wav"
+    },
+    {
+        "id":  "28",
+        "text":  "麻烦你打开手电筒",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\28.wav"
+    },
+    {
+        "id":  "29",
+        "text":  "打开相机，录制一段五秒的视频",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\29.wav"
+    },
+    {
+        "id":  "30",
+        "text":  "查询当前的定位并告诉我",
+        "wav":  "C:\\Users\\Aqua\\AndroidAgent\\asr_eval\\wav\\30.wav"
+    }
+]

@@ -1,0 +1,146 @@
+[
+  {
+    "input": "设置五分钟倒计时",
+    "expectedAction": "CREATE",
+    "expectedTarget": "TIMER",
+    "raw": "<start_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>NULL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>SET<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>timer_last<escape>,targetIdentity:<escape>timer_last<escape>},parameters:{action:<escape>SET<escape>,target:<escape>APP<escape>,targetIdentity:<escape>APP_FEATURE<escape>}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>NULL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>SET<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>timer_last<escape>,targetIdentity:<escape>timer_last<escape>},parameters:{action:<escape>SET<escape>,target:<escape>APP<escape>,targetIdentity:<escape>APP_FEATURE<escape>},parameters:{action:<escape>SET<escape>,target:<escape>APP<escape>,targetIdentity:<escape>APP_FEATURE<escape>}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>NULL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>SET<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>timer_last<escape>,target",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 2.777850899990881,
+    "elapsed_s": 5.971209599985741
+  },
+  {
+    "input": "取消五分钟倒计时",
+    "expectedAction": "CANCEL",
+    "expectedTarget": "TIMER",
+    "raw": "<start_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>CANCEL<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>PAUSE<escape>,targetIdentity:<escape>PAUSE<escape>},parameters:{action:<escape>PAUSE<escape>,targetIdentity:<escape>PAUSE<escape>}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>PAUSE<escape>,parameters:{action:<escape>PAUSE<escape>,targetIdentity:<escape>PAUSE<escape>},parameters:{action:<escape>PAUSE<escape>,targetIdentity:<escape>PAUSE<escape>}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>DELETE<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>PAUSE<escape>,parameters:{action:<escape>PAUSE<escape>,targetIdentity:<escape>PAUSE<escape>},parameters:{action:<escape>PAUSE<escape>,targetIdentity:<escape>PAUSE<escape>}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>QUERY<escape>,conditions:[<escape>PAUSE<escape>],expected",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.1708922999969218,
+    "elapsed_s": 3.1833919000055175
+  },
+  {
+    "input": "再次取消不存在的五分钟倒计时",
+    "expectedAction": "CANCEL",
+    "expectedTarget": "TIMER",
+    "raw": "<start_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape><escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>CANCEL<escape>,parameters:{action:<escape>CANCEL<escape>,target:<escape>APP_FEATURE<escape>,targetIdentity:<escape>APP_FEATURE<escape>,seconds:0}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape><escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>CANCEL<escape>,parameters:{action:<escape>CANCEL<escape>,target:<escape>APP_FEATURE<escape>,targetIdentity:<escape>APP_FEATURE<escape>,seconds:0}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape><escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>CANCEL<escape>,parameters:{action:<escape>CANCEL<escape>,target:<escape>APP_FEATURE<escape>,targetIdentity:<escape>APP_FEATURE<escape>,seconds:0}}]}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape><escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>CANCEL<escape>,parameters:{action:<escape>CANCEL<escape>,target:<escape>APP_FEATURE<escape>,targetIdentity:<escape>APP",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.1846365999954287,
+    "elapsed_s": 3.2177889000158757
+  },
+  {
+    "input": "暂停三分钟计时器",
+    "expectedAction": "PAUSE",
+    "expectedTarget": "TIMER",
+    "raw": "<start_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>暂停<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>暂停<escape>,targetIdentity:<escape>计时器<escape>,targetIdentity:<escape>APP<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>APP<escape>,targetIdentity:<escape>APP_FEATURE<escape>}}]}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>暂停<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>暂停<escape>,targetIdentity:<escape>计时器<escape>,targetIdentity:<escape>APP<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>APP<escape>,targetIdentity:<escape>APP_FEATURE<escape>}}]}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>PAUSE<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>暂停<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>暂停<escape>,targetIdentity:<escape>计时器<escape>,targetIdentity:<escape>APP",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.18992770000477321,
+    "elapsed_s": 3.270191999996314
+  },
+  {
+    "input": "继续刚才的计时器",
+    "expectedAction": "RESUME",
+    "expectedTarget": "TIMER",
+    "raw": "<start_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>NULL<escape>,conditions:[<escape>PAUSE<escape>],parameters:{action:<escape>PAUSE<escape>,target:<escape>timer<escape>},expectedState:<escape>PAUSE<escape>,targetIdentity:<escape>timer<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>timer<escape>}}]}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>NULL<escape>,conditions:[<escape>PAUSE<escape>],parameters:{action:<escape>PAUSE<escape>,target:<escape>timer<escape>},expectedState:<escape>PAUSE<escape>,targetIdentity:<escape>timer<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>timer<escape>}}]}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>NULL<escape>,conditions:[<escape>PAUSE<escape>],parameters:{action:<escape>PAUSE<escape>,target:<escape>timer<escape>},expectedState:<escape>PAUSE<escape>,targetIdentity:<escape>timer<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>timer<escape>}}]}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>NULL<escape>,conditions:[",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.17376859998330474,
+    "elapsed_s": 3.2760800999822095
+  },
+  {
+    "input": "设置十点闹钟",
+    "expectedAction": "CREATE",
+    "expectedTarget": "ALARM",
+    "raw": "<start_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>CREATE<escape>],parameters:{action:<escape>CANCEL<escape>,target:<escape> snooze<escape>,targetIdentity:<escape> snooze<escape>},expectedState:<escape> snooze<escape>,parameters:{action:<escape> snooze<escape>,targetIdentity:<escape> snooze<escape>}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>CREATE<escape>],parameters:{action:<escape>CANCEL<escape>,target:<escape> snooze<escape>,targetIdentity:<escape> snooze<escape>},expectedState:<escape> snooze<escape>,parameters:{action:<escape> snooze<escape>,targetIdentity:<escape> snooze<escape>}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>CREATE<escape>],parameters:{action:<escape>CANCEL<escape>,target:<escape> snooze<escape>,targetIdentity:<escape> snooze<escape>},expectedState:<escape> snooze<escape>,parameters:{action:<escape> snooze<escape>,targetIdentity:<escape> snooze<escape>}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>CREATE<escape>],parameters:{action:<escape>CANCEL<escape>,",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 1.4398286000068765,
+    "elapsed_s": 4.583399299997836
+  },
+  {
+    "input": "关闭十点闹钟",
+    "expectedAction": "DISABLE",
+    "expectedTarget": "ALARM",
+    "raw": "<start_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape> snooze<escape>],expectedState:<escape> snooze<escape>,parameters:{action:<escape> snooze<escape>,target:<escape> snooze<escape>,targetIdentity:<escape> snooze<escape>}}]}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape> snooze<escape>],expectedState:<escape> snooze<escape>,parameters:{action:<escape> snooze<escape>,target:<escape> snooze<escape>,targetIdentity:<escape> snooze<escape>}}]}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape> snooze<escape>],expectedState:<escape> snooze<escape>,parameters:{action:<escape> snooze<escape>,target:<escape> snooze<escape>,targetIdentity:<escape> snooze<escape>}}]}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape> snooze<escape>],expectedState:<escape> snooze<escape>,parameters:{action:<escape> snooze<escape>,target:<escape> snooze<escape>,targetIdentity:<escape> snooze<escape>}}]}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.194745500019053,
+    "elapsed_s": 3.3007131000049412
+  },
+  {
+    "input": "关闭不存在的十一点闹钟",
+    "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "elapsed_s": 0.000842699984787032
+  },
+  {
+    "input": "查询闹钟，不要修改",
+    "expectedAction": "QUERY",
+    "expectedTarget": "ALARM",
+    "raw": "<start_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>SET<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>ALARM<escape>,targetIdentity:<escape>APP_FEATURE<escape>,seconds:0}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>SET<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>ALARM<escape>,targetIdentity:<escape>APP_FEATURE<escape>,seconds:0}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>PAUSE<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>SET<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>ALARM<escape>,targetIdentity:<escape>APP_FEATURE<escape>,seconds:0}}]}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>PAUSE<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>SET<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>APP_FEATURE",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.22733620001235977,
+    "elapsed_s": 3.5370521000004373
+  },
+  {
+    "input": "打开三星应用商店",
+    "expectedAction": "OPEN",
+    "expectedTarget": "APP",
+    "raw": "I cannot assist with opening a Samsung application store. My available tools are focused on managing phone tasks and device management.",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.22954689999460243,
+    "elapsed_s": 0.5235390000161715
+  },
+  {
+    "input": "打开Google Play",
+    "expectedAction": "OPEN",
+    "expectedTarget": "APP",
+    "raw": "I cannot assist with opening a Google Play Store. My current capabilities are limited to calling specific tools for phone tasks and managing device management.",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.19137630000477657,
+    "elapsed_s": 0.5363692000100855
+  },
+  {
+    "input": "打开微信分身",
+    "expectedAction": "OPEN",
+    "expectedTarget": "APP",
+    "raw": "<start_function_call>call:parse_phone_tasks{ambiguity:<escape>NULL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>APP_FEATURE<escape>,targetIdentity:<escape>微信<escape>,target:<escape>APP_FEATURE<escape>,parameters:{columns:[],conditions:[<escape>PAUSE<escape>],expectedState:<escape>APP_FEATURE<escape>}}<end_function_call>call:parse_phone_tasks{ambiguity:<escape>NULL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>APP_FEATURE<escape>,targetIdentity:<escape>微信<escape>,target:<escape>APP_FEATURE<escape>,parameters:{columns:[],conditions:[<escape>PAUSE<escape>],expectedState:<escape>APP_FEATURE<escape>}}<end_function_call>call:parse_phone_tasks{ambiguity:<escape>NULL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>APP_FEATURE<escape>,targetIdentity:<escape>微信<escape>,target:<escape>APP_FEATURE<escape>,parameters:{columns:[],conditions:[<escape>PAUSE<escape>],expectedState:<escape>APP_FEATURE<escape>}}<end_function_call>call:parse_phone_tasks{ambiguity:<escape>NULL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>APP_FEATURE<escape>,target",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.17833260001498275,
+    "elapsed_s": 3.5604540000203997
+  },
+  {
+    "input": "打开微信扫一扫",
+    "expectedAction": "OPEN",
+    "expectedTarget": "APP_FEATURE",
+    "raw": "<start_function_call>call:parse_phone_tasks{tasks:[{action:<escape>CREATE<escape>,ambiguity:<escape><escape>,conditions:[<escape>CREATE<escape>],parameters:{expression:<escape>(profile:<escape>)<escape>,appName:<escape><escape>,target:<escape>timer<escape>},expectedState:<escape>CREATE<escape>,targetIdentity:<escape>timer<escape>,parameters:{expression:<escape>(profile:<escape>)<escape>,appName:<escape><escape>,target:<escape>timer<escape>}}]}<end_function_call>call:parse_phone_tasks{tasks:[{action:<escape>CREATE<escape>,ambiguity:<escape><escape>,conditions:[<escape>CREATE<escape>],parameters:{expression:<escape>(profile:<escape>)<escape>,appName:<escape><escape>,target:<escape>timer<escape>},expectedState:<escape>CREATE<escape>,targetIdentity:<escape>timer<escape>,parameters:{expression:<escape>(profile:<escape>)<escape>,appName:<escape><escape>,target:<escape>timer<escape>}}]}<end_function_call>call:parse_phone_tasks{tasks:[{action:<escape>CREATE<escape>,ambiguity:<escape><escape>,conditions:[<escape>CREATE<escape>],parameters:{expression:<escape>(profile:<escape>)<escape>,appName:<escape><escape>,target:<escape>timer<escape>},expectedState:",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.17411550000542775,
+    "elapsed_s": 3.3257914000132587
+  },
+  {
+    "input": "如果蓝牙已经打开，就不要修改",
+    "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "elapsed_s": 0.000819800014141947
+  },
+  {
+    "input": "取消刚才创建的五分钟倒计时",
+    "expectedAction": "CANCEL",
+    "expectedTarget": "TIMER",
+    "raw": "<start_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>CANCEL<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>PAUSE<escape>,targetIdentity:<escape>PAUSE<escape>,seconds:0}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>CANCEL<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>PAUSE<escape>,parameters:{action:<escape>PAUSE<escape>,target:<escape>PAUSE<escape>,targetIdentity:<escape>PAUSE<escape>,seconds:0}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>DELETE<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>PAUSE<escape>,parameters:{action:<escape>DELETE<escape>,target:<escape>DELETE<escape>,targetIdentity:<escape>DELETE<escape>,seconds:0}}<end_function_call>call:parse_phone_tasks{tasks:[{ambiguity:<escape>QUERY<escape>,conditions:[<escape>PAUSE<escape>],expectedState:<escape>PAUSE<escape>,parameters:{action:<escape>QUERY<escape>,target:<escape>QUERY<escape>,targetIdentity:<escape>QUERY<escape>,",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 1.3172042999940459,
+    "elapsed_s": 4.438660999992862
+  }
+]

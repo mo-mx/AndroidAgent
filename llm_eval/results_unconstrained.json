@@ -1,0 +1,473 @@
+[
+  {
+    "model": "Qwen3-0.6B-Q4_K_M.gguf",
+    "pid": "29216",
+    "load_s": 7.235696599993389,
+    "rows": [
+      {
+        "input": "设置五分钟倒计时",
+        "expectedAction": "CREATE",
+        "expectedTarget": "TIMER",
+        "raw": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5,\"profile\":\"timer_last\"}}]}.",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 8.086202599981334,
+        "elapsed_s": 8.405451400001766
+      },
+      {
+        "input": "取消五分钟倒计时",
+        "expectedAction": "CANCEL",
+        "expectedTarget": "TIMER",
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"timer_last\",\"parameters\":{},\"conditions\":[],\"expectedState\":\"timer_last\",\"targetIdentity\":null,\"ambiguity\":null}}]",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.2367041999823414,
+        "elapsed_s": 1.7574015999853145
+      },
+      {
+        "input": "再次取消不存在的五分钟倒计时",
+        "expectedAction": "CANCEL",
+        "expectedTarget": "TIMER",
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"timer_last\",\"parameters\":{\"seconds\":null},\"conditions\":[],\"expectedState\":\"timer_last\",\"targetIdentity\":null,\"ambiguity\":null}}]",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.343134700000519,
+        "elapsed_s": 1.8982099000131711
+      },
+      {
+        "input": "暂停三分钟计时器",
+        "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "elapsed_s": 0.0016929999983403832
+      },
+      {
+        "input": "继续刚才的计时器",
+        "expectedAction": "RESUME",
+        "expectedTarget": "TIMER",
+        "raw": "{\"tasks\":[{\"action\":\"CONTINUE\",\"target\":\"timer_last\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"timer_last\",\"targetIdentity\":null,\"ambiguity\":null}}]",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.2600455000065267,
+        "elapsed_s": 1.867249900009483
+      },
+      {
+        "input": "设置十点闹钟",
+        "expectedAction": "CREATE",
+        "expectedTarget": "ALARM",
+        "raw": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":10,\"profile\":\"default\",\"feature\":\"alarm\"}}]}.",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.2363355999987107,
+        "elapsed_s": 1.638939600001322
+      },
+      {
+        "input": "关闭十点闹钟",
+        "expectedAction": "DISABLE",
+        "expectedTarget": "ALARM",
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"timer_last\",\"parameters\":{},\"conditions\":[],\"expectedState\":\"disabled\",\"targetIdentity\":null,\"ambiguity\":null}}]",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.2741681000043172,
+        "elapsed_s": 1.7358134999813046
+      },
+      {
+        "input": "关闭不存在的十一点闹钟",
+        "expectedAction": "DISABLE",
+        "expectedTarget": "ALARM",
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"timer_last\",\"parameters\":{},\"conditions\":[],\"expectedState\":\"timer_last\",\"targetIdentity\":null,\"ambiguity\":null}}]",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.368726799992146,
+        "elapsed_s": 1.905514400015818
+      },
+      {
+        "input": "查询闹钟，不要修改",
+        "expectedAction": "QUERY",
+        "expectedTarget": "ALARM",
+        "raw": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"TIMER_DISABLED\",\"targetIdentity\":null,\"ambiguity\":null}}]",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.1322300999891013,
+        "elapsed_s": 0.7263765999814495
+      },
+      {
+        "input": "打开三星应用商店",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP",
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP\",\"parameters\":{\"appName\":\"smartphone_app_store\"},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}}]",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.3768273000023328,
+        "elapsed_s": 1.9400454999995418
+      },
+      {
+        "input": "打开Google Play",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP",
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"Google Play\",\"parameters\":{\"seconds\":5,\"profile\":\"google_play_profile\",\"feature\":\"google_play_feature\"}},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.2606153000087943,
+        "elapsed_s": 2.0111189000017475
+      },
+      {
+        "input": "打开微信分身",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP",
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"APP_FEATURE\",\"parameters\":{\"appName\":\"weChatProfile\"},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}}]",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.13131719999364577,
+        "elapsed_s": 0.7761554000026081
+      },
+      {
+        "input": "打开微信扫一扫",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP_FEATURE",
+        "raw": "{\"tasks\":[{\"action\":\"OPEN\",\"target\":\"WIFI\",\"parameters\":{\"profile\":\"WIFI\",\"feature\":\"APP_FEATURE\"},\"conditions\":[],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}}]",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.3589172000065446,
+        "elapsed_s": 2.0095272999897134
+      },
+      {
+        "input": "如果蓝牙已经打开，就不要修改",
+        "expectedAction": "QUERY",
+        "expectedTarget": "BLUETOOTH",
+        "raw": "{\n  \"tasks\": [\n    {\n      \"action\": \"DISABLE\",\n      \"target\": \"timer_last\",\n      \"parameters\": {},\n      \"conditions\": [],\n      \"expectedState\": \"disabled\",\n      \"targetIdentity\": null,\n      \"ambiguity\": null\n    }\n  ]\n}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.3974255000066478,
+        "elapsed_s": 2.404940500011435
+      },
+      {
+        "input": "取消刚才创建的五分钟倒计时",
+        "expectedAction": "CANCEL",
+        "expectedTarget": "TIMER",
+        "raw": "{\"tasks\":[{\"action\":\"CANCEL\",\"target\":\"timer_last\",\"parameters\":{},\"conditions\":[],\"expectedState\":\"timer_last\",\"targetIdentity\":null,\"ambiguity\":null}}]",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.2628131000092253,
+        "elapsed_s": 1.8070907999936026
+      }
+    ],
+    "meminfo": "Applications Memory Usage (in Kilobytes):\r\nUptime: 13842785 Realtime: 17715516\r\n                   Pss  Private  Private     Swap      Rss     Heap     Heap     Heap\r\n                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free\r\n                ------   ------   ------   ------   ------   ------   ------   ------\r\n  Native Heap   897352   897352        0        0   897352        0        0        0\r\n  Dalvik Heap        0        0        0        0        0        0        0        0\r\n        Stack      496      496        0        0      496                           \r\n    Other dev        0        0        0        0      368                           \r\n     .so mmap    11584      628    10944        0    13236                           \r\n   Other mmap   379944       60   379876        0   380576                           \r\n      Unknown      920      920        0        0      920                           \r\n        TOTAL  1290296   899456   390820        0  1292948        0        0        0\r\n \r\n App Summary\r\n                       Pss(KB)                        Rss(KB)\r\n                        ------                         ------\r\n           Java Heap:        0                              0\r\n         Native Heap:   897352                         897352\r\n                Code:    11572                          13236\r\n               Stack:      496                            496\r\n            Graphics:        0                              0\r\n       Private Other:   380856\r\n              System:       20\r\n             Unknown:                                  381864\r\n \r\n           TOTAL PSS:  1290296            TOTAL RSS:  1292948      TOTAL SWAP (KB):        0\r\n",
+    "correct": 0,
+    "seriousReverse": 0
+  },
+  {
+    "model": "Qwen3-1.7B-Q4_K_M.gguf",
+    "pid": "29344",
+    "load_s": 2.546961600019131,
+    "rows": [
+      {
+        "input": "设置五分钟倒计时",
+        "expectedAction": "CREATE",
+        "expectedTarget": "TIMER",
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"ACTIVE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": true,
+        "seriousReverse": false,
+        "ttft_s": 2.247763199993642,
+        "elapsed_s": 3.569638200016925
+      },
+      {
+        "input": "取消五分钟倒计时",
+        "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "elapsed_s": 0.004188999999314547
+      },
+      {
+        "input": "再次取消不存在的五分钟倒计时",
+        "expectedAction": "CANCEL",
+        "expectedTarget": "TIMER",
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.314653699984774,
+        "elapsed_s": 1.786921099992469
+      },
+      {
+        "input": "暂停三分钟计时器",
+        "expectedAction": "PAUSE",
+        "expectedTarget": "TIMER",
+        "raw": "{\"tasks\":[{\"action\":\"PAUSE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":30},\"conditions\":[],\"expectedState\":\"PAUSED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": true,
+        "seriousReverse": false,
+        "ttft_s": 0.32471559999976307,
+        "elapsed_s": 1.8692692999902647
+      },
+      {
+        "input": "继续刚才的计时器",
+        "expectedAction": "RESUME",
+        "expectedTarget": "TIMER",
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.338388699979987,
+        "elapsed_s": 1.823975999985123
+      },
+      {
+        "input": "设置十点闹钟",
+        "expectedAction": "CREATE",
+        "expectedTarget": "ALARM",
+        "raw": "{\"tasks\":[{\"action\":\"ENABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"ENABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.3073117999883834,
+        "elapsed_s": 1.8635374000004958
+      },
+      {
+        "input": "关闭十点闹钟",
+        "expectedAction": "DISABLE",
+        "expectedTarget": "ALARM",
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.334872000006726,
+        "elapsed_s": 1.851303100003861
+      },
+      {
+        "input": "关闭不存在的十一点闹钟",
+        "expectedAction": "DISABLE",
+        "expectedTarget": "ALARM",
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":600},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.3459298999805469,
+        "elapsed_s": 1.9223178999964148
+      },
+      {
+        "input": "查询闹钟，不要修改",
+        "expectedAction": "QUERY",
+        "expectedTarget": "ALARM",
+        "raw": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"ACTIVE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.35471879999386147,
+        "elapsed_s": 1.8306167999980971
+      },
+      {
+        "input": "打开三星应用商店",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP",
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"SAMSUNG\",\"profile\":\"DEFAULT\",\"feature\":\"STORE\",\"seconds\":5},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.2788216999906581,
+        "elapsed_s": 2.4421532999840565
+      },
+      {
+        "input": "打开Google Play",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP",
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"GOOGLE_PLAY\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.30430170000181533,
+        "elapsed_s": 1.964827299991157
+      },
+      {
+        "input": "打开微信分身",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP",
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP_FEATURE\",\"parameters\":{\"appName\":\"WECHAT\",\"profile\":\"WECHAT_PROFILE_1\",\"feature\":\"WECHAT_PROFILE_1\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.2619288999994751,
+        "elapsed_s": 2.6662673999962863
+      },
+      {
+        "input": "打开微信扫一扫",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP_FEATURE",
+        "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"WECHAT\",\"profile\":\"DEFAULT\",\"feature\":\"SCAN\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.2695534999947995,
+        "elapsed_s": 2.2791191000142135
+      },
+      {
+        "input": "如果蓝牙已经打开，就不要修改",
+        "expectedAction": "QUERY",
+        "expectedTarget": "BLUETOOTH",
+        "raw": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"BLUETOOTH\",\"parameters\":{\"enabled\":false},\"conditions\":[\"BLUETOOTH\",\"OPEN\"],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.3786197000008542,
+        "elapsed_s": 2.319479700003285
+      },
+      {
+        "input": "取消刚才创建的五分钟倒计时",
+        "expectedAction": "CANCEL",
+        "expectedTarget": "TIMER",
+        "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.3863783999986481,
+        "elapsed_s": 2.361938200017903
+      }
+    ],
+    "meminfo": "Applications Memory Usage (in Kilobytes):\r\nUptime: 13947271 Realtime: 17820327\r\n                   Pss  Private  Private     Swap      Rss     Heap     Heap     Heap\r\n                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free\r\n                ------   ------   ------   ------   ------   ------   ------   ------\r\n  Native Heap  1601464  1601464        0        0  1601464        0        0        0\r\n  Dalvik Heap        0        0        0        0        0        0        0        0\r\n        Stack      492      492        0        0      492                           \r\n    Other dev        0        0        0        0      400                           \r\n     .so mmap    10184      628     9548        0    11720                           \r\n   Other mmap  1068763       60  1068688        0  1069368                           \r\n      Unknown      924      924        0        0      924                           \r\n        TOTAL  2681827  1603568  1078236        0  2684368        0        0        0\r\n \r\n App Summary\r\n                       Pss(KB)                        Rss(KB)\r\n                        ------                         ------\r\n           Java Heap:        0                              0\r\n         Native Heap:  1601464                        1601464\r\n                Code:    10176                          11720\r\n               Stack:      492                            492\r\n            Graphics:        0                              0\r\n       Private Other:  1069672\r\n              System:       23\r\n             Unknown:                                 1070692\r\n \r\n           TOTAL PSS:  2681827            TOTAL RSS:  2684368      TOTAL SWAP (KB):        0\r\n",
+    "correct": 2,
+    "seriousReverse": 0
+  },
+  {
+    "model": "functiongemma-270m-it-Q4_K_M.gguf",
+    "pid": "29404",
+    "load_s": 1.2932514999993145,
+    "rows": [
+      {
+        "input": "设置五分钟倒计时",
+        "expectedAction": "CREATE",
+        "expectedTarget": "TIMER",
+        "raw": "<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.8605209999950603,
+        "elapsed_s": 3.2922585000051185
+      },
+      {
+        "input": "取消五分钟倒计时",
+        "expectedAction": "CANCEL",
+        "expectedTarget": "TIMER",
+        "raw": "<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.15003260000958107,
+        "elapsed_s": 2.383828599995468
+      },
+      {
+        "input": "再次取消不存在的五分钟倒计时",
+        "expectedAction": "CANCEL",
+        "expectedTarget": "TIMER",
+        "raw": "<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.3367372999782674,
+        "elapsed_s": 1.718287199997576
+      },
+      {
+        "input": "暂停三分钟计时器",
+        "expectedAction": "PAUSE",
+        "expectedTarget": "TIMER",
+        "raw": "<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.09227170000667684,
+        "elapsed_s": 2.4002783999894746
+      },
+      {
+        "input": "继续刚才的计时器",
+        "expectedAction": "RESUME",
+        "expectedTarget": "TIMER",
+        "raw": "<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.11602859999402426,
+        "elapsed_s": 0.5362249999889173
+      },
+      {
+        "input": "设置十点闹钟",
+        "expectedAction": "CREATE",
+        "expectedTarget": "ALARM",
+        "raw": "<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.12167270001373254,
+        "elapsed_s": 2.454080499999691
+      },
+      {
+        "input": "关闭十点闹钟",
+        "expectedAction": "DISABLE",
+        "expectedTarget": "ALARM",
+        "raw": "<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<start_function_call> writer\n<start_function_call> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n<escape> viewer\n<escape> writer\n",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 0.15045950000057928,
+        "elapsed_s": 2.6229209000011906
+      },
+      {
+        "input": "关闭不存在的十一点闹钟",
+        "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "elapsed_s": 0.000687899999320507
+      },
+      {
+        "input": "查询闹钟，不要修改",
+        "expectedAction": "QUERY",
+        "expectedTarget": "ALARM",
+        "raw": "No need to answer. I will let you finish your request.",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.2642493000021204,
+        "elapsed_s": 1.3924166999931913
+      },
+      {
+        "input": "打开三星应用商店",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP",
+        "raw": "No need to interact with the application store. I will happily let you use my available tools to open the app store.",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.3183903000026476,
+        "elapsed_s": 1.5540730999782681
+      },
+      {
+        "input": "打开Google Play",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP",
+        "raw": "I cannot assist with opening or managing Google Play or no-think applications. My current capabilities are limited to interacting with mobile applications using the specified tools.",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.3930429000174627,
+        "elapsed_s": 1.6823826000036206
+      },
+      {
+        "input": "打开微信分身",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP",
+        "raw": "I cannot directly open WeChat or access external content like this. My current capabilities are limited to interacting with specific tools like creating and managing app features and alarms.",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.3544478999974672,
+        "elapsed_s": 1.6577963999880012
+      },
+      {
+        "input": "打开微信扫一扫",
+        "expectedAction": "OPEN",
+        "expectedTarget": "APP_FEATURE",
+        "raw": "No. I cannot access or process social media applications like WeChat or No-Filter. I cannot open or manage social media accounts.",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.318746100005228,
+        "elapsed_s": 1.5827526999928523
+      },
+      {
+        "input": "如果蓝牙已经打开，就不要修改",
+        "expectedAction": "QUERY",
+        "expectedTarget": "BLUETOOTH",
+        "raw": "<start_function_call> viewer\nI cannot assist with this request. My available tools are for managing phone messages and alarms, and do not provide functionality for managing Bluetooth devices or settings.",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.3782364999933634,
+        "elapsed_s": 1.7017804000061005
+      },
+      {
+        "input": "取消刚才创建的五分钟倒计时",
+        "expectedAction": "CANCEL",
+        "expectedTarget": "TIMER",
+        "raw": "<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<start_function_call> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n<escape> viewer\n",
+        "correctActionTarget": false,
+        "seriousReverse": false,
+        "ttft_s": 1.2930478999915067,
+        "elapsed_s": 3.996521799999755
+      }
+    ],
+    "meminfo": "Applications Memory Usage (in Kilobytes):\r\nUptime: 13984757 Realtime: 17865629\r\n                   Pss  Private  Private     Swap      Rss     Heap     Heap     Heap\r\n                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free\r\n                ------   ------   ------   ------   ------   ------   ------   ------\r\n  Native Heap   397300   397300        0        0   397300        0        0        0\r\n  Dalvik Heap        0        0        0        0        0        0        0        0\r\n        Stack      500      500        0        0      500                           \r\n    Other dev        0        0        0        0      408                           \r\n     .so mmap    10759      628    10124        0    12264                           \r\n   Other mmap   240891       60   240816        0   241504                           \r\n      Unknown      920      920        0        0      920                           \r\n        TOTAL   650370   399408   250940        0   652896        0        0        0\r\n \r\n App Summary\r\n                       Pss(KB)                        Rss(KB)\r\n                        ------                         ------\r\n           Java Heap:        0                              0\r\n         Native Heap:   397300                         397300\r\n                Code:    10752                          12264\r\n               Stack:      500                            500\r\n            Graphics:        0                              0\r\n       Private Other:   241796\r\n              System:       22\r\n             Unknown:                                  242832\r\n \r\n           TOTAL PSS:   650370            TOTAL RSS:   652896      TOTAL SWAP (KB):        0\r\n",
+    "correct": 0,
+    "seriousReverse": 0
+  }
+]

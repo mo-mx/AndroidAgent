@@ -1,0 +1,54 @@
+[
+  {
+    "model": "Qwen3-0.6B-Q4_K_M.gguf",
+    "mode": "A",
+    "n": 15,
+    "core": 6,
+    "semantic": 2,
+    "reverse": 1,
+    "median_s": 2.8215553000045475,
+    "max_s": 3.9823677999957,
+    "rss_median_MiB": 1260.703125,
+    "rss_sample_max_MiB": 1260.76171875,
+    "errors": 0
+  },
+  {
+    "model": "Qwen3-0.6B-Q4_K_M.gguf",
+    "mode": "B",
+    "n": 15,
+    "core": 8,
+    "semantic": 6,
+    "reverse": 0,
+    "median_s": 2.305446700018365,
+    "max_s": 2.6246180000016466,
+    "rss_median_MiB": 1260.6875,
+    "rss_sample_max_MiB": 1260.734375,
+    "errors": 0
+  },
+  {
+    "model": "Qwen3-1.7B-Q4_K_M.gguf",
+    "mode": "A",
+    "n": 15,
+    "core": 2,
+    "semantic": 0,
+    "reverse": 2,
+    "median_s": 7.901392600004328,
+    "max_s": 8.865603499987628,
+    "rss_median_MiB": 2399.3828125,
+    "rss_sample_max_MiB": 2553.69140625,
+    "errors": 0
+  },
+  {
+    "model": "Qwen3-1.7B-Q4_K_M.gguf",
+    "mode": "B",
+    "n": 15,
+    "core": 5,
+    "semantic": 5,
+    "reverse": 0,
+    "median_s": 6.115370799991069,
+    "max_s": 6.78070370000205,
+    "rss_median_MiB": 2399.8828125,
+    "rss_sample_max_MiB": 2448.33203125,
+    "errors": 0
+  }
+]

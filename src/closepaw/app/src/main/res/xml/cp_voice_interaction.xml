@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Required by BOTH:
+    - android.service.voice.VoiceInteractionServiceInfo (system-side parse)
+    - AOSP AssistantRoleBehavior.isAssistantVoiceInteractionService(), which refuses to grant
+      android.app.role.ASSISTANT unless sessionService AND recognitionService are non-null and
+      supportsAssist is true. Missing recognitionService is why the role was previously refused
+      with "Package does not qualify for the role".
+
+  IMPORTANT: these values are resolved with ComponentName(packageName, value), so they must be
+  fully qualified class names. Writing "ai.closepaw/.voice.X" produces the broken component
+  "ai.closepaw/ai.closepaw/.voice.X" and the system logs
+  "Failed binding to voice interaction session service".
+-->
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="ai.closepaw.voice.ClosepawVoiceSessionService"
+    android:recognitionService="ai.closepaw.voice.ClosepawRecognitionService"
+    android:supportsAssist="true"
+    android:supportsLocalInteraction="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="true" />

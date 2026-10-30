@@ -1,0 +1,152 @@
+[
+  {
+    "input": "设置五分钟倒计时",
+    "expectedAction": "CREATE",
+    "expectedTarget": "TIMER",
+    "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"ACTIVE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": true,
+    "seriousReverse": false,
+    "ttft_s": 28.071523999999044,
+    "elapsed_s": 29.757154799997807
+  },
+  {
+    "input": "取消五分钟倒计时",
+    "expectedAction": "CANCEL",
+    "expectedTarget": "TIMER",
+    "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 3.76951640000334,
+    "elapsed_s": 5.584768500004429
+  },
+  {
+    "input": "再次取消不存在的五分钟倒计时",
+    "expectedAction": "CANCEL",
+    "expectedTarget": "TIMER",
+    "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.3994265999936033,
+    "elapsed_s": 2.1942842999997083
+  },
+  {
+    "input": "暂停三分钟计时器",
+    "expectedAction": "PAUSE",
+    "expectedTarget": "TIMER",
+    "raw": "{\"tasks\":[{\"action\":\"PAUSE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":30},\"conditions\":[],\"expectedState\":\"PAUSED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": true,
+    "seriousReverse": false,
+    "ttft_s": 2.651432400016347,
+    "elapsed_s": 4.543437100015581
+  },
+  {
+    "input": "继续刚才的计时器",
+    "expectedAction": "RESUME",
+    "expectedTarget": "TIMER",
+    "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.3861097999906633,
+    "elapsed_s": 2.1905828999879304
+  },
+  {
+    "input": "设置十点闹钟",
+    "expectedAction": "CREATE",
+    "expectedTarget": "ALARM",
+    "raw": "{\"tasks\":[{\"action\":\"ENABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"ENABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.34443989998544566,
+    "elapsed_s": 2.175588099984452
+  },
+  {
+    "input": "关闭十点闹钟",
+    "expectedAction": "DISABLE",
+    "expectedTarget": "ALARM",
+    "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":300},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.3650134000054095,
+    "elapsed_s": 2.188158300006762
+  },
+  {
+    "input": "关闭不存在的十一点闹钟",
+    "expectedAction": "DISABLE",
+    "expectedTarget": "ALARM",
+    "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":600},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.46140359999844804,
+    "elapsed_s": 2.5632865999941714
+  },
+  {
+    "input": "查询闹钟，不要修改",
+    "expectedAction": "QUERY",
+    "expectedTarget": "ALARM",
+    "raw": "{\"tasks\":[{\"action\":\"QUERY\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"ACTIVE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.5166635999921709,
+    "elapsed_s": 2.7816381999873556
+  },
+  {
+    "input": "打开三星应用商店",
+    "expectedAction": "OPEN",
+    "expectedTarget": "APP",
+    "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"SAMSUNG\",\"profile\":\"DEFAULT\",\"feature\":\"STORE\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.42117159999907017,
+    "elapsed_s": 3.3023021000262816
+  },
+  {
+    "input": "打开Google Play",
+    "expectedAction": "OPEN",
+    "expectedTarget": "APP",
+    "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"GOOGLE_PLAY\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.4121326000022236,
+    "elapsed_s": 2.5565742000180762
+  },
+  {
+    "input": "打开微信分身",
+    "expectedAction": "OPEN",
+    "expectedTarget": "APP",
+    "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP_FEATURE\",\"parameters\":{\"appName\":\"WECHAT\",\"profile\":\"WECHAT_PROFILE_1\",\"feature\":\"WECHAT_PROFILE_1\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.3895319000002928,
+    "elapsed_s": 3.453020100016147
+  },
+  {
+    "input": "打开微信扫一扫",
+    "expectedAction": "OPEN",
+    "expectedTarget": "APP_FEATURE",
+    "raw": "{\"tasks\":[{\"action\":\"CREATE\",\"target\":\"APP\",\"parameters\":{\"appName\":\"WECHAT\",\"profile\":\"DEFAULT\",\"feature\":\"SCAN\"},\"conditions\":[],\"expectedState\":\"CREATED\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.3646090000111144,
+    "elapsed_s": 2.8997759000048973
+  },
+  {
+    "input": "如果蓝牙已经打开，就不要修改",
+    "expectedAction": "QUERY",
+    "expectedTarget": "BLUETOOTH",
+    "raw": "{\"tasks\":[{\"action\":\"SET\",\"target\":\"BLUETOOTH\",\"parameters\":{\"appName\":\"BLUETOOTH\"},\"conditions\":[\"BLUETOOTH\",\"OPEN\"],\"expectedState\":\"OPEN\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.5695071000081953,
+    "elapsed_s": 4.7979045000101905
+  },
+  {
+    "input": "取消刚才创建的五分钟倒计时",
+    "expectedAction": "CANCEL",
+    "expectedTarget": "TIMER",
+    "raw": "{\"tasks\":[{\"action\":\"DISABLE\",\"target\":\"TIMER\",\"parameters\":{\"seconds\":5},\"conditions\":[],\"expectedState\":\"DISABLE\",\"targetIdentity\":null,\"ambiguity\":null}]}",
+    "correctActionTarget": false,
+    "seriousReverse": false,
+    "ttft_s": 0.45222999999532476,
+    "elapsed_s": 2.470868900010828
+  }
+]

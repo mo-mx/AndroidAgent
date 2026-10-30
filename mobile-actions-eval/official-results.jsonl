@@ -1,0 +1,25 @@
+{"event":"loaded","load_ms":684.341874}
+{"case":1,"input":"设置五分钟倒计时","calls":[],"raw":"I am sorry, but I do not have a tool available that can set a five-minute countdown timer.","elapsed_ms":651.316926,"pss_KiB":926720}
+{"case":2,"input":"取消五分钟倒计时","calls":[],"raw":"I am sorry, but I do not have a tool available that allows me to cancel a five-minute countdown.","elapsed_ms":667.306771,"pss_KiB":926359}
+{"case":3,"input":"再次取消不存在的五分钟倒计时","calls":[],"raw":"I am sorry, but I do not have a tool available that can cancel a video titled \"再次取消不存在的五分钟倒计时\" (cancelled again, there is no longer a 'five minute' countdown).","elapsed_ms":829.520208,"pss_KiB":926723}
+{"case":4,"input":"暂停三分钟计时器","calls":[],"raw":"I'm sorry, but I do not have a tool available that can pause the timer.","elapsed_ms":631.72776,"pss_KiB":926955}
+{"case":5,"input":"继续刚才的计时器","calls":[],"raw":"I need the time to start the timer. Please provide the time in YYYY-MM-DDTHH:MM:SS format.","elapsed_ms":731.480313,"pss_KiB":927555}
+{"case":6,"input":"设置十点闹钟","calls":[],"raw":"I'm sorry, but I do not have a tool available that allows me to set a ten-point alarm.","elapsed_ms":695.388854,"pss_KiB":928112}
+{"case":7,"input":"关闭十点闹钟","calls":[],"raw":"I'm sorry, but I do not have a tool available that can close the ten-point alarm.","elapsed_ms":682.626823,"pss_KiB":928528}
+{"case":8,"input":"关闭不存在的十一点闹钟","calls":[],"raw":"I need the date and time for the event. Please provide the date and time in YYYY-MM-DDTHH:MM:SS format.","elapsed_ms":772.955417,"pss_KiB":929132}
+{"case":9,"input":"查询闹钟，不要修改","calls":[],"raw":"I am sorry, but I do not have a tool available that can directly modify the sound profile of the alarm clock.","elapsed_ms":706.431301,"pss_KiB":929412}
+{"case":10,"input":"打开三星应用商店","calls":[],"raw":"I need the subject for the email you are sending. Please provide the subject.","elapsed_ms":624.073281,"pss_KiB":931976}
+{"case":11,"input":"打开Google Play","calls":[],"raw":"I am sorry, but I do not have a tool available that can open the Google Play Store.","elapsed_ms":662.401875,"pss_KiB":933952}
+{"case":12,"input":"打开微信分身","calls":[],"raw":"我无法直接打开微信分身。我可以通过向我提供微信分身信息的接口，例如通过向我发送一个微信分身请求的请求。","elapsed_ms":760.945312,"pss_KiB":930544}
+{"case":13,"input":"打开微信扫一扫","calls":[],"raw":"I need the subject for the email. Please provide the subject.","elapsed_ms":600.226198,"pss_KiB":931108}
+{"case":14,"input":"如果蓝牙已经打开，就不要修改","calls":[],"raw":"I am sorry, but I do not have a tool available that can directly modify the Bluetooth settings. You will need to go to the Bluetooth settings page manually.","elapsed_ms":784.064739,"pss_KiB":931600}
+{"case":15,"input":"取消刚才创建的五分钟倒计时","calls":[],"raw":"I am sorry, but I do not have a tool available that can create a five-minute countdown.","elapsed_ms":699.09677,"pss_KiB":931944}
+{"case":16,"input":"Turn on the flashlight","calls":[{"type":"FlashlightOnAction","detail":"FunctionCallDetails(functionName=turnOnFlashlight, parameters=[], ts=1793390665981)"}],"raw":"The flashlight has been turned on.","elapsed_ms":719.702343,"pss_KiB":933540}
+{"case":17,"input":"打开手电筒","calls":[],"raw":"I cannot open the handlamp. I do not have a tool available for that action.","elapsed_ms":640.385729,"pss_KiB":934002}
+{"case":18,"input":"Turn off the flashlight","calls":[{"type":"FlashlightOffAction","detail":"FunctionCallDetails(functionName=turnOffFlashlight, parameters=[], ts=1793390667330)"}],"raw":"The flashlight has been turned off.","elapsed_ms":694.072448,"pss_KiB":934388}
+{"case":19,"input":"关闭手电筒","calls":[],"raw":"I need the subject for the email. Please provide the subject.","elapsed_ms":619.609844,"pss_KiB":934589}
+{"case":20,"input":"Open Wi-Fi settings","calls":[{"type":"OpenWifiSettingsAction","detail":"FunctionCallDetails(functionName=openWifiSettings, parameters=[], ts=1793390668656)"}],"raw":"The Wi-Fi settings have been opened.","elapsed_ms":715.276926,"pss_KiB":945678}
+{"case":21,"input":"打开Wi-Fi设置","calls":[{"type":"OpenWifiSettingsAction","detail":"FunctionCallDetails(functionName=openWifiSettings, parameters=[], ts=1793390669373)"}],"raw":"The Wi-Fi settings have been opened successfully.","elapsed_ms":720.976302,"pss_KiB":935286}
+{"case":22,"input":"Show Beijing on the map","calls":[{"type":"ShowLocationOnMap","detail":"FunctionCallDetails(functionName=showLocationOnMap, parameters=[(location, Beijing)], ts=1793390670232)"}],"raw":"The location \"Beijing\" has been shown on the map successfully.","elapsed_ms":880.96651,"pss_KiB":938094}
+{"case":23,"input":"在地图上显示北京","calls":[],"raw":"I need the location to show it on the map. Please provide the location.","elapsed_ms":657.635312,"pss_KiB":938558}
+{"event":"done"}

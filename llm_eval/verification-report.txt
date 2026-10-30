@@ -1,0 +1,24 @@
+三星 Z Flip5 本地语义模型有效性核验
+
+环境：真机 SM-F731U1，llama.cpp b11960 / Android aarch64，CPU 4线程，GPU offload=0，context=4096，temperature=0，max_tokens=240。模型均为 unsloth GGUF Q4_K_M。Qwen 使用 enable_thinking=false、/no_think 和 JSON Schema；FunctionGemma 第二轮使用 tools + developer 指令。测试完全隔离于 Agent，不执行手机工具。
+
+每模型15条：创建/取消/暂停/恢复计时器，创建/关闭/查询闹钟，三星商店/Google Play/微信分身/扫一扫，蓝牙条件及上下文指代。指标以 results.json 第二轮为准；无约束首轮见 results_unconstrained.json。
+
+模型             action+target  关键语义通过  JSON解析   加载秒  首内容中位秒 完成中位秒 最慢秒  RSS MiB
+Qwen3-0.6B       6/15           1/15         14/15     4.783   0.201       1.134     11.045  1261.95
+Qwen3-1.7B       2/15           0/15         15/15     4.466   0.421       2.782     29.757  2622.77
+FunctionGemma    0/15           0/15         0/15      1.332   0.191       3.301      5.971   579.62
+
+首内容不是首token底层时刻：由HTTP流读取测得，受流缓冲影响。加载为启动至health=200，非严格冷缓存；内存为15条完成后dumpsys的进程RSS单点，不是峰值。延迟只统计收到输出的请求。连接错误分别为1/0/2。不能宣称长期稳定性通过。
+
+真实错误：
+0.6B：五分钟输出seconds=5；暂停三分钟输出seconds=3000；查询闹钟输出QUERY/TIMER；微信扫一扫输出OPEN/WIFI；蓝牙不修改输出DISABLE/TIMER。
+1.7B：五分钟输出seconds=5；暂停三分钟输出seconds=30；恢复计时器输出CREATE；关闭十点闹钟输出DISABLE/TIMER；蓝牙不修改输出SET/BLUETOOTH。
+FunctionGemma：工具格式产生重复parameters、action嵌入parameters及反复call片段；三星商店/Google Play拒答。输出不符合当前协议。不能以0个可解析危险计划断言安全，全部应拒绝执行。
+
+核验结论：三款本次配置均不具备替换现有解析器并直接执行的条件。0.6B更快不代表可靠；1.7B更大未带来本测试准确率提升；FunctionGemma当前工具适配未通过，不可将其结果当作经过官方移动方案优化后的能力上限。
+
+限制：关键语义通过率核对action/target及关键参数/条件/引用/应用名称，不是对expectedState全部自由文本的完备语义证明。危险率尚需明确区分错目标、错时长、反向修改与协议拒绝，不把所有语义错误算成真实已执行。测试没有覆盖多任务依赖、应用歧义询问、30分钟稳定性、功耗、GPU/NPU或LiteRT-LM。此报告是当前GGUF配置的否定性验收，不是三款模型的能力上限排名。
+
+原始数据和逐条输出：results.json；results_unconstrained.json；summary.json。
+建议：暂不接实际工具。保留原工具和安全边界；若继续选型，先用更短任务协议、少样本、原生函数签名和模型各自正确模板做独立复测，补齐对照与稳定性，再决定是否微调。不得仅以JSON合法或模型参数量选型。

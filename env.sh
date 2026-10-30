@@ -1,0 +1,5 @@
+export ANDROID_HOME="C:/Users/Aqua/AndroidAgent/tools/android-sdk"
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export JAVA_HOME="C:/Users/Aqua/AndroidAgent/tools/jdk-17.0.20.1+1"
+export PATH="/c/Users/Aqua/AndroidAgent/tools/jdk-17.0.20.1+1/bin:/c/Users/Aqua/AndroidAgent/tools/android-sdk/cmdline-tools/latest/bin:/c/Users/Aqua/AndroidAgent/tools/android-sdk/platform-tools:/c/Users/Aqua/AndroidAgent/tools/platform-tools:$PATH"
+export ADB="/c/Users/Aqua/AndroidAgent/tools/platform-tools/adb.exe"

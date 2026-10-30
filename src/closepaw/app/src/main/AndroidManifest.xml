@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+        <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+    <!-- Shizuku permission for virtual display operations -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Package visibility: Allow querying launchable apps and Termux RUN_COMMAND (Android 11+) -->
+    <queries>
+        <package android:name="com.termux" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="com.termux.RUN_COMMAND" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
+    <application
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ClosePaw">
+
+        <activity
+            android:name=".app.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustNothing">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- OAuth callback: success page redirects here to bring app to front. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="closepaw" android:host="oauth-complete" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.viewer.VirtualDisplayViewerActivity"
+            android:theme="@style/Theme.ClosePaw.FullScreen"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true" />
+
+        <service
+            android:name=".app.AgentService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/agent_accessibility_config" />
+        </service>
+
+        <!-- Digital assistant entry point: lets the side-key long press / assist gesture
+             open the ClosePaw voice session once the user selects it under
+             设置 → 应用 → 默认应用 → 数字助理应用. -->
+        <service
+            android:name=".voice.ClosepawVoiceInteractionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+            <!-- VoiceInteractionServiceInfo requires this to consider the app a valid
+                 assistant candidate (and for the role to be grantable). -->
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/cp_voice_interaction" />
+        </service>
+
+        <service
+            android:name=".voice.ClosepawVoiceSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionSessionService" />
+            </intent-filter>
+        </service>
+
+        <!-- Offline (sherpa-onnx) RecognitionService. Required for assistant-role qualification
+             and usable by any app that picks it via SpeechRecognizer. -->
+        <service
+            android:name=".voice.ClosepawRecognitionService"
+            android:exported="true"
+            android:directBootAware="true"
+            android:permission="android.permission.BIND_RECOGNITION">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+        </service>
+
+        <!-- Standalone voice entry point (app drawer icon + automation). -->
+        <activity
+            android:name=".voice.VoiceActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="语音助手"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.ClosePaw">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- AOSP AssistantRoleBehavior.isPackageQualified() accepts a package that has an
+                 activity handling ACTION_ASSIST (MATCH_DEFAULT_ONLY). This is the sanctioned
+                 path to qualify for android.app.role.ASSISTANT without shipping a no-op
+                 RecognitionService just to satisfy the VoiceInteractionService XML check. -->
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Quick Settings tile: tap-once voice entry from the notification shade. -->
+        <service
+            android:name=".voice.VoiceTileService"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="语音助手"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Shizuku content provider for binder forwarding -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
+    </application>
+
+</manifest>

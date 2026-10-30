@@ -1,0 +1,30 @@
+Qwen3 受控 A/B 对比（真机，官方模板最终轮）
+
+结论：B有所改善，但两款均不可靠。按用户停止条件，停止这两款当前配置的提示词/采样继续调参；不接Agent，不调用真实手机工具。FunctionGemma未测试。
+
+方法：同一15条输入、同一固定上下文timer_last，A=原完整JSON协议；B=action/target/rawParameters/objectReference。B的时间换算、应用参数提取是测试机上的纯确定性后处理，不访问手机对象、不运行Android工具。未实现实物对象查找或状态验证，本轮不宣称验证执行框架。
+同一评分：动作+对象完全匹配，时长/时点/指定应用/分身/二级功能/条件/引用按适用用例检查。严格要求CREATE，不把SET当作CREATE。B不得通过后处理改模型动作或对象；原始参数文本不得凭空改写。非适用字段未做自由文本expectedState全等评分。
+危险反向定义：取消/关闭/暂停/恢复/查询被转成创建，查询变成修改，创建变取消/删除/关闭。错误对象和错误单位另行列为语义失败，不混成反向计数。
+
+环境：原Q4_K_M文件；llama.cpp b11960；CPU4线程；GPU0；context4096；parallel1；prompt cache关闭；cache-ram0。每用例交替AB/BA，减少固定先后偏差；每组合15样本。最终60请求均有响应，无连接错误。不是长时多轮统计，未控制温度/频率。
+
+模板核查：GGUF内置模板与Qwen官方模板不完全一致，已另存原轮controlled_ab_embedded_template.json，最终重跑统一使用Qwen官方tokenizer_config.chat_template。两款/props返回模板均与官方文件逐字相同。apply-template实际末尾assistant + 空<think></think>；--reasoning off，enable_thinking=false，/no_think，60响应无reasoning_content。
+采样：请求temperature0/seed42/top_k0/top_p1/min_p0/repeat_penalty1/max_tokens240，A/B完全相同。属于贪心受控测试，不宣称官方推荐质量最优采样。props里的默认temperature0.8不能当成实际请求temperature，具体请求代码为controlled_ab.py。
+
+模型 方案 动作对象正确 关键语义正确 反向计划 完整延迟中位/最慢秒 RSS中位/采样最大MiB
+0.6B A 6/15 2/15 1/15 2.82/3.98 1260.70/1260.76
+0.6B B 8/15 6/15 0/15 2.31/2.62 1260.69/1260.73
+1.7B A 2/15 0/15 2/15 7.90/8.87 2399.38/2553.69
+1.7B B 5/15 5/15 0/15 6.12/6.78 2399.88/2448.33
+
+延迟为请求发送到完整响应读取，不含ASR/TTS、不含手机执行；B后处理在PC评分中执行，未计入模型延迟。RSS为每请求结束后dumpsys采样，不是连续峰值。冷启动不包含在每请求延迟内。AB共享模型进程和权重，不能把其RSS差异归因成协议节省内存。
+
+真实错误：
+0.6B B：设置五分钟→SET/TIMER（规范CREATE）；继续刚才计时器→QUERY/BLUETOOTH；设置十点闹钟→SET/TIMER raw=10:00（改写原始参数）；关闭十点闹钟→CANCEL/APP；查询闹钟→QUERY/TIMER；扫一扫仅OPEN/APP，未APP_FEATURE。
+1.7B B：取消五分钟→CANCEL/BLUETOOTH；暂停计时器→PAUSE/BLUETOOTH；恢复计时器→RESUME/BLUETOOTH；创建闹钟→CREATE/BLUETOOTH。
+0.6B A：“蓝牙已开不要修改”→DISABLE/TIMER。
+1.7B A：“继续刚才计时器”→CREATE/TIMER；“蓝牙已开不要修改”→DISABLE/BLUETOOTH。
+
+B零反向只指这15条的动作方向计数，不是零危险：错误对象仍可能造成风险，必须被合法性/身份校验拒绝。B能让确定性程序解决单位换算，但无法解决模型对象分类和指代错误。没有修改Agent或语音模块，没有实际闹钟/计时器/应用操作。建议停止当前两款的继续调参；保留B式职责边界作为将来可靠规划器的协议方向，而非宣布模型可用。
+
+文件：controlled_ab.json（60条原始响应/时间/RSS/评分）、controlled_ab_summary.json、controlled_ab.py、qwen3_official.jinja、*.template.txt、*.ab.props.json、*.ab.server.log。
