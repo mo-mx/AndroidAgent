@@ -33,14 +33,12 @@ captures/
 .idea/
 
 # ===== Toolchain / vendored binaries (installed locally, never tracked) =====
-tools/
-**/tools/android-sdk/
-**/tools/jdk-*/
-**/tools/platform-tools/
-**/tools/sdk_tmp/
-**/tools/scrcpy*/
-**/tools/sherpa/
-sdk_tmp/
+# Root-anchored only: a bare "tools/" also matched the Kotlin package
+# src/closepaw/app/src/main/kotlin/ai/closepaw/voice/tools/ and silently dropped the
+# whole device-capability layer from the repo.
+/tools/
+/src/closepaw/tools/
+/sdk_tmp/
 
 # ===== Large model weights & eval binaries =====
 *.gguf
@@ -61,7 +59,7 @@ asr_eval/wav/
 # ===== Screen recordings / device screenshots & raw logs =====
 *.mp4
 *.webm
-logs/
+/logs/
 *.png
 *.jpg
 *.jpeg
