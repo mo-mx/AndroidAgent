@@ -411,3 +411,36 @@ TDD：每个修复切片先观察对应行为断言失败，再修改生产代�
 - **尚无生产者填 `observed`**：真机上声明了 `expectedState` 的任务一律 `UNPROVEN`，`CONFIRMED` 目前只有 JVM 夹具可达。这是刻意保守（旧路径本身是误报源），但意味着「已确认完成」的能力暂时为零，必须如实如此表述。
 - 未实机、未构建安装 APK、未操作手机；历史设备矩阵仍 4 通过 / 0 失败 / 3 未测。
 - 未做：复审 P2 第 3 条 `IntentActions.setTimer` 的模糊 `clickText("定时器")`（需把 `ClockControl` 的安全 tab 导航暴露给 `tools` 层）；`closeAlarm` 仍因缺全列表/业务对象身份安全拒绝；在线 `ToolRouter` 同门禁（阶段 2）未开始。
+
+
+## 第㉘轮：UNPROVEN 对所有动作生效 + 计时器诊断的同读页面证据与计数解析（2026-11-01，离线源码 + JVM）
+
+对应复审 `6547564219`（HEAD `cdf52b1`）：1 条 P1 + 2 条 P2。
+
+### 改动
+
+- `semantics/TerminalState.kt`：`enforce` 的 UNPROVEN 分支从「仅 `Action.OPEN`」放宽到「任何 `promisesState` 的动作」，条件改为 `result.verified == true`。非 OPEN 动作改写为「请求已经发出，但没能确认结果，请你看一眼」、`verified = null`、`detail += "; postcondition=unproven(no object evidence)"`；OPEN 保留原有页面专用措辞。仍幂等（第二遍 `verified` 已为 null，不再改写）。
+- `tools/IntentActions.kt` `setTimer`：
+  - 读屏从 `screenTexts(80)` 改为 `readScreen(80)`，并新增 `pageOk = tab == "clicked" && read.rootPackage == UiAutomator.CLOCK_PKG && read.selectedTabs["定时器"] == true`。未满足时 `countdown-ui=unknown`、`page=unconfirmed`，句子仍是「无法确认是否真的开始」。
+  - 新增 `countdownWording(text)`：`(\d+)\s*个\s*定时器正在运行` 命中时要求 `N > 0`；无数字的「定时器正在运行」仍算运行证据；「剩余 / 倒计时 / N 分钟 M 秒」同前。显式「0 个定时器正在运行」现在给出 `countdown-ui=false`。
+  - 日志只写 `tab/page/countdown/textCount`，不写屏文本。
+
+### 测试（`--offline --rerun-tasks`）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TerminalUnprovenMutationTest`(7) + `TimerDiagnosticsEvidenceTest`(6)，在 `cdf52b1` 上、仅加测试 | **RED 13 tests / 6 failed**（Truth 断言失败：`TerminalUnprovenMutationTest.kt:57/72/88`、`TimerDiagnosticsEvidenceTest.kt:87/102/112`；另 7 条为控制组/回归组，本来就应通过） |
+| 实现 `TerminalState.enforce` + `IntentActions.setTimer` 后同组 | **13 / 13 通过** |
+| 定向 `voice.semantics.*` + `voice.tools.*` | **219 tests / 0 failed / 0 errors / 0 skipped**，exit=0 |
+| 全量 `:app:testDebugUnitTest` | **2309 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿** |
+
+首次实现后 1 条失败：新句「没能确认已经完成」里的「已经完成」撞上测试的 `doesNotContain("完成")`。未放宽断言，改生产句子为「没能确认结果」（语义更准，也不含「完成」）。
+
+旧夹具 `IntentCreationVerificationTest` / `TimerTabNavigationSafetyTest` 的 `screenTexts` 桩改为 `readScreen` 桩并补 `rootPackage`/`selectedTabs` 页面身份（生产路径已改，断言未删未弱化；`TimerTabNavigationSafetyTest` 的「countdown-ui=false」现在只在页面身份成立时可达）。
+
+### 边界（如实）
+
+- **P1 的后果**：真机上所有声明 `expectedState` 的变更现在都会被改成「没能确认结果」，因为仍没有生产者填 `observed`。误报消失，但「已确认完成」的播报能力仍为零——不是新回归，是上一轮已存在的状态被真正执行到输出层。
+- 页面身份依赖 `readTree` 的 `selectedTabs`，其对三星真机的可靠性**未验证**：不暴露 `selected` 时结果为 `unknown`（更保守），不会假报 `true`。
+- 未构建、未安装、未实测；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测，实机需用户**重新授权**。
+- 未做：`observed` 的真实生产者（取消/关闭/创建的对象身份回读）、在线 `ToolRouter` 同门禁（阶段 2）、正文双标签卡片身份、`closeAlarm` 的全列表枚举。
