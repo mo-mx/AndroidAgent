@@ -16,6 +16,13 @@ Issue #3 / PR #4；分支 `feat/semantic-gate`；2026-10-31。
 - `ClockReadDiagnosticsTest` 的 `tab=label-only` 断言改为新的 `tab=click-failed-label-only`（原因名变化，拒绝语义更强，未放宽）；`SemanticExecutionTest` 的 fixture 补上时钟包名，否则“取消不存在的闹钟”会先被外来窗口门拦下——这是 fixture 补全，不是断言削弱。
 - **本轮未实机**：`selected` 在本机三星时钟上是否真的暴露未验证；`null` 时仍按“点击成功”判定，属已知残余风险，已在 `detail` 中可见。
 
+同轮补丁（复审 `6539848799` 对 head `3253319` 的遗留项）：
+
+- **绑定与点击前的窗口复核**：`closeAlarm` / `cancelTimer` 原先在 `openClockTab` 之后直接 `UiAutomator.root()` 扫描并点击节点，只证明了“读到的页面”，没证明“点击时仍是时钟窗口”。现两处在 scan 前与 click 前各查一次 `foregroundPackage == com.sec.android.app.clockpackage`，不符即 `DEVICE_UNAVAILABLE`（“无法确认窗口/窗口变了”），**不会**据此说“闹钟不存在”，也不点击。
+- **截断不再变成确定结论**：`timerCountFrom(texts, truncated)` 在截断时返回 -1（未知），只有页面上明确写着「N 个定时器正在运行」这种陈述式文本才照常采用；`queryAlarms` 的 `readable` 要求未被截断，闹钟播报新增“读取被截断”分支；`closeAlarm` 在截断且未找到目标时答“没法确认”，不再答“没有这个闹钟”。`detail` 增加 `truncated=`。
+- **TDD**：`ClockWindowBindingTest`(6) 先失败 5 项（窗口切换后仍点击、外来窗口扫描、计时器截断计数、闹钟截断可读、窗口切换未拦截），随后 GREEN。定向 74/74；全量 **2177 tests / 6 failed / 8 skipped / 0 errors**，失败仍为 `AgentSkillCatalogTest`(1) + `MemoryStoreTest`(5)。
+- 仍未实机：窗口切换拦截只经 JVM fixture 验证；三星时钟是否会在读取与点击之间把前台交回 `VoiceActivity` 未实测。
+
 ## 第五轮：P1 根因定位 + 修复复测（实机验证）
 
 依据 PR #4 复审 `6539505148`。第四轮只做了可观测性；本轮采集真机证据后定位并修复。
