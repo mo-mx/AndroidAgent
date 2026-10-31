@@ -1,8 +1,10 @@
 # PROJECT_STATUS — 当前真实状态
 
-最后更新：2026-10-31（已获阶段1非破坏性实机授权；审查head debug构建/install -r及APK哈希读回完成；Z Flip5仍锁屏，7项功能验收全部未测，需用户解锁）
+最后更新：2026-10-31（解锁后阶段1文字实测：2通过/1失败/4未测；未全部通过，需要复审）
 
-本轮最新状态优先于下文历史记录：源码SHA 2ff514ff0b333f9dafe6947685c059fff91cf475；原APK/配置已本地备份，安装前后shared_prefs归档相同，无障碍均已绑定。未绕过锁屏、未改高风险设置、未调用付费API。详见 docs/phase6-stage1-device-acceptance.md。阶段1不是已通过，阶段2/3未推进。
+本轮最新状态：解锁已读回 deviceLocked=0，无障碍仍Bound，安装APK哈希与2ff514f构建记录一致。两商店身份及二级页不虚报通过；时钟查询业务失败，其他4项安全条件不足未测。未重建/改源码/触碰个人时钟对象。详见 docs/phase6-stage1-device-acceptance.md 解锁后续验收。下文“锁屏”“全部未测”为上一轮历史记录，不代表当前。
+
+上一轮部署记录：源码SHA 2ff514ff0b333f9dafe6947685c059fff91cf475；原APK/配置已本地备份，安装前后shared_prefs归档相同，无障碍均已绑定。未绕过锁屏、未改高风险设置、未调用付费API。详见 docs/phase6-stage1-device-acceptance.md。阶段1不是已通过，阶段2/3未推进。
 设备：Samsung SM-F731U1（Z Flip5，美版）/ Android 17（SDK 37）/ One UI 9
 状态标注约定：`实机验证` = 真机跑过且有日志；`源码分析` = 只读了代码；`未验证` = 没测过。
 
