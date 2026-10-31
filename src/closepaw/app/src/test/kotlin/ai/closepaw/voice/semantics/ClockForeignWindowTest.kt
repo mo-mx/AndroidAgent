@@ -92,7 +92,8 @@ class ClockForeignWindowTest {
 
     @Test fun `alarms are still read when the clock window is the active one`() {
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
-            texts = listOf("8:00", "9:00"), nodesVisited = 40, rootPackage = clockPkg, serviceAvailable = true)
+            texts = listOf("8:00", "9:00"), nodesVisited = 40, rootPackage = clockPkg,
+            serviceAvailable = true, checkableCount = 2)
         val r = ClockControl.queryAlarms(ctx)
         assertThat(r.verified).isTrue()
         assertThat(r.detail).contains("visible=[8:00, 9:00]")

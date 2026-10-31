@@ -17,6 +17,8 @@ class TimerObjectExecutionTest {
         val n = mockk<AccessibilityNodeInfo>(relaxed = true)
         every { n.text } returns text
         every { n.contentDescription } returns null
+        // These fixtures model the clock's own window: binding now requires the node's package.
+        every { n.packageName } returns "com.sec.android.app.clockpackage"
         every { n.childCount } returns children.size
         children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
         return n

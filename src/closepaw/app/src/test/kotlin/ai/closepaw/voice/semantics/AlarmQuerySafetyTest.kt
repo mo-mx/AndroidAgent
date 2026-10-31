@@ -20,7 +20,10 @@ class AlarmQuerySafetyTest {
 
     @Test fun `null next alarm with disabled entries is not an empty list`() {
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
-            texts = listOf("闹钟", "8:00", "已关闭"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
+            // A real alarm row carries a switch; without that structural evidence the page could be
+            // the world clock and its `H:mm` rows must not be enumerated as alarms.
+            texts = listOf("闹钟", "8:00", "已关闭"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage",
+            serviceAvailable = true, checkableCount = 1)
         val r = ClockControl.queryAlarms(ctx)
         assertThat(r.speak).contains("没有下一个已启用")
         assertThat(r.speak).contains("列表仍有")

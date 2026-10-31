@@ -197,6 +197,13 @@ object UiAutomator {
         val textsTruncated: Boolean = false,
         val rootPackage: String? = null,
         val serviceAvailable: Boolean = false,
+        /**
+         * How many nodes in this read advertise a checkable control. The alarm list rows carry
+         * switches and the other clock tabs (world clock, stopwatch) carry none, so this is the
+         * structural evidence that separates "this is the alarm list" from "this is a clock page
+         * that happens to show `H:mm` text".
+         */
+        val checkableCount: Int = 0,
     )
 
     const val MAX_NODES = 600
@@ -215,6 +222,7 @@ object UiAutomator {
         queue.add(r)
         var visited = 0
         var dropped = false
+        var checkables = 0
         fun take(s: CharSequence?) {
             val t = s?.toString()
             if (t.isNullOrBlank()) return
@@ -223,11 +231,12 @@ object UiAutomator {
         while (queue.isNotEmpty() && visited < MAX_NODES) {
             val n = queue.removeFirst()
             visited++
+            if (runCatching { n.isCheckable }.getOrDefault(false)) checkables++
             take(n.text)
             take(n.contentDescription)
             for (i in 0 until n.childCount) runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
         }
         val pkg = runCatching { r.packageName?.toString() }.getOrNull()
-        return ScreenRead(out, visited, queue.isNotEmpty(), dropped, pkg, serviceAvailable)
+        return ScreenRead(out, visited, queue.isNotEmpty(), dropped, pkg, serviceAvailable, checkables)
     }
 }

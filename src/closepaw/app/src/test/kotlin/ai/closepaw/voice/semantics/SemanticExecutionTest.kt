@@ -60,7 +60,24 @@ class SemanticExecutionTest {
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
             texts = listOf("2 个定时器正在运行", "5 分钟", "10 分钟", "取消", "取消"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         every { UiAutomator.clickText("取消") } returns true
-        every { UiAutomator.root() } returns null
+        // Two clock-owned cancel controls and no duration evidence: nothing can be bound uniquely.
+        val a = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        val b = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        listOf(a, b).forEach {
+            every { it.text } returns "取消"
+            every { it.contentDescription } returns null
+            every { it.packageName } returns "com.sec.android.app.clockpackage"
+            every { it.isClickable } returns true
+            every { it.childCount } returns 0
+        }
+        val clockRoot = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { clockRoot.text } returns ""
+        every { clockRoot.contentDescription } returns null
+        every { clockRoot.packageName } returns "com.sec.android.app.clockpackage"
+        every { clockRoot.childCount } returns 2
+        every { clockRoot.getChild(0) } returns a
+        every { clockRoot.getChild(1) } returns b
+        every { UiAutomator.root() } returns clockRoot
         val reply = SemanticRunner.run(ctx, "取消五分钟倒计时", 1)
         assertThat(reply).contains("无法唯一定位")
         verify(exactly = 0) { UiAutomator.clickText("取消") }
@@ -121,6 +138,11 @@ class SemanticExecutionTest {
     }
 
     @Test fun `alarm cancel reaches lookup and absent target never creates`() {
+        // An alarm page that says it is empty is real evidence; the target time is then really absent.
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("暂无闹钟"), nodesVisited = 3,
+            rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
+        every { UiAutomator.tabSelected(any()) } returns true
         val reply = SemanticRunner.run(ctx, "取消八点的闹钟", 1)
         assertThat(reply).contains("没有8点0分的闹钟")
         verify(exactly = 1) { UiAutomator.readScreen(120) }
