@@ -64,7 +64,7 @@ class TimerObjectExecutionTest {
         verify(exactly = 0) { second.performAction(any()) }
     }
 
-    @Test fun `alarm binds switch to requested row without coordinate fallback`() {
+    @Test fun `alarm row binding without global identity refuses both switches`() {
         val wrong = node()
         val right = node()
         every { wrong.isCheckable } returns true
@@ -77,9 +77,10 @@ class TimerObjectExecutionTest {
             texts = listOf("9:00", "8:00"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         every { UiAutomator.root() } returns node("", node("", node("9:00"), wrong), node("", node("8:00"), right))
         val result = ClockControl.closeAlarm(ctx, 8, 0)
-        assertThat(result.ok).isTrue()
+        assertThat(result.status).isEqualTo(ToolStatus.BLOCKED)
+        assertThat(result.speak).contains("对象身份")
         assertThat(result.verified).isFalse()
-        verify(exactly = 1) { right.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+        verify(exactly = 0) { right.performAction(any()) }
         verify(exactly = 0) { wrong.performAction(any()) }
         verify(exactly = 0) { UiAutomator.click(any()) }
     }

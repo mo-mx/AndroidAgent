@@ -202,6 +202,25 @@ class ClockWindowGateTest {
         verify(exactly = 0) { UiAutomator.click(any()) }
     }
 
+    @Test fun `non scrollable viewport is not proof of global alarm identity`() {
+        val toggle = node()
+        every { toggle.isCheckable } returns true
+        every { toggle.isChecked } returns true
+        every { toggle.isClickable } returns true
+        every { toggle.performAction(any()) } returns true
+        // OEM omits scrollability. A second same-time alarm may be unloaded; no stable ID or
+        // full-list enumeration is available, even though this tree is traversed completely.
+        val tree = node("", clockPkg, node("", clockPkg, node("8:00"), toggle))
+        every { tree.isScrollable } returns false
+        every { UiAutomator.root() } returns tree
+        val r = ClockControl.closeAlarm(ctx, 8, 0)
+        assertThat(r.status).isEqualTo(ToolStatus.BLOCKED)
+        assertThat(r.verified).isFalse()
+        assertThat(r.speak).contains("对象身份")
+        verify(exactly = 0) { toggle.performAction(any()) }
+        verify(exactly = 0) { UiAutomator.click(any()) }
+    }
+
     @Test fun `tab switch clicks the tab label itself not a card that contains it`() {
         // Real device shape: the hint card 对关联闹钟进行分组 sits above the tab bar. The loose
         // matcher tapped the card, the page never changed, and the read still came from the clock.

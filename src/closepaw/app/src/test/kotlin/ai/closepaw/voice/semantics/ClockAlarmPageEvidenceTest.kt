@@ -136,9 +136,10 @@ class ClockAlarmPageEvidenceTest {
 
         val r = ClockControl.closeAlarm(ctx, 8, 0)
 
-        assertThat(r.ok).isTrue()
-        assertThat(r.verified).isFalse() // a click is still not a verified closure
-        verify(exactly = 1) { toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+        assertThat(r.status).isEqualTo(ToolStatus.BLOCKED)
+        assertThat(r.speak).contains("对象身份")
+        assertThat(r.verified).isFalse() // recovered viewport is not global object identity
+        verify(exactly = 0) { toggle.performAction(any()) }
         verify(exactly = 1) { AppRegistry.launch(any(), any()) }
         verify(exactly = 0) { UiAutomator.click(any()) }
     }

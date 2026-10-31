@@ -1,5 +1,14 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第⑫轮更新（源码分析 + JVM；未实机）
+
+继续处理复审 `6541088857` P1：关闭闹钟不再以 `isScrollable=false` 或完整遍历已加载树证明全局唯一。当前适配器没有完整列表枚举及业务对象身份，故即使唯一可见开关也返回 BLOCKED / verified=false，不点击、不声称目标已关闭；删除复用该安全拒绝。关闭能力当前不可用，不是对象身份能力已实现。
+
+TDD 新增 OEM 不暴露 scrollable、视口外重复对象无节点的回归：有效 RED 11 tests / 1 failed（预期 BLOCKED 实为 SUCCESS）。修后定向 `--rerun-tasks` 110 tests / 0 failed / 0 errors / 0 skipped；全量 2200 tests / 6 failed / 0 errors / 8 skipped，Gradle exit=1，不是全绿。失败为 AgentSkillCatalogTest 1项、MemoryStoreTest 5项，未重跑旧 SHA 基线。旧两条关闭成功测试改为更严格的拒绝及点击零次，保留窗口恢复调用和错误对象不点击断言。日志 `logs/pr4-review12-{red,targeted,full}.txt` 和汇总 JSON 本地保留。首次未加载 env.sh 的 JAVA_HOME 启动失败不作为 RED。
+
+P1 的可见对象误操作路径已失败闭合，待复审；**P2 恢复后同树页面证据、旧 selected 回退、绑定恢复独立负向回归仍待修**，继续存在离线任务。未构建安装 APK、未操作手机、未调用付费 API、未动 Issue #6、不合并、不 push main。新一轮实机需用户重新授权，既有实机矩阵不变。需要复审。
+
+
 ## 第⑪轮局部更新（源码分析 + JVM；未实机）
 
 继续处理复审 `6541088857` 的 P1：绑定树中出现 `isScrollable` 时，当前唯一可见开关不再作为全列表唯一性证明，返回 BLOCKED / verified=false，且不点击开关。新增仅加载一个 08:00、另一重复对象在视口外无节点的合成树回归，保留关闭点击零次断言。TDD RED 10 tests / 1 failed；定向 `--rerun-tasks` 109 tests / 0 failed / 0 errors / 0 skipped；全量 2199 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿（AgentSkillCatalogTest 1项、MemoryStoreTest 5项；本轮未重跑旧 SHA 基线）。日志 `logs/pr4-review11-{red,targeted,full}.txt` 本地保留。

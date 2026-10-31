@@ -461,7 +461,6 @@ object ClockControl {
         if (!complete || matches.size != 1) return ToolResult(ToolStatus.BLOCKED, "alarm_close",
             "无法唯一定位这个闹钟的开关，请确认具体对象", "switch candidates=${matches.size}", false)
         val switch = matches.single()
-        if (!switch.isChecked) return ToolResult.ok("alarm_close", "${hour}点${minute}分的闹钟已经是关着的", verified = true)
         // The node must still belong to the clock, and the clock must still be the window in front:
         // a switch that survived a window change must not be clicked.
         if (switch.packageName?.toString() != CLOCK_PKG) {
@@ -472,11 +471,12 @@ object ClockControl {
             return ToolResult.unavailable("alarm_close", "关闭前时钟窗口变了，没有执行操作",
                 "window changed before click")
         }
-        val clicked = switch.isClickable && switch.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
-        // No business-state re-read yet: a successful click is not successful cancellation.
-        return if (clicked) ToolResult(ToolStatus.SUCCESS, "alarm_close",
-            "已请求关闭${hour}点${minute}分的闹钟，但无法确认最终状态", "bound switch clicked; no fresh state read-back", false)
-        else ToolResult.error("alarm_close", "点不动这个开关", "node click failed")
+        // Neither a complete traversal nor isScrollable=false proves the OEM loaded all alarms.
+        // This adapter has no full-list enumeration or stable business-object identity. Do not
+        // mutate (or claim the requested object is already off) using a viewport-only time match.
+        return ToolResult(ToolStatus.BLOCKED, "alarm_close",
+            "无法确认完整列表中的唯一对象身份，没有执行关闭，请在时钟中确认具体闹钟",
+            "full list and business object identity unavailable; no switch click", false)
     }
 
     fun deleteAlarm(ctx: Context, hour: Int, minute: Int): ToolResult {
