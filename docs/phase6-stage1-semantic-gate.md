@@ -3,6 +3,19 @@
 Issue #3 / PR #4；分支 `feat/semantic-gate`；2026-10-31。
 性质：源码分析 + 本机 Gradle JVM 回归 + 第五轮真机复测。阶段 1 仍待审查/设备验收，不代表整个 Issue 完成。
 
+## 第六轮：tab“到达”语义拆分（源码 + JVM，未实机）
+
+依据 PR #4 复审 `6539752681` 的 P2：`openClockTab` 用 `clickText(tab) || waitForText(tab, 800)`，点击失败但只要标签仍在屏上就返回 true。
+时钟底部四个标签在**每一页**都存在，因此“标签可见”不能证明切到了目标页；世界时钟页的时间文本同样匹配 `^[0-9]{1,2}:[0-9]{2}$`，可能被当成闹钟列表。
+
+- **三个事实分开记录**：`UiAutomator.selectedState(root, text): Boolean?` —— `true` 选中；`false` 树里暴露了选中状态且该 tab 未选中；`null` tab 不存在或该树根本没暴露选中状态。`ClockControl.openClockTab` 只在 `clicked && selected != false` 或 `selected == true` 时算到达，`reason ∈ {clicked, clicked-not-selected, selected, click-failed-label-only, launch-not-foreground, label-not-found, app-not-found}`。
+- **读取前复核目标页**：`onTargetPage(read, tab)` 要求 `rootPackage == com.sec.android.app.clockpackage` **且** 该 tab 未被报告为未选中；`queryAlarms` / `queryTimers` / `closeAlarm` 统一走这条门。`selected == null`（平台不暴露选中态）不阻止读取，但会在 `detail` 的 `tab=` 里如实写出。
+- **`closeAlarm` 不再读原始活动窗口**：改用 `readClockScreen`，外来窗口（例如 ClosePaw 自己的 `VoiceActivity`）返回 `DEVICE_UNAVAILABLE`，不会把“读不到”说成“没有这个闹钟”。
+- **未使用坐标或盲点兜底**；没有为了通过率放宽任何拒绝分支。
+- **TDD**：新增 `ClockTabReachTest`(6) 与 `TabSelectedStateTest`(6)。RED 为行为失败（6 项 `ClockTabReachTest` 全失败，`TabSelectedStateTest` 的祖先选中项失败），随后 GREEN。
+- `ClockReadDiagnosticsTest` 的 `tab=label-only` 断言改为新的 `tab=click-failed-label-only`（原因名变化，拒绝语义更强，未放宽）；`SemanticExecutionTest` 的 fixture 补上时钟包名，否则“取消不存在的闹钟”会先被外来窗口门拦下——这是 fixture 补全，不是断言削弱。
+- **本轮未实机**：`selected` 在本机三星时钟上是否真的暴露未验证；`null` 时仍按“点击成功”判定，属已知残余风险，已在 `detail` 中可见。
+
 ## 第五轮：P1 根因定位 + 修复复测（实机验证）
 
 依据 PR #4 复审 `6539505148`。第四轮只做了可观测性；本轮采集真机证据后定位并修复。

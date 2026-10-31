@@ -55,6 +55,49 @@ object UiAutomator {
 
     fun waitForText(text: String, timeoutMs: Long): Boolean = findNode(text, timeoutMs) != null
 
+    /**
+     * Selected state of the node whose text/content-description names [text] (or of its nearest
+     * ancestors), i.e. whether that navigation tab is the active one.
+     *
+     * Three outcomes, deliberately not collapsed: `true` = selected; `false` = the tree exposes
+     * selection state and this tab is not the selected one; `null` = the tab is absent or this tree
+     * exposes no selection state at all, so "reached" cannot be decided from it.
+     */
+    fun tabSelected(text: String): Boolean? = selectedState(root(), text)
+
+    internal fun selectedState(r: AccessibilityNodeInfo?, text: String): Boolean? {
+        if (r == null) return null
+        val target = text.trim().lowercase()
+        if (target.isEmpty()) return null
+        var match: AccessibilityNodeInfo? = null
+        var anySelected = false
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(r)
+        var guard = 0
+        while (queue.isNotEmpty() && guard++ < MAX_NODES) {
+            val n = queue.removeFirst()
+            if (runCatching { n.isSelected }.getOrDefault(false)) anySelected = true
+            if (match == null) {
+                val labels = listOfNotNull(runCatching { n.text?.toString() }.getOrNull(),
+                    runCatching { n.contentDescription?.toString() }.getOrNull())
+                if (labels.any { it.trim().lowercase().contains(target) }) match = n
+            }
+            for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
+                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
+            }
+        }
+        val node = match ?: return null
+        var cur: AccessibilityNodeInfo? = node
+        var hops = 0
+        while (cur != null && hops++ < 4) {
+            if (runCatching { cur!!.isSelected }.getOrDefault(false)) return true
+            cur = runCatching { cur!!.parent }.getOrNull()
+        }
+        // No node in the tree advertises selection at all → the platform does not expose it here.
+        if (!anySelected) return null
+        return false
+    }
+
     fun clickText(text: String): Boolean {
         val n = findNode(text) ?: return false
         return click(n)

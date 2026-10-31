@@ -22,7 +22,10 @@ class SemanticExecutionTest {
         every { VoiceSession.isCurrent(any()) } returns true
         every { UiAutomator.foregroundPackage() } returns "com.sec.android.app.clockpackage"
         every { UiAutomator.clickText("闹钟") } returns true
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead()
+        // The alarm page must come from the clock package (the tool now refuses foreign windows);
+        // the fixture models an empty clock page, which is what "no such alarm" needs.
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
     }
     @After fun cleanup() = unmockkAll()
 

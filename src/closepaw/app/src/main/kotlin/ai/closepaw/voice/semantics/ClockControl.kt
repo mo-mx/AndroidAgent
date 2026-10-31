@@ -26,11 +26,12 @@ object ClockControl {
 
     // ── UI plumbing ──
     /**
-     * How the clock tab was reached. [reached] keeps the old true/false meaning (a tap was reported
-     * or the label is on screen); [reason] records *which* way, because the device run could not
-     * tell "we read the wrong page" apart from "we read the right page and saw nothing".
+     * How the clock tab was reached. Three facts are kept apart: the nav control exists, a click was
+     * delivered, and the target tab actually reports selected. [reached] is true only when the click
+     * was delivered to a tab that is not reported as unselected, or when the tab already reports
+     * selected. A visible tab label is never enough: the clock keeps all four labels on every page.
      */
-    private data class TabReach(val reached: Boolean, val reason: String)
+    internal data class TabReach(val reached: Boolean, val reason: String)
 
     private fun openClockTab(ctx: Context, tab: String): TabReach {
         val fg = UiAutomator.foregroundPackage()
@@ -47,14 +48,19 @@ object ClockControl {
             }
         }
         val clicked = UiAutomator.clickText(tab)
-        val labelSeen = clicked || UiAutomator.waitForText(tab, 800)
+        val selected = UiAutomator.tabSelected(tab)
+        // Only asked when the click was not delivered: it separates "control missing" from
+        // "control visible but the tap did nothing".
+        val controlPresent = !clicked && UiAutomator.waitForText(tab, 600)
         val reason = when {
+            clicked && selected == false -> "clicked-not-selected"
             clicked -> "clicked"
-            labelSeen -> "label-only"
+            selected == true -> "selected"
+            controlPresent -> "click-failed-label-only"
             launched && foregroundConfirmed == false -> "launch-not-foreground"
             else -> "label-not-found"
         }
-        return TabReach(labelSeen, reason)
+        return TabReach(reason == "clicked" || reason == "selected", reason)
     }
 
     /** Read-boundary fields shared by the clock queries; values are facts, not conclusions. */
@@ -87,7 +93,13 @@ object ClockControl {
         return read
     }
 
-    private fun onClock(read: UiAutomator.ScreenRead) = read.rootPackage == CLOCK_PKG
+    /**
+     * The page is the one this query is about only when both hold: the read came from the clock and
+     * the tab is not reported as unselected. `null` selection is accepted here (some builds do not
+     * expose it) but is reported as `tab=` in [describe]; an explicit `false` is a wrong page.
+     */
+    private fun onTargetPage(read: UiAutomator.ScreenRead, tab: String) =
+        read.rootPackage == CLOCK_PKG && UiAutomator.tabSelected(tab) != false
 
     /** Number of running timers, parsed from the timer tab header. -1 when unreadable. */
     fun runningTimerCount(): Int = timerCountFrom(UiAutomator.readScreen(60).texts)
@@ -112,7 +124,7 @@ object ClockControl {
         val reach = openClockTab(ctx, "定时器")
         Thread.sleep(500)
         val read = readClockScreen(ctx, "定时器", 60)
-        if (!onClock(read)) {
+        if (!reach.reached || !onTargetPage(read, "定时器")) {
             return ToolResult(
                 ToolStatus.DEVICE_UNAVAILABLE, "timer_query",
                 "没读到时钟的定时器页面，没法确认现在有没有倒计时", describe(read, reach) + " window=not-clock"
@@ -204,12 +216,13 @@ object ClockControl {
         val reach = openClockTab(ctx, "闹钟")
         Thread.sleep(500)
         val read = readClockScreen(ctx, "闹钟", 120)
-        val texts = if (reach.reached && onClock(read)) read.texts else emptyList()
+        val pageOk = reach.reached && onTargetPage(read, "闹钟")
+        val texts = if (pageOk) read.texts else emptyList()
         val listed = texts.map { it.trim() }.filter { Regex("^[0-9]{1,2}:[0-9]{2}$").matches(it) }
         // A missing nextAlarm is only a system scheduling observation, not enumeration.
         // Require an explicit empty-state marker; absent/truncated UI is unknown, not empty.
         val empty = listed.isEmpty() && texts.any { it.trim() in setOf("暂无闹钟", "没有闹钟", "无闹钟") }
-        val readable = reach.reached && onClock(read) && (listed.isNotEmpty() || empty)
+        val readable = pageOk && (listed.isNotEmpty() || empty)
         val speech = when {
             nextText != null && listed.isNotEmpty() ->
                 "下一个闹钟是 $nextText，当前可见列表有 ${listed.size} 个时间显示（不代表完整列表）"
@@ -235,7 +248,16 @@ object ClockControl {
         Thread.sleep(700)
 
         val target = "$hour:" + String.format(java.util.Locale.CHINA, "%02d", minute)
-        val read = UiAutomator.readScreen(120)
+        // closeAlarm used to read the raw active window; our own voice window would then look like an
+        // alarm list without the target time, i.e. "no such alarm" instead of "could not read".
+        val read = readClockScreen(ctx, "闹钟", 120)
+        if (!onTargetPage(read, "闹钟")) {
+            return ToolResult.unavailable(
+                "alarm_close",
+                "没读到时钟的闹钟页面，没法确认${hour}点${minute}分有没有闹钟",
+                describe(read, reach) + " window=not-clock"
+            )
+        }
         val texts = read.texts
         val present = texts.any { it.trim() == target || it.trim() == "${hour}:${minute}" }
         Log.i(TAG, "closeAlarm target=$target present=$present ${describe(read, reach)} texts=$texts")

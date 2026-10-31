@@ -42,13 +42,15 @@ class ClockReadDiagnosticsTest {
     }
 
     @Test fun `alarm query distinguishes a label-only tab tap from a clicked tab`() {
-        // The tab label is on screen but the click did not report success: either the tab was
-        // already selected or the tap missed. Reading such a page cannot prove the alarm list.
+        // The tab label is on screen but the click did not report success and no tab in the tree
+        // reports selected: either the tap missed or the platform hides selection. Reading such a
+        // page cannot prove the alarm list, so the new reason is click-failed-label-only.
         every { UiAutomator.clickText("闹钟") } returns false
         every { UiAutomator.waitForText("闹钟", any()) } returns true
+        every { UiAutomator.tabSelected("闹钟") } returns null
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead()
         val r = ClockControl.queryAlarms(ctx)
-        assertThat(r.detail).contains("tab=label-only")
+        assertThat(r.detail).contains("tab=click-failed-label-only")
         assertThat(r.detail).contains("readable=false")
         assertThat(r.verified).isFalse()
         assertThat(r.speak).contains("无法读取闹钟列表")

@@ -1,10 +1,11 @@
 # PROJECT_STATUS — 当前真实状态
 
-最后更新：2026-10-31（第③轮：时钟读取失败已定位并修复复测；矩阵 4 通过 / 0 失败 / 3 未测；阶段 1 仍未整体通过）
+最后更新：2026-10-31（第④轮：tab“到达”语义拆分，复审 `6539752681` P2；本轮未实机）
 
-本轮最新状态（第③轮，实机验证）：按 PR #4 复审 `6539505148` 先采只读证据再修。根因是**读到了 ClosePaw 自己的窗口**：`VoiceActivity` 全屏窗口中途抢焦点，`rootInActiveWindow` 变成 `ai.closepaw nodes=3`，旧代码点完 tab 固定 sleep 500ms 就读且不校验根节点包名，于是把空窗当“时钟页不可读”；次因是 `runningTimerCount` 只认「添加定时器/正在运行」，而本机空态是 `小时/分钟/秒 + 开始` 选择器、运行态是 `取消/暂停` 卡片。已按 TDD 修复并复测：ALARM QUERY `verified=true readable=true`，TIMER QUERY 1 个运行→`count=1`、清理后→0（verified=true）。构建 APK SHA256 `45e74c03…b60a2333`，install -r 后无障碍仍 Bound。矩阵：通过 4 / 失败 0 / 未测 3；计时器取消绑定、五分钟工具参数、取消不存在目标、undo 仍缺安全对象证据。
+本轮最新状态（第④轮，源码分析 + JVM）：按复审 `6539752681` 的 P2 修 `openClockTab` 的假到达——旧逻辑 `clickText(tab) || waitForText(tab, 800)` 在点击失败时只要标签还可见就算到达，而时钟四个底部标签每页都在。现拆成三个事实（导航控件存在 / 点击已投递 / 目标 tab 报告选中）：`UiAutomator.selectedState` 返回 `true / false / null`，`null`（平台不暴露选中态）与 `false`（明确未选中）不再混同；读取前用 `onTargetPage` 复核“时钟包名 + 该 tab 未报告未选中”。`closeAlarm` 不再读原始活动窗口，外来窗口一律 `DEVICE_UNAVAILABLE`，不把“读不到”说成“没有这个闹钟”。新增 `ClockTabReachTest`(6) + `TabSelectedStateTest`(6)，先 RED 后 GREEN；定向 51/51；全量 2171 tests / 6 failed / 8 skipped / 0 errors（仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与基线一致，不是全绿）。本轮未构建 APK、未上机；`selected` 在本机三星时钟是否暴露未验证。矩阵不变：通过 4 / 失败 0 / 未测 3。
+上一轮状态（第③轮，实机验证）：按 PR #4 复审 `6539505148` 先采只读证据再修。根因是**读到了 ClosePaw 自己的窗口**：`VoiceActivity` 全屏窗口中途抢焦点，`rootInActiveWindow` 变成 `ai.closepaw nodes=3`，旧代码点完 tab 固定 sleep 500ms 就读且不校验根节点包名，于是把空窗当“时钟页不可读”；次因是 `runningTimerCount` 只认「添加定时器/正在运行」，而本机空态是 `小时/分钟/秒 + 开始` 选择器、运行态是 `取消/暂停` 卡片。已按 TDD 修复并复测：ALARM QUERY `verified=true readable=true`，TIMER QUERY 1 个运行→`count=1`、清理后→0（verified=true）。构建 APK SHA256 `45e74c03…b60a2333`，install -r 后无障碍仍 Bound。矩阵：通过 4 / 失败 0 / 未测 3；计时器取消绑定、五分钟工具参数、取消不存在目标、undo 仍缺安全对象证据。
 
-上一轮状态：按复审 P1 做了源码级可观测性改造（`readScreen` 报告 `nodesVisited/nodesTruncated/textsTruncated/rootPkg`，`ClockControl` 报告 tab 到达方式），当时未实机、根因未定位。
+更早（第②轮）：按复审 P1 做了源码级可观测性改造（`readScreen` 报告 `nodesVisited/nodesTruncated/textsTruncated/rootPkg`，`ClockControl` 报告 tab 到达方式），当时未实机、根因未定位。
 上一轮状态（第②轮）：解锁已读回 deviceLocked=0，无障碍仍Bound，安装APK哈希与2ff514f构建记录一致。两商店身份及二级页不虚报通过；时钟查询业务失败，其他4项安全条件不足未测。未重建/改源码/触碰个人时钟对象。详见 docs/phase6-stage1-device-acceptance.md 第②轮。
 
 上一轮部署记录：源码SHA 2ff514ff0b333f9dafe6947685c059fff91cf475；原APK/配置已本地备份，安装前后shared_prefs归档相同，无障碍均已绑定。未绕过锁屏、未改高风险设置、未调用付费API。详见 docs/phase6-stage1-device-acceptance.md。阶段1不是已通过，阶段2/3未推进。
@@ -31,7 +32,7 @@
 | 4.6 | Direct Boot 救援通道（未解锁也能被查询/拉起/播报） | 完成 | `docs/direct-boot-rescue-report.md`（实机） |
 | 4.7 | scrcpy 无线投屏 | 视频链路完成，控制注入待人工确认 | `docs/scrcpy-wireless.md` |
 | 5 | 唤醒词 + 声纹（sherpa-onnx KWS + SpeakerEmbedding） | **未开始** | — |
-| 6 | 语义闸门 + 把自研能力包成 ClosePaw ToolSpec | **进行中（第 1 步审查修复，未实机）** | `docs/phase6-stage1-semantic-gate.md`（源码 + JVM 单测） |
+| 6 | 语义闸门 + 把自研能力包成 ClosePaw ToolSpec | **进行中（阶段 1 设备验收第③轮：时钟读取已修复并实机复测；第④轮 tab 到达语义修复，未实机）** | `docs/phase6-stage1-semantic-gate.md`（源码 + JVM 单测）、`docs/phase6-stage1-device-acceptance.md`（实机） |
 | 7 | GitHub 协作仓库 | 完成（本次） | 本仓库 |
 
 ## 3. 已验证可用的功能（实机）
@@ -75,12 +76,12 @@
 
 ## 5. 正在执行的任务
 
-本轮按 PR 复审 `IC_kwDOVdfNwc8AAAABhcjt_A`（P1 先定位时钟 UI 读取失败 / P2 文档区分轮次）做了两件事：P2 订正 `docs/phase6-stage1-device-acceptance.md`（标题与轮次索引，历史第一轮不再冒充当前）；P1 只做源码级诊断，把 tab 到达方式与读屏边界暴露到 `detail`，定向 JVM 54/54 通过（含 6 条新增诊断用例，RED→GREEN 分段记录）。时钟 UI 读取失败**未定位根因**，需一次用户授权的只读运行采集前台包/根节点/是否截断/行文本形状。未实机、未装包、未推进阶段 2/3。
+（第②轮，历史）按 PR 复审 `IC_kwDOVdfNwc8AAAABhcjt_A`（P1 先定位时钟 UI 读取失败 / P2 文档区分轮次）做了两件事：P2 订正 `docs/phase6-stage1-device-acceptance.md`（标题与轮次索引，历史第一轮不再冒充当前）；P1 只做源码级诊断，把 tab 到达方式与读屏边界暴露到 `detail`，定向 JVM 54/54 通过（含 6 条新增诊断用例，RED→GREEN 分段记录）。时钟 UI 读取失败**未定位根因**，需一次用户授权的只读运行采集前台包/根节点/是否截断/行文本形状。未实机、未装包、未推进阶段 2/3。
 上一轮按 PR 评论 6538790664 修复 undo 误取消既存对象：统一结果准入，时钟创建无本轮对象身份及身份绑定逆操作时不能安全撤销，移除时长/时分 undo；新尝试清除旧记忆。闹钟查询区分无下个已启用、可见非空（可能含关闭项）、明确空态、UI不可读。定向 JVM 48/48；全量 2138 tests / 6 failed / 8 skipped / 0 errors，未实机、未推进阶段2/3。
 上一轮按 PR 评论 6538288842 修复新建倒计时/闹钟的假验证：既存对象不作为本次创建证明，缺少唯一目标回读则 verified=false；删除闹钟反馈不再把点击说成关闭完成。定向 JVM 42/42；全量 2132 tests / 6 failed / 8 skipped / 0 errors，失败类仍为 AgentSkillCatalogTest / MemoryStoreTest。未实机、未推进阶段 2/3。
 上一轮：Issue #3 / PR #4 在 `feat/semantic-gate` 修复审查：ALARM CANCEL 可达、计时器取消保留时长并绑定唯一对象、一般 APP 必须用安装清单核对原话与实际包名。相关 JVM 回归 38/38；全量 2128 tests / 6 failed / 8 skipped。隔离修复前 head `4d1e78d` 复跑两个失败类 55 tests / 同样 6 failed，失败名称集合一致，未弱化断言。
 `expectedState` 未被通用终态验证器执行；取消 mutation 无最终业务回读时 `verified=false`。计时器适配仅 JVM fixture 验证，未知三星真实 UI 会拒绝，不能宣称已可用。阶段 1 待审查/设备验收。
-**未构建可安装 APK、未上机**；普通代码修复已获自动推进授权，阶段 1 实机回归仍需单独授权，阶段 2（ToolSpec 适配）未在本次完成。
+（该句属第②轮范围：当时未构建 APK、未上机；第③轮已构建并实机复测，第④轮又回到未实机。）普通代码修复已获自动推进授权，阶段 1 实机回归仍需单独授权，阶段 2（ToolSpec 适配）未在本次完成。
 细节与验收对照见 `docs/phase6-stage1-semantic-gate.md`。
 
 ## 6. 代码现状（与上游的关系）
