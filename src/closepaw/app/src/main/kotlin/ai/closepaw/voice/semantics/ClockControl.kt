@@ -297,11 +297,13 @@ object ClockControl {
         }
         val root = window.root
         val candidates = ArrayList<Pair<android.view.accessibility.AccessibilityNodeInfo, Int>>()
+        val boundTexts = ArrayList<String>()
         var visited = 0
         var complete = true
         fun scan(n: android.view.accessibility.AccessibilityNodeInfo?): Pair<List<android.view.accessibility.AccessibilityNodeInfo>, List<Int>> {
             if (n == null || ++visited > 800) { complete = false; return emptyList<android.view.accessibility.AccessibilityNodeInfo>() to emptyList() }
             val text = listOfNotNull(n.text?.toString(), n.contentDescription?.toString())
+            boundTexts.addAll(text)
             val buttons = ArrayList<android.view.accessibility.AccessibilityNodeInfo>()
             if (text.any { it.trim() == "取消" }) buttons.add(n)
             val durations = ArrayList<Int>()
@@ -343,9 +345,58 @@ object ClockControl {
         }
         // Never use UiAutomator.click: that helper may climb parents or inject coordinates.
         val clicked = button.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
-        return if (!clicked) ToolResult.error("timer_cancel", "已定位倒计时，但取消按钮不可操作", "node click failed")
-        else ToolResult.sentWithoutProof("timer_cancel", "已请求取消指定倒计时，但无法确认最终状态",
-            "bound duration=${matching.single().second}; ACTION_CLICK=$clicked; business state not read back")
+        if (!clicked) return ToolResult.error("timer_cancel", "已定位倒计时，但取消按钮不可操作", "node click failed")
+        val bound = matching.single().second
+        val identity = "timer:$bound"
+        // Read back the same page the click was bound from. `ACTION_CLICK == true` is the gesture,
+        // not the outcome, so the promise "no running timer" is only graded on what the clock shows
+        // afterwards. Counts come from the same tree as the labels, so a shortened page cannot
+        // report a decrease that the visible cards do not support.
+        val beforeCount = timerCountFrom(boundTexts, truncated = !complete)
+        Thread.sleep(700)
+        val after = readClockScreen(ctx, "定时器", 60)
+        val afterPage = onTargetPage(after, "定时器")
+        val afterTruncated = after.textsTruncated || after.nodesTruncated
+        val afterCount = if (afterPage && !afterTruncated) timerCountFrom(after.texts, false) else -1
+        val boundStillListed = after.texts.any {
+            val s = it.trim()
+            (s.startsWith("初始时长") || s.startsWith("总时长")) &&
+                ai.closepaw.voice.tools.ChineseTime.durationSeconds(s) == bound
+        }
+        val facts = "bound duration=$bound; ACTION_CLICK=$clicked; before=${beforeCount}" +
+            " after=${afterCount} page=${if (afterPage) "timer-selected" else "unconfirmed"}" +
+            " truncated=$afterTruncated stillListed=$boundStillListed"
+        Log.i(TAG, "timer cancel readback: $facts")
+        val observed = ai.closepaw.voice.tools.ObservedState(identity, "none", "clock.timerPage")
+        return when {
+            // Could not read the page back at all: the request may well have landed, but nothing
+            // object-level supports saying so.
+            !afterPage || afterTruncated || afterCount < 0 ->
+                ToolResult.sentWithoutProof("timer_cancel", "已请求取消指定倒计时，但无法确认最终状态",
+                    facts + "; readback=" + when {
+                        !afterPage -> "page-unconfirmed"
+                        afterTruncated -> "truncated"
+                        else -> "count-unparsed"
+                    })
+            // The card we bound is still on the page: the clock did not cancel it.
+            boundStillListed && afterCount > 0 -> ToolResult(
+                ToolStatus.SUCCESS, "timer_cancel", "已请求取消，但时钟仍显示这个倒计时", facts, false,
+                ai.closepaw.voice.tools.ObservedState(identity, "running:$bound", "clock.timerPage"),
+            )
+            // Label gone *and* the running count dropped (or the page is now empty): two facts that
+            // agree. A missing header cannot lower a count by itself.
+            !boundStillListed && (
+                (beforeCount >= 1 && afterCount < beforeCount) ||
+                    (beforeCount < 0 && afterCount == 0)
+                ) -> ToolResult(
+                ToolStatus.SUCCESS, "timer_cancel", "已取消这个倒计时，时钟的定时器页面已经没有它了", facts,
+                true, observed,
+            )
+            // Label gone but the count did not drop: the two observations disagree, so neither is
+            // allowed to become a completion claim.
+            else -> ToolResult.sentWithoutProof("timer_cancel", "已请求取消指定倒计时，但无法确认最终状态",
+                facts + "; readback=count-not-lower")
+        }
     }
 
     // ── alarms ──

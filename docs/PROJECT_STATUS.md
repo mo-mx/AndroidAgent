@@ -1,5 +1,36 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㉙轮：取消倒计时首次给出对象级回读证据（源码 + JVM，未实机）
+
+第㉘轮遗留的最大缺口是「`observed` 没有真实生产者」：所有声明了 `expectedState` 的变更在真机上一律 `UNPROVEN`，`CONFIRMED` / `CONTRADICTED` 只有 JVM 夹具可达。本轮先补最容易证伪的一处：**取消计时器点击之后回读同一个定时器页面**。
+
+1. **回读契约**（`ClockControl.cancelTimer`）：`performAction(ACTION_CLICK) == true` 只证明手势投递，旧实现据此返回 `sentWithoutProof`。现在点击后 700 ms 重新走 `readClockScreen("定时器")`，四个事实分别记录、互不替代：
+   - 页面身份：`rootPackage == 时钟包` 且同一次读回的 `selectedTabs["定时器"] == true`；
+   - 读回是否被截断（`textsTruncated || nodesTruncated`）；
+   - 回读后的运行中计数（`timerCountFrom`，同一棵树；页面被判非计时器页时不算）；
+   - 被点击那张卡片的**同一形态**时长标签（`初始时长` / `总时长` + `ChineseTime.durationSeconds`）是否还在。
+2. **判定**：
+   - 页面无法确认 / 截断 / 计数不可解析 → `verified = null`、`observed = null`，句子仍是「无法确认最终状态」（`readback=page-unconfirmed|truncated|count-unparsed`）；
+   - 时长标签仍在且回读计数 > 0 → `verified = false` + `ObservedState(identity="timer:<秒>", state="running:<秒>")`，`TerminalState` 判 `CONTRADICTED` 并降级为 `EXECUTION_ERROR`；
+   - 标签消失 **且** 计数确实下降（或页面变为 0 个）→ `verified = true` + `ObservedState(identity="timer:<秒>", state="none")`，`no_running_timer` 判 `CONFIRMED`；
+   - 标签消失但计数没降 → 两个观测互相矛盾，一律 `verified = null`（`readback=count-not-lower`），不拿其中任一条当完成。
+3. **身份**：`identity = "timer:<绑定时的秒数>"`，与 `SemanticParser` 的 `no_running_timer` 期望配合；`task.targetIdentity` 为空时不强制身份相等（与 `TerminalState.identityMatches` 现有语义一致）。计数与标签取自同一棵树的文本，避免「截断的页面报告了一个下降」。
+
+TDD（全部 `--offline --rerun-tasks`，JDK 17 本地）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 新 `TimerCancelReadbackTest`(5) 先写，实现未改 | **RED 5 tests / 5 failed**，全部是 Truth 断言失败（无编译错误） | `logs/pr4-review29-red.txt` |
+| 实现回读后同组 | **GREEN 5 / 5**，exit=0 | `logs/pr4-review29-green1.txt` |
+| 定向 `voice.semantics.*` + `voice.tools.*` | **224 tests / 0 failed / 0 errors / 0 skipped**，exit=0（上一轮 219，+5 为本轮新测试） | `logs/pr4-review29-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2314 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，本轮未改、未跳过、未重跑旧 SHA 基线） | `logs/pr4-review29-full.txt` |
+
+边界（如实）：
+- 这是**第一次有一个真实路径会给出 `observed`**，但仍然只是 JVM 合成树。三星真机上「取消后卡片是否立刻消失」「运行计数表头是否随取消同步更新」都**未验证**；若表头滞后，真实结果会落到 `count-not-lower` → `UNPROVEN`（保守，不假报成功）。
+- `createTimer` / `closeAlarm` / 手电与Wi-Fi 仍**没有**对象级回读：创建后无法从 UI 读回「原始时长」这个身份（剩余时间不是原始时长，已在第㉕轮说明），所以创建仍一律 `UNPROVEN`；`closeAlarm` 仍因缺全列表/对象身份 `BLOCKED`，是安全拒绝不是功能完成。
+- 在线 `ToolRouter` 同门禁（阶段 2）、正文双标签卡片身份仍待办；后者需实机采集脱敏 UI 树。
+- 本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、不并入 Issue #6、不改受保护规则、不 push main、不合并。实机验收需用户**重新授权**。
+
 ## 第㉖轮：`expectedState` 真正参与判定 + `OPEN` 不再绕过闸门（源码 + JVM，未实机）
 
 针对定时复审 `6546660320`（针对 `2048f6d`，https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6546660320 ）的 P1 与 P2 第 2 条。上一轮（`b1922dc`）评论误称「最新已审 SHA 是 `2212ed6`」，漏掉了这条复审，本轮补上。
