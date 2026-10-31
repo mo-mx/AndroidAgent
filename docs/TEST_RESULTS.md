@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-31 阶段1授权部署：锁屏阻塞（功能未测）
+
+测什么：PR4 head 2ff514ff0b333f9dafe6947685c059fff91cf475 的debug构建、保留配置覆盖安装、设备基线及非破坏性回归。
+怎么测：mDNS发现TLS目标后显式-s连接；getprop/dumpsys trust/accessibility；Gradle :app:assembleDebug；备份原APK与shared_prefs后install -r；重新pull已安装APK计算SHA256。
+实际结果：构建exit=0、安装Success，已安装APK哈希与构建一致（98f06f77df538244db3c57e1a8a65a928b76196969d89d5d2ce273a5dbdf49e3）；shared_prefs归档前后字节相同；无障碍服务安装前后均Bound。当前用户deviceLocked=1，未绕过。
+七项功能全部未测：取消不存在目标、查询不修改、300秒单位、计时器对象绑定/歧义、商店身份、二级页面反馈、创建undo拒绝。debug文字注入与真人语音均未测，不能以部署成功替代。未创建/删除/修改任何个人时钟对象。
+证据：本地gitignored logs/stage1-device-build.txt、logs/stage1-device/及baseline日志；脱敏详情与逐项安全设计见 docs/phase6-stage1-device-acceptance.md。需要用户解锁后继续。没有重跑JVM全量，历史6失败不改为通过。
+
 ## 0. 测试环境（所有条目共用）
 
 | 项 | 值 |
