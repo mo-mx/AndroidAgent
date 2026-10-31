@@ -1,5 +1,12 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第⑪轮局部更新（源码分析 + JVM；未实机）
+
+继续处理复审 `6541088857` 的 P1：绑定树中出现 `isScrollable` 时，当前唯一可见开关不再作为全列表唯一性证明，返回 BLOCKED / verified=false，且不点击开关。新增仅加载一个 08:00、另一重复对象在视口外无节点的合成树回归，保留关闭点击零次断言。TDD RED 10 tests / 1 failed；定向 `--rerun-tasks` 109 tests / 0 failed / 0 errors / 0 skipped；全量 2199 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿（AgentSkillCatalogTest 1项、MemoryStoreTest 5项；本轮未重跑旧 SHA 基线）。日志 `logs/pr4-review11-{red,targeted,full}.txt` 本地保留。
+
+这是已暴露滚动结构的失败闭合切片，**不是 P1 全部关闭**：平台不暴露 scrollable 时仍缺全列表/业务对象身份证明；应继续离线处理，不把 scrollable=false 当完整性证据。P2 恢复后同树页面证据、旧 selected 回退与绑定恢复独立负向回归尚待修复。源码/JVM 不等于实机，未构建安装 APK、未操作手机、未调用付费 API、未动 Issue #6、不合并、不 push main。新实机需用户重新授权；需要复审。
+
+
 ## 第⑩轮局部更新（源码分析 + JVM；未实机）
 
 处理复审 `6541088857` 的 P1 否定结论切片：当前可见区域未找到目标，不再声称“没有这个闹钟/不用关闭”，改为“不能确认不存在，没有执行关闭”。新增未加载滚动区域目标回归：有效 RED 7 tests / 1 failed。既有 Runner 空态回归改为更保守的范围反馈断言，保留读取一次、创建零次、通用点击零次断言。最终定向 `--rerun-tasks` 108 tests / 0 failed / 0 errors / 0 skipped；全量 2198 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿（AgentSkillCatalogTest 1项、MemoryStoreTest 5项；本轮未重跑旧SHA基线）。日志 `logs/pr4-review10-red.txt`、`pr4-review10-targeted.txt`、`pr4-review10-full.txt` 本地保留。

@@ -436,8 +436,10 @@ object ClockControl {
         val matches = ArrayList<android.view.accessibility.AccessibilityNodeInfo>()
         var visited = 0
         var complete = true
+        var scrollable = false
         fun scan(n: android.view.accessibility.AccessibilityNodeInfo?): Pair<List<String>, List<android.view.accessibility.AccessibilityNodeInfo>> {
             if (n == null || ++visited > 800) { complete = false; return emptyList<String>() to emptyList() }
+            if (n.isScrollable) scrollable = true
             val times = listOfNotNull(n.text?.toString(), n.contentDescription?.toString())
                 .map { it.trim() }.filter { Regex("^[0-9]{1,2}:[0-9]{2}$").matches(it) }.distinct().toMutableList()
             val controls = ArrayList<android.view.accessibility.AccessibilityNodeInfo>()
@@ -452,6 +454,10 @@ object ClockControl {
             return times to controls
         }
         scan(window.root)
+        // Loaded nodes are not a full enumeration of a scrollable alarm list.
+        if (scrollable) return ToolResult(ToolStatus.BLOCKED, "alarm_close",
+            "无法确认完整列表中这个闹钟唯一，没有执行关闭，请确认具体对象",
+            "scrollable viewport; full list identity unproven", false)
         if (!complete || matches.size != 1) return ToolResult(ToolStatus.BLOCKED, "alarm_close",
             "无法唯一定位这个闹钟的开关，请确认具体对象", "switch candidates=${matches.size}", false)
         val switch = matches.single()

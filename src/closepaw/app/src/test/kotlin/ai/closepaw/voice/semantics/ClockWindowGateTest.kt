@@ -182,6 +182,26 @@ class ClockWindowGateTest {
         verify(exactly = 0) { toggle.performAction(any()) }
     }
 
+    @Test fun `offscreen duplicate alarm cannot be ruled out by a unique visible switch`() {
+        val toggle = node()
+        every { toggle.isCheckable } returns true
+        every { toggle.isChecked } returns true
+        every { toggle.isClickable } returns true
+        every { toggle.performAction(any()) } returns true
+        // RecyclerView exposes only the loaded 08:00 row. A second 08:00 weekend row is outside
+        // this viewport and deliberately has no node: traversing this tree cannot enumerate it.
+        val list = node("", clockPkg, node("", clockPkg, node("8:00"), toggle))
+        every { list.isScrollable } returns true
+        every { UiAutomator.root() } returns node("", clockPkg, list)
+        val r = ClockControl.closeAlarm(ctx, 8, 0)
+        assertThat(r.status).isEqualTo(ToolStatus.BLOCKED)
+        assertThat(r.verified).isFalse()
+        assertThat(r.speak).contains("完整列表")
+        assertThat(r.speak).doesNotContain("已请求关闭")
+        verify(exactly = 0) { toggle.performAction(any()) }
+        verify(exactly = 0) { UiAutomator.click(any()) }
+    }
+
     @Test fun `tab switch clicks the tab label itself not a card that contains it`() {
         // Real device shape: the hint card 对关联闹钟进行分组 sits above the tab bar. The loose
         // matcher tapped the card, the page never changed, and the read still came from the clock.
