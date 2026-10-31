@@ -1,5 +1,11 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第⑧轮局部更新（2026-10-31，源码分析 + JVM；未实机）
+
+处理最新复审 `6540570445` 的隐私日志切片：`closeAlarm` 不再向 Logcat 写目标时间/整页文本，`IntentActions.setTimer` 不再写整页文本，只保留计数与非敏感状态。新增两条实际能力调用测试，用私密标记断言 Log.i 不泄漏；分别先 RED（1/4、1/7 失败）后 GREEN。定向 106 tests / 0 failed / 0 errors / 0 skipped；全量 2196 tests / 6 failed / 0 errors / 8 skipped，Gradle exit=1，不是全绿。失败仍为 AgentSkillCatalogTest 1项 + MemoryStoreTest 5项，本轮未重跑旧SHA基线。
+
+**复审尚未全部处理**：同评论 P1 可滚动闹钟列表的全局唯一性、P2 恢复路径精确 tab 点击/新树证据仍待修复；本轮仅完成隐私切片，不能据此批准合并或声称关闭闹钟安全验收通过。未构建/安装 APK、未操作手机；新一轮实机仍需用户授权。第⑦轮设备矩阵不变。日志 `logs/pr4-review8-*-red.txt`、`logs/pr4-review8-targeted.txt`、`logs/pr4-review8-full.txt`（本地，不提交）。
+
 最后更新：2026-10-31（第⑦轮：同一窗口校验门 + 截断不再当完整 + tab 精确匹配；JVM 全量 + 真机只读复测）
 
 本轮最新状态（第⑦轮，源码分析 + JVM 单测 + 真机只读复测）：处理复审 `6539848799` 对 head `3253319` 的三项遗留。

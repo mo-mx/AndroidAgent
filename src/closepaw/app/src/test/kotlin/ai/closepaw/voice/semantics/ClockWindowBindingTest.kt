@@ -49,6 +49,16 @@ class ClockWindowBindingTest {
     }
     @After fun cleanup() = unmockkAll()
 
+    @Test fun `alarm diagnostics never log private screen text`() {
+        val secret = "PRIVATE_ALARM_LABEL_8d291"
+        every { UiAutomator.root() } returns node()
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("8:00", secret), nodesVisited = 20,
+            rootPackage = clockPkg, serviceAvailable = true)
+        ClockControl.closeAlarm(ctx, 8, 0)
+        verify(exactly = 0) { Log.i(any(), match { it.contains(secret) }) }
+    }
+
     @Test fun `close alarm does not click a switch bound from a window that is no longer the clock`() {
         val toggle = node("8:00")
         every { toggle.isCheckable } returns true

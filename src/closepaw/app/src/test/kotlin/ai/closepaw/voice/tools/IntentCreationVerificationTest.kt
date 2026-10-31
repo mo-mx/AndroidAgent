@@ -61,6 +61,13 @@ class IntentCreationVerificationTest {
         verify(exactly = 1) { ctx.startActivity(any()) }
     }
 
+    @Test fun `timer diagnostics never log private screen text`() {
+        val secret = "PRIVATE_TIMER_LABEL_8d291"
+        every { UiAutomator.screenTexts(any()) } returns listOf(secret, "剩余 09:58")
+        IntentActions.setTimer(ctx, 300)
+        verify(exactly = 0) { Log.i(any(), match { it.contains(secret) }) }
+    }
+
     @Test fun `old unrelated timer cannot verify new five minute creation`() {
         val result = IntentActions.setTimer(ctx, 300)
         assertThat(result.verified).isFalse()

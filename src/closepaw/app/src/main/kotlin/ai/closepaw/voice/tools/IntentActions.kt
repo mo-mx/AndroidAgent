@@ -84,7 +84,7 @@ object IntentActions {
         }
         val mins = seconds / 60
         val human = if (seconds % 60 == 0) "${mins}分钟" else "${seconds}秒"
-        Log.i(TAG, "timer verify: fg=$fg clockFg=$clockForeground countdown=$countdownShown texts=$texts")
+        Log.i(TAG, "timer verify: fg=$fg clockFg=$clockForeground countdown=$countdownShown textCount=${texts.size}")
 
         return when {
             clockForeground && countdownShown -> ToolResult(

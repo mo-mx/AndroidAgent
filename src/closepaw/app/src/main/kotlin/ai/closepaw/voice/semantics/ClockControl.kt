@@ -393,7 +393,7 @@ object ClockControl {
         val truncated = read.textsTruncated || read.nodesTruncated
         val texts = read.texts
         val present = texts.any { it.trim() == target || it.trim() == "${hour}:${minute}" }
-        Log.i(TAG, "closeAlarm target=$target present=$present ${describe(read, reach)} texts=$texts")
+        Log.i(TAG, "closeAlarm present=$present ${describe(read, reach)} textCount=${texts.size}")
         if (!present) {
             // A clipped tree can hide the row: that is "cannot confirm", not "no such alarm".
             if (truncated) {
