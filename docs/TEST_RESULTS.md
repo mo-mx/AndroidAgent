@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-11-01 第㊱轮（仅 JVM，未实机）
+
+测什么：打开 App 内功能时，「界面有没有变」这个结论是否还从**被截断的读屏**里推出来。`AppNavigator.openFeatureResolved` 用的是 `UiAutomator.screenTexts(120)`（`readScreen` 的投影，丢掉 `textsTruncated`/`nodesTruncated`/`serviceAvailable`）：截断样本的集合差既不能证明「变了」，也不能证明「没变」，无障碍服务不可用时的空投影还被播成「界面上没有找到X」。
+怎么测：仓库根 `source env.sh` 后 `cd src/closepaw`，`./gradlew :app:testDebugUnitTest --offline --rerun-tasks --tests '*AppFeatureReadCompletenessTest' --console=plain`（新测试先写、生产未改，取 RED）；实现后再跑同组，然后 `--tests 'ai.closepaw.voice.*'`，最后全量同任务不带 `--tests`。
+实际结果：新 `AppFeatureReadCompletenessTest`(6) **RED 6 tests / 3 failed / 0 errors**（Truth 断言失败，非编译错误；3 条控制组本就通过）→ 实现后 **GREEN 6 / 6**（exit=0）；定向 `ai.closepaw.voice.*` **288 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㉟轮 282，+6）；全量 **2378 tests / 6 failed / 0 errors / 8 skipped**（Gradle exit=1，**不是全绿**，失败仍是既有 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，本轮未改未跳过，未重跑旧 SHA 基线）。首跑 RED 里有 1 条失败是我自己的控制组断言写错（原句含「已经进入」，被 `doesNotContain("已经进入")` 判失败），改的是断言不是生产句子，如实记录；有效 RED 以第二跑 3 failed 为准。
+未验证：真机上 `readScreen(120)` 的实际截断率、各 App 的无障碍节点规模、「完整」是否等同看到整屏（可滚动/虚拟化列表）、无障碍服务被杀后的表现；完整读取下 `openFeature` 仍然只播「界面有变化，但没能确认已经进入」并 `verified=null`，没有新增对象级证据。本轮未构建/安装 APK、未操作手机。
+证据：本机 gitignored `logs/pr4-round36-{red2,green1,targeted,full}.txt`（另有首跑 `red.txt`），不入库。
+
 ## 2026-11-01 第㉞轮（仅 JVM，未实机）
 
 测什么：手电与 Wi-Fi 的**真实回读是否真的进了终态闸门**。这两处本来就有读回（`onTorchModeChanged`、`isWifiEnabled`），但 `observed` 一直为空，声明了 `on:TORCH`/`on:WIFI` 的任务被 `TerminalState` 一律判 `UNPROVEN` 并改写为「请求已经发出，但没能确认结果」。本轮把它们填进 `ObservedState`，并用解析器原话 + 闸门做端到端断言。

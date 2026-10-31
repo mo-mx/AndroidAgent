@@ -131,12 +131,22 @@ object AppNavigator {
             )
         }
 
-        val before = UiAutomator.screenTexts(120).toSet()
+        val before = UiAutomator.readScreen(READ_LIMIT)
+        // "No accessibility service" and "no such control on screen" are different facts, and the
+        // second is a claim about the app's UI. With no service, readScreen returns an empty
+        // projection of nothing — the old code turned that into "界面上没有找到X".
+        if (!before.serviceAvailable) {
+            return ToolResult(
+                ToolStatus.DEVICE_UNAVAILABLE, "app_feature",
+                "无障碍服务不可用，看不到${app.label}的界面，没法找$feature",
+                "app=${app.packageName} a11y=unavailable ($why)", false
+            )
+        }
         val control = UiAutomator.findNode(feature, 4000)
             ?: return ToolResult(
                 ToolStatus.DEVICE_UNAVAILABLE, "app_feature",
                 "打开了${app.label}，但界面上没有找到$feature",
-                "app=${app.packageName} control-not-found", false
+                "app=${app.packageName} control-not-found read=${readFacts(before)}", false
             )
 
         val clicked = UiAutomator.click(control)
@@ -147,12 +157,29 @@ object AppNavigator {
 
         // Verification: the page must actually change, and we must still be inside the app.
         Thread.sleep(1200)
-        val after = UiAutomator.screenTexts(120).toSet()
+        val after = UiAutomator.readScreen(READ_LIMIT)
         val fg = UiAutomator.foregroundPackage()
-        val changed = (after - before).size >= 2
+        // Both reads are bounded samples of a tree, not the screen. `after - before` over two
+        // samples is not evidence of change (the text may have been there but unsampled), and an
+        // unchanged sample is not evidence of no change (the change may be in the part the walk
+        // never reached). So a read that hit its budget, or one that lost the service, cannot
+        // carry either verdict — the click is reported, the conclusion is not.
+        val beforeTexts = before.texts.toSet()
+        val afterTexts = after.texts.toSet()
+        val incomplete = incompleteWhy(before, after)
+        val changed = (afterTexts - beforeTexts).size >= 2
         val stillInside = fg == app.packageName
         return when {
-            changed && stillInside -> ToolResult.ok(
+            !stillInside -> ToolResult.error(
+                "app_feature", "点${feature}之后跳出了${app.label}", "fg=$fg"
+            )
+            incomplete != null -> ToolResult(
+                ToolStatus.SUCCESS, "app_feature",
+                "点了${app.label}的$feature，但屏幕读取不完整，没法确认是否进了那个页面，请看一眼",
+                "fg=$fg read=incomplete($incomplete) before=${readFacts(before)} after=${readFacts(after)}",
+                null
+            )
+            changed -> ToolResult.ok(
                 "app_feature",
                 // Text churn is not page identity: a permission sheet, a toast or an error dialog
                 // in the same package also adds two strings. The click really happened, so the
@@ -160,16 +187,33 @@ object AppNavigator {
                 // sentence says so instead of announcing "已经进入".
                 "点了${app.label}的$feature，界面有变化，但没能确认已经进入那个页面，请看一眼",
                 verified = null,
-                detail = "fg=$fg newTexts=${(after - before).take(4)}"
+                detail = "fg=$fg newTexts=${(afterTexts - beforeTexts).take(4)}"
             )
-            stillInside -> ToolResult(
+            else -> ToolResult(
                 ToolStatus.TIMEOUT, "app_feature",
                 "点了$feature，但界面没有明显变化，可能没进到那个页面",
-                "no screen change", false
-            )
-            else -> ToolResult.error(
-                "app_feature", "点${feature}之后跳出了${app.label}", "fg=$fg"
+                "no screen change ${readFacts(before)} ${readFacts(after)}", false
             )
         }
     }
+
+    /** Text budget for one feature-open read; large enough for a home screen, not the whole list. */
+    private const val READ_LIMIT = 120
+
+    /**
+     * Why the pair of reads cannot support a change verdict, or null when both are complete.
+     *
+     * Named reasons so the trace says which boundary was hit instead of collapsing everything
+     * into "unreadable".
+     */
+    private fun incompleteWhy(before: UiAutomator.ScreenRead, after: UiAutomator.ScreenRead): String? {
+        if (before.textsTruncated || before.nodesTruncated) return "before-truncated"
+        if (!after.serviceAvailable) return "after-a11y-down"
+        if (after.textsTruncated || after.nodesTruncated) return "after-truncated"
+        return null
+    }
+
+    private fun readFacts(r: UiAutomator.ScreenRead) =
+        "texts=${r.texts.size} nodes=${r.nodesVisited} truncated=${r.textsTruncated || r.nodesTruncated}" +
+            " pkg=${r.rootPackage}"
 }

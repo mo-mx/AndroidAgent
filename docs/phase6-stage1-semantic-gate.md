@@ -2,6 +2,44 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第㊱轮：打开功能时「界面有没有变」不再从被截断的读屏里推（离线源码 + JVM，未实机）
+
+需要复审；审查未关闭。本轮**无新审查**（最新 review `6550162379` 已由评论 `6550446557` 回复，其后无新评论，HEAD 仍是 `af8e901`），按「无新审查则推进可离线项」处理遗留清单里的「查询结果截断未当作不完整」。
+
+**问题**（`AppNavigator.openFeatureResolved`）：判定「进了那个页面」用的是 `UiAutomator.screenTexts(120)`——它是 `readScreen` 的**投影**，`textsTruncated` / `nodesTruncated` / `serviceAvailable` 在投进去时被丢掉。于是三个不受证据支持的结论都能出口：
+
+- 两次截断读取做集合差，`after - before` 非空就播「界面有变化」——差集里的文本可能本来就在，只是上一次没采到；
+- 反过来，两次采样相同就播「界面没有明显变化」并返回 `TIMEOUT`——变化可能正好落在没走到的部分；
+- 无障碍服务不可用时 `readScreen` 返回空投影，旧分支把它播成「界面上没有找到扫一扫」，这是对 App UI 的断言，而事实是看不到任何 UI。
+
+**改动**（`AppNavigator.kt`，仅此一文件）：
+
+- `before` / `after` 都改取完整 `ScreenRead`（`READ_LIMIT = 120` 不变），判定用 `before.texts` / `after.texts` 的集合差，但**先过完整性闸门**；
+- 新增 `incompleteWhy(before, after)`，返回具名原因：`before-truncated` / `after-a11y-down` / `after-truncated`，全完整才返回 null；
+- 顺序改为「跳出 App → 读取不完整 → 有变化 → 无变化」：跳出仍 `EXECUTION_ERROR`（前台包名与文本读取无关，仍可信）；读取不完整则 `SUCCESS` + `verified=null` + 「点了X的F，但屏幕读取不完整，没法确认是否进了那个页面」+ `detail` 记 `read=incomplete(<原因>)` 和两次读取的 `texts/nodes/truncated/pkg`；只有两次都完整时，「有变化」才播原句（`verified=null`）、「无变化」才是 `TIMEOUT`；
+- `before.serviceAvailable == false` 时直接 `DEVICE_UNAVAILABLE` +「无障碍服务不可用，看不到X的界面，没法找F」，不再冒充「没找到控件」；
+- `control-not-found` 的 `detail` 追加 `read=<事实>`，便于区分「读到但没有」与「读不到」。
+
+没有放宽任何既有断言；控制组（完整读取下的有变化/无变化/跳出 App）行为与播报保持不变。
+
+**真实数据**（`--offline --rerun-tasks`，JDK 17，仓库根先 `source env.sh`）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 新 `AppFeatureReadCompletenessTest`(6) 先写、生产未改 | **RED 6 tests / 3 failed / 0 errors**（Truth 断言失败，非编译错误）：截断两次 2 条、无障碍不可用 1 条；控制组 3 条本就通过 | `logs/pr4-round36-red2.txt` |
+| 实现后同组 | **GREEN 6 / 6**，exit=0 | `logs/pr4-round36-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **288 tests / 0 failed / 0 errors / 0 skipped**，exit=0（上轮 282，+6） | `logs/pr4-round36-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2378 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**；失败仍为既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，本轮未重跑旧 SHA 基线 | `logs/pr4-round36-full.txt` |
+
+（首跑 RED 时我自己的控制组断言写错——原句「没能确认已经进入那个页面」含「已经进入」，被 `doesNotContain("已经进入")` 判失败；改的是测试断言而不是生产句子，RED 有效结论由第二跑 3 failed 给出。）
+
+**边界（必须看清）**：
+
+- 这只是把「读取不完整」从假结论里拆出来，**没有**新增对象级证据：`openFeature` 在完整读取下依旧只播「界面有变化，但没能确认已经进入」，`verified=null`。
+- 「完整」只指走查没撞上 600 节点/120 文本预算，**不等于**看到了整屏（可滚动/虚拟化列表仍可能没枚举完）。真机上的实际截断率、三星各 App 的节点规模、无障碍服务被杀时的表现：**全部未实机**。
+- 本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未合并 PR、未 push main、未并入 Issue #6。
+
+
 ## 第㉛轮：创建倒计时的基线与回读（离线源码 + JVM，未实机）
 
 需要复审；审查未关闭。本轮无新审查（最新 review `6548293536` 已由评论 `6548650998` 回复，其后无新评论），按「无新审查则推进可离线项」补上遗留清单里的**创建路径回读**。
