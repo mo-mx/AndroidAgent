@@ -86,7 +86,8 @@ class ClockUndoSafetyTest {
             ToolResult.ok("torch", "已开启", verified = true))
         val result = ClockControl.createAlarm(ctx, 8, 0)
         assertThat(result.ok).isTrue()
-        assertThat(result.verified).isFalse()
+        // Delivered Intent, nothing read back → unknown (null); still not undo-able identity.
+        assertThat(result.verified).isNull()
         val undo = ActionMemory.undo(ctx)
         assertThat(undo.speak).contains("不能安全撤销")
         verify(exactly = 0) { TorchControl.set(any(), any()) }

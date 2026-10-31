@@ -235,7 +235,8 @@ class ClockSelectionEntryMatrixTest {
         val r = ClockControl.cancelTimer(ctx, 300)
 
         assertThat(r.status).isEqualTo(ToolStatus.SUCCESS)
-        assertThat(r.verified).isFalse()
+        // Bound and clicked, but the cancel outcome was never read back → unknown (null), not false.
+        assertThat(r.verified).isNull()
         verify(exactly = 1) { cancel.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
     }
 

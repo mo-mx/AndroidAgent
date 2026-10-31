@@ -48,10 +48,13 @@ object SemanticRunner {
                 )
                 continue
             }
-            val r = runCatching { dispatch(ctx, t) }.getOrElse {
+            val r = TerminalState.enforce(t, runCatching { dispatch(ctx, t) }.getOrElse {
                 Log.e(TAG, "dispatch failed for ${t.describe()}", it)
                 ToolResult.error(t.action.name.lowercase(), "这个操作出错了", it.javaClass.simpleName)
-            }
+            })
+            // The second half of the gate: does the evidence this tool brought back support the
+            // postcondition we promised? A mutation whose own read-back disagrees is refused here,
+            // not spoken as done. Unknown stays unknown (SUCCESS + verified=null).
             Log.i(
                 TAG,
                 "exec ${t.describe()} → status=${r.status} verified=${r.verified} detail=${r.detail}"

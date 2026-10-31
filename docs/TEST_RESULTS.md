@@ -287,3 +287,25 @@
 - 全部为 JVM 合成树契约，不是三星真实 UI；`isNavBar` 仍是启发式，真实选中态是否被 One UI 暴露给无障碍**未验证**。
 - 真机：本 SHA 未构建、未安装、未实测；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测，实机需用户**重新授权**。
 - `closeAlarm` 仍因缺全列表枚举/业务对象身份 BLOCKED，是安全拒绝，不是功能完成。
+
+## 第㉔轮：`expectedState` 终态校验契约（离线源码 + JVM，未实机）
+
+依据 PR #4 复审 `6545877923`（第⑳轮）末尾「`expectedState` 通用业务终态校验…未完成」一条。本轮新增 `voice/semantics/TerminalState.kt`：变更类任务的结果在 `SemanticRunner` 返回边界按证据分级 —— `verified=true` → CONFIRMED，`verified=null` → UNPROVEN（请求已发出、无回读，仍算成功但不得说成完成），`verified=false` → CONTRADICTED（回读与期望不一致，降级为 `EXECUTION_ERROR`）；查询与拒绝类结果不改写。同时新增 `ToolResult.sentWithoutProof()`（`SUCCESS + verified=null`），替换 11 处「只投递 Intent / 只点控件」却标记 `verified=false` 的调用点。
+
+### TDD（真实执行，`--offline --rerun-tasks`）
+
+| 阶段 | 结果 | 证据 |
+|---|---|---|
+| 新 `TerminalStateGateTest`(11) 先写、实现未写 | **RED = 编译失败** | `Unresolved reference 'TerminalState' / 'sentWithoutProof'`；是弱 RED，如实记录（不是断言失败） |
+| 实现 + `SemanticRunner` 接线 + 11 处替换后首跑 | **183 tests / 6 failed**（exit=1） | 6 条全是旧断言 `verified isFalse` 遇到新语义 `null`：`ClockAlarmPageEvidenceTest` 1、`ClockSelectionEntryMatrixTest` 1、`ClockUndoSafetyTest` 1、`IntentCreationVerificationTest` 3 |
+| 6 条旧断言改为 `isNull()` 并补 `status == SUCCESS` 后 | **183 tests / 0 failed / 0 errors / 0 skipped**（exit=0） | 无断言被删除；改的是 `false`（回读后未变）与 `null`（未回读）的语义区分 |
+| 全量 `:app:testDebugUnitTest` | **2273 tests / 6 failed / 0 errors / 8 skipped**（exit=1） | **不是全绿**：`AgentSkillCatalogTest > entry filePath points to SKILL md` 1、`MemoryStoreTest` 5，与基线同类，未改未跳过 |
+| 基线（本轮改动前，同一套定向过滤） | **172 tests / 0 failed** | 本轮 +11 条新测试 |
+
+日志 `src/closepaw/logs/pr4-r24-{targeted-baseline,terminal-red,targeted-green,targeted-green2,full}.txt` 只留本机，未入库。
+
+### 边界
+
+- 这是**证据分级 + 返回边界的强制判定**，不是业务状态回读本身；`CONTRADICTED → EXECUTION_ERROR` 分支目前只有 JVM 夹具覆盖（现无生产者会在回读后报 `false`），真机从未触发。
+- 创建/取消后回读对象存在性与计数、在线 ToolRouter 同门禁（阶段 2）、正文双标签卡片身份仍未完成；后者需实机采集脱敏 UI 树。
+- 本 SHA **未构建、未安装、未实机**；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测，新一轮实机需用户**重新授权**。

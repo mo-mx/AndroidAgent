@@ -258,12 +258,11 @@ object LocalCapabilities {
             ctx.startActivity(intent)
             // Honest reporting: the intent opened a camera UI, but nothing has been captured
             // and we cannot verify a recording from here.
-            ToolResult(
-                ToolStatus.SUCCESS, "camera",
+            ToolResult.sentWithoutProof(
+                "camera",
                 if (video) "已经打开相机的录像界面，录制需要你在相机里按一下，我没有确认到录制结果"
                 else "已经打开相机，拍照需要你按一下快门，我没有确认到拍摄结果",
-                "package=$pkg action=${intent.action} (UI opened, capture not verified)",
-                verified = false
+                "package=$pkg action=${intent.action} (UI opened, capture not verified)"
             )
         } catch (t: Throwable) {
             ToolResult.error("camera", "打不开相机，可能屏幕已锁定", t.javaClass.simpleName)

@@ -1,5 +1,30 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㉔轮：`expectedState` 通用终态校验（离线源码 + JVM，未实机）
+
+第⑳轮复审（`6545877923`）与更早的复审都把「`expectedState` 通用业务终态校验」列为未完成项。本轮把它落成一个**证据分级契约**，并清掉 `verified` 的 `false`/`null` 混用：
+
+1. **新增 `voice/semantics/TerminalState.kt`**（纯 Kotlin，无 Android import，可 JVM 测）。执行前由 `IntentGate` 判「这是不是用户要做的那件事」，执行后由它判「工具带回来的证据支不支持我们承诺的终态」：
+   - `CONFIRMED`：变更类任务 + `SUCCESS` + `verified=true`（回读一致）。
+   - `UNPROVEN`：`SUCCESS` + `verified=null`（请求已发出，什么都没回读）——仍是成功、仍可播报，但不得说成「做好了」。
+   - `CONTRADICTED`：`SUCCESS` + `verified=false`（回读和期望不一致）——`enforce()` 降级为 `EXECUTION_ERROR`，句子明说「设备状态没有变化」，原 `detail` 保留并追加 `postcondition=contradicted`。
+   - 查询任务、以及 BLOCKED / PERMISSION_DENIED / DEVICE_UNAVAILABLE 等拒绝结果一律 `NOT_APPLICABLE`，原句不改写；`enforce()` 幂等。
+2. **接线点唯一**：`SemanticRunner.run` 里每个任务的 `dispatch` 结果统一过 `TerminalState.enforce`，日志照实打 `status/verified/detail`（降级后的值）。
+3. **`false` 与 `null` 不再混用**：原代码有 11 处「只投递了 Intent / 只点了控件、没有业务回读」却返回 `SUCCESS + verified=false`，而 `ToolResult` 的文档语义里 `false` 是「回读了、状态没变」。新增 `ToolResult.sentWithoutProof(...)`（`SUCCESS + verified=null`）并替换：timer 创建 3、alarm 创建 3、`cancelTimer` 1、`dial` / `maps` / `web`×2 / `camera` 共 6。这是本轮唯一改变既有播报语义的地方：这些路径从「被当成已确认失败」改为「未知」，播报文本不变。
+
+TDD（真实执行，`--offline --rerun-tasks`）：
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TerminalStateGateTest`(11) 先写、实现未写 | **RED = 编译失败**（`Unresolved reference 'TerminalState' / 'sentWithoutProof'`），不是断言失败；如实记为弱 RED |
+| 实现 + 接线 + 11 处替换后 | 定向首次 **183 tests / 6 failed**：6 条全部是旧断言 `verified isFalse` 遇到新语义 `null`（`ClockAlarmPageEvidenceTest` 1、`ClockSelectionEntryMatrixTest` 1、`ClockUndoSafetyTest` 1、`IntentCreationVerificationTest` 3） |
+| 更新为 `isNull()` 并补 `status=SUCCESS` 断言后 | 定向 **183 tests / 0 failed / 0 errors / 0 skipped**，exit=0 |
+| 全量 `:app:testDebugUnitTest` | **2273 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与基线同类，未改、未跳过） |
+
+6 条旧断言是**语义纠正**而非弱化：`isFalse` → `isNull()`，同时新增 `status == SUCCESS` 断言，没有删除任何断言。基线（本轮改动前，同一套定向过滤）：172 tests / 0 failed。
+
+边界（如实）：这一轮只是**把「有没有证据」分级并强制在返回边界执行**，不是业务状态回读本身。仍然是 `源码分析 + JVM 合成结果`，不是实机。还没有任何生产者会在回读后给出 `verified=false`，所以 `CONTRADICTED → EXECUTION_ERROR` 这条分支目前只有 JVM 夹具覆盖，真机未出现过。真正缺的仍是：创建/取消后回读对象存在性与计数、在线 ToolRouter 同门禁（阶段 2）、正文双标签卡片身份（需实机采集）。
+
 ## 第㉓轮局部修复：第⑳轮定时复审的节点身份与候选完整性（源码 + JVM，未实机）
 
 针对 PR #4 定时复审 `chatgpt-hourly-review SHA:f5d877a`（评论 15:32Z，https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6544851243 ）的两条离线项，先写回归再改代码：
@@ -237,6 +262,7 @@ P1 的可见对象误操作路径已失败闭合，待复审；**P2 恢复后同
 
 ## 5. 正在执行的任务
 
+（第㉔轮，离线，源码 + JVM）把复审长期挂着的「`expectedState` 通用终态校验」落成 `TerminalState` 证据分级契约（CONFIRMED / UNPROVEN / CONTRADICTED），在 `SemanticRunner` 的返回边界统一执行：变更类任务回读与期望不一致的 SUCCESS 一律降级为 `EXECUTION_ERROR`，查询与拒绝类不改写；同时用 `ToolResult.sentWithoutProof`（`verified=null`）替换 11 处「只投递 Intent / 只点控件」却标 `verified=false` 的假「已确认未变」。定向 183/0/0/0，全量 2273 / 6 failed / 8 skipped（exit=1，不是全绿，失败仍为既知两类，未改未跳过）。未实机；真正的业务回读（对象存在性/计数）、在线 ToolRouter 同门禁（阶段 2）、正文双标签卡片身份仍未完成。
 （第⑳轮，离线，源码 + JVM）按 PR 评论 `6544037799`（第⑱轮复审）要求补的负向夹具，并修掉夹具暴露出的真实误点击：内容页（`闹钟` 段标题 + 可点 `定时器` 设置行）此前被当成导航栏，`clickClockTab("定时器")` **真的返回 true 并投递了 ACTION_CLICK**（RED 实测 `expected null but was true`，detail `tab=clicked`）。`UiAutomator.isNavBar` 现再加两条有界规则：导航栏不得位于滚动容器内；每个 peer 标签必须各自拥有栏内点击目标且不得共用（同一可点卡片里的两个标签不成 tab）。`labelDepths` 改为 `labelNodes`+`depthBelow`（父链证明标签真在该栏内）+`clickUnit`+`insideScrollable`。新增 `ClockContentLabelGateTest`(7)：内容页两个标签的零点击、滚动列表内 tab 形容器、真导航条控制组、`queryTimers`/`queryAlarms`/`cancelTimer`/`closeAlarm` 四个入口的拒绝与零动作。TDD：新测试在旧实现上 RED 4/7（其中 2 条是 `navControl`/`clickClockTab` 误判，2 条是入口层误报 `tab=clicked`）；修后 7/7 绿。旧夹具把 tab 标签写成不可点，与新规则冲突（16 项失败），按真实 UI 补 `isClickable=true`（断言未删未弱化）。定向 `voice.semantics.*`+`voice.tools.*` **151 tests / 0 failed / 0 errors / 0 skipped**；全量 **2241 tests / 6 failed / 8 skipped / 0 errors**，exit=1，不是全绿（失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与基线同类，未改未跳过）。仍是 JVM 合成树，`isNavBar` 依旧是**启发式**；三星真实 tab 条是否满足「栏内每标签有可点单元」「栏不在滚动容器内」需用户**重新授权**的实机验证。未构建/安装 APK、未操作手机、未调用付费 API、不合并。
 （第⑲轮，离线）按 PR 评论 `6544037799` 前一轮（`56fd90b` 复审）的两条 P2：(1) `navControl` 的向上爬改为有界 `isNavBar`（非窗口根、peer 标签深度极差 ≤1、容器 ≤40 节点、≥2 peer 标签，缺证据返回 null）；(2) `clickTabControl` 进入循环先判容器即拒绝，容器永不作为点击目标。TDD RED 6/5 → 绿；定向 144/0，全量 2234 / 6 failed / 8 skipped。源码 + JVM，未实机。
 （第⑱轮，离线）按 PR 评论 6543364579 第 2/3 条：导航点击改为 `UiAutomator.clickTabControl`（只对导航栏内的 tab 控件/可点击祖先做 ACTION_CLICK，取消通用 click 的父级上溯与坐标手势兜底）；`selectedState` 现在要求精确标签位于可识别导航栏（同祖先子树 ≥2 个时钟 tab 标签）内，并把选中读取限定在控件→容器区间，同包非导航同名节点不再能当页面身份。TDD 有效 RED 6/5（旧实现），最终定向 137/0，全量 2228 tests / 6 failed / 8 skipped（exit=1，不是全绿，既知两类失败）。源码 + JVM，未实机。

@@ -42,7 +42,9 @@ class IntentCreationVerificationTest {
         every { ctx.getSystemService(Context.ALARM_SERVICE) } returns manager
         every { manager.nextAlarmClock } returns alarm
         val result = IntentActions.setAlarm(ctx, 8, 0)
-        assertThat(result.verified).isFalse()
+        assertThat(result.status).isEqualTo(ToolStatus.SUCCESS)
+        // Delivered Intent, nothing read back about this alarm → unknown (null).
+        assertThat(result.verified).isNull()
         assertThat(result.speak).doesNotContain("闹钟已经设")
         assertThat(result.speak).contains("无法确认")
         verify(exactly = 1) { ctx.startActivity(any()) }
@@ -56,7 +58,7 @@ class IntentCreationVerificationTest {
         every { ctx.getSystemService(Context.ALARM_SERVICE) } returns manager
         every { manager.nextAlarmClock } returns alarm
         val result = IntentActions.setAlarm(ctx, 8, 0)
-        assertThat(result.verified).isFalse()
+        assertThat(result.verified).isNull()
         assertThat(result.speak).contains("无法确认")
         verify(exactly = 1) { ctx.startActivity(any()) }
     }
@@ -70,7 +72,7 @@ class IntentCreationVerificationTest {
 
     @Test fun `old unrelated timer cannot verify new five minute creation`() {
         val result = IntentActions.setTimer(ctx, 300)
-        assertThat(result.verified).isFalse()
+        assertThat(result.verified).isNull()
         assertThat(result.speak).doesNotContain("已经开始")
         assertThat(result.speak).contains("无法确认")
         verify(exactly = 1) { ctx.startActivity(any()) }

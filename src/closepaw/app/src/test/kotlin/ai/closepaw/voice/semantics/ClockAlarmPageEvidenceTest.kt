@@ -208,7 +208,8 @@ class ClockAlarmPageEvidenceTest {
         val r = ClockControl.cancelTimer(ctx, 300)
 
         assertThat(r.ok).isTrue()
-        assertThat(r.verified).isFalse() // no business-state read-back
+        // The click was delivered but no business state was read back: unknown, not "unchanged".
+        assertThat(r.verified).isNull()
         verify(exactly = 1) { cancel.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
         verify(exactly = 0) { UiAutomator.click(any()) }
     }

@@ -87,20 +87,20 @@ object IntentActions {
         Log.i(TAG, "timer verify: fg=$fg clockFg=$clockForeground countdown=$countdownShown textCount=${texts.size}")
 
         return when {
-            clockForeground && countdownShown -> ToolResult(
-                ToolStatus.SUCCESS, "timer",
+            clockForeground && countdownShown -> ToolResult.sentWithoutProof(
+                "timer",
                 "${human}的倒计时请求已经发送，但无法确认新倒计时是否开始，请在时钟里核对",
-                "clockFg=true countdown-ui=true; no newly created object identity", verified = false
+                "clockFg=true countdown-ui=true; no newly created object identity"
             )
-            clockForeground -> ToolResult(
-                ToolStatus.SUCCESS, "timer",
+            clockForeground -> ToolResult.sentWithoutProof(
+                "timer",
                 "${human}的倒计时请求已经交给时钟应用，但我在时钟界面里没看到倒计时",
-                "clockFg=true, countdown text not found", verified = false
+                "clockFg=true, countdown text not found"
             )
-            else -> ToolResult(
-                ToolStatus.SUCCESS, "timer",
+            else -> ToolResult.sentWithoutProof(
+                "timer",
                 "${human}的倒计时请求已经发送，但没法确认是否真的开始，请在时钟里看一下",
-                "fg=$fg clockFg=false", verified = false
+                "fg=$fg clockFg=false"
             )
         }
     }
@@ -137,21 +137,20 @@ object IntentActions {
         val hhmm = String.format(Locale.CHINA, "%d点%02d分", hour, minute)
         val exact = gotH == hour && gotM == minute
         return when {
-            exact -> ToolResult(
-                ToolStatus.SUCCESS, "alarm",
+            exact -> ToolResult.sentWithoutProof(
+                "alarm",
                 "已发出${hhmm}的闹钟请求，但无法确认本次是否新增或更新，请在时钟里核对",
-                "before=${before?.triggerTime} next=$trigger; matching next alarm is not creation proof",
-                verified = false
+                "before=${before?.triggerTime} next=$trigger; matching next alarm is not creation proof"
             )
-            trigger != null -> ToolResult(
-                ToolStatus.SUCCESS, "alarm",
+            trigger != null -> ToolResult.sentWithoutProof(
+                "alarm",
                 "已发出${hhmm}的闹钟请求，但无法确认本次结果；系统下一个闹钟为${gotH}点${gotM}分，不能据此判断目标是否已创建",
-                "next=${gotH}:${gotM} (mismatch)", verified = false
+                "next=${gotH}:${gotM} (mismatch)"
             )
-            else -> ToolResult(
-                ToolStatus.SUCCESS, "alarm",
+            else -> ToolResult.sentWithoutProof(
+                "alarm",
                 "已经打开闹钟界面，可能还需要你按一下保存",
-                "no nextAlarm registered", verified = false
+                "no nextAlarm registered"
             )
         }
     }
@@ -226,7 +225,7 @@ object IntentActions {
         val action = if (direct) Intent.ACTION_CALL else Intent.ACTION_DIAL
         val i = Intent(action, Uri.parse("tel:$number")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return if (resolvable(ctx, i) && runCatching { ctx.startActivity(i); true }.getOrDefault(false)) {
-            ToolResult.ok("dial", if (direct) "正在拨号" else "已经打开拨号界面，按一下拨号键就能打出去", verified = false, detail = "$action $number")
+            ToolResult.sentWithoutProof("dial", if (direct) "正在拨号" else "已经打开拨号界面，按一下拨号键就能打出去", "$action $number")
         } else {
             ToolResult.error("dial", "打不开拨号界面", number)
         }
@@ -244,7 +243,7 @@ object IntentActions {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         return if (resolvable(ctx, i) && runCatching { ctx.startActivity(i); true }.getOrDefault(false)) {
-            ToolResult.ok("maps", "已经打开地图，目的地是$destination", verified = false, detail = i.dataString ?: "")
+            ToolResult.sentWithoutProof("maps", "已经打开地图，目的地是$destination", i.dataString ?: "")
         } else {
             ToolResult.unavailable("maps", "这台手机没有能处理地图的应用")
         }
@@ -258,13 +257,13 @@ object IntentActions {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             return if (resolvable(ctx, view)) {
                 runCatching { ctx.startActivity(view); true }.getOrDefault(false)
-                ToolResult.ok("web", "已经用浏览器搜索$query", verified = false)
+                ToolResult.sentWithoutProof("web", "已经用浏览器搜索$query")
             } else {
                 ToolResult.unavailable("web", "没有可以搜索的浏览器")
             }
         }
         return if (runCatching { ctx.startActivity(i); true }.getOrDefault(false)) {
-            ToolResult.ok("web", "已经搜索$query", verified = false)
+            ToolResult.sentWithoutProof("web", "已经搜索$query")
         } else {
             ToolResult.error("web", "搜索没有打开")
         }

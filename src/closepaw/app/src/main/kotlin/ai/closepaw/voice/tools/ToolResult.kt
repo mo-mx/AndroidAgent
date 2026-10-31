@@ -42,6 +42,17 @@ data class ToolResult(
         fun ok(tool: String, speak: String, verified: Boolean? = null, detail: String = "") =
             ToolResult(ToolStatus.SUCCESS, tool, speak, detail, verified)
 
+        /**
+         * The request was handed to the system, but nothing could be read back.
+         *
+         * `verified = null` (unknown), *not* `false` (read back, unchanged). The two were used
+         * interchangeably before, which let an unobserved mutation look like a contradicted one —
+         * and, once [ai.closepaw.voice.semantics.TerminalState] judges outcomes, a contradicted
+         * SUCCESS is refused. A delivered Intent is not evidence of anything.
+         */
+        fun sentWithoutProof(tool: String, speak: String, detail: String = "") =
+            ToolResult(ToolStatus.SUCCESS, tool, speak, detail, null)
+
         fun denied(tool: String, speak: String, detail: String = "") =
             ToolResult(ToolStatus.PERMISSION_DENIED, tool, speak, detail, false)
 

@@ -309,8 +309,8 @@ object ClockControl {
         // Never use UiAutomator.click: that helper may climb parents or inject coordinates.
         val clicked = button.isClickable && button.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         return if (!clicked) ToolResult.error("timer_cancel", "已定位倒计时，但取消按钮不可操作", "node click failed")
-        else ToolResult(ToolStatus.SUCCESS, "timer_cancel", "已请求取消指定倒计时，但无法确认最终状态",
-            "bound duration=${matching.single().second}; ACTION_CLICK=$clicked; business state not read back", false)
+        else ToolResult.sentWithoutProof("timer_cancel", "已请求取消指定倒计时，但无法确认最终状态",
+            "bound duration=${matching.single().second}; ACTION_CLICK=$clicked; business state not read back")
     }
 
     // ── alarms ──
