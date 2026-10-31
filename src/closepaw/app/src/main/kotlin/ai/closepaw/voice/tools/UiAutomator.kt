@@ -92,14 +92,19 @@ object UiAutomator {
         if (wanted.size < 2) return null
         // Round 19: every exact-label candidate is considered, not just the first one in the tree.
         // A `闹钟` section header above the strip used to make the real tab strip unreachable.
-        val candidates = ArrayList<AccessibilityNodeInfo>()
-        collectExactLabels(r, target, candidates)
+        // Round 22: a truncated candidate set is not "every candidate". If the budget or the node
+        // cap cut the scan short, ambiguity cannot be decided, so navigation is refused instead of
+        // clicking the first strip that happened to fit in the budget.
+        val scan = collectExactLabels(r, target)
+        if (!scan.complete) return null
         var found: NavControl? = null
-        for (control in candidates) {
+        for (control in scan.nodes) {
             val nav = barFor(control, r, wanted) ?: continue
             val seen = found
             // Two *different* strips that both qualify cannot be told apart → refuse, don't pick one.
-            if (seen != null && seen.container !== nav.container) return null
+            // "Different" is logical identity: the platform may hand back another wrapper object for
+            // the same strip, which must not be mistaken for a rival strip (round 22).
+            if (seen != null && !sameNode(seen.container, nav.container)) return null
             if (seen == null) found = nav
         }
         return found
@@ -120,22 +125,41 @@ object UiAutomator {
         return null
     }
 
-    /** Bounded collection of every exact-label node for [target] below [root]. */
+    /** Exact-label candidates plus whether the scan is provably exhaustive. */
+    private class CandidateScan(
+        val nodes: List<AccessibilityNodeInfo>,
+        val complete: Boolean,
+    )
+
+    /**
+     * Bounded collection of every exact-label node for [target] below [root].
+     *
+     * Round 22: the previous version stopped *collecting* at [NAV_MAX_CANDIDATES] but kept scanning,
+     * silently dropping the rest, so callers believed they had seen every candidate. Overflow or an
+     * unfinished walk (node cap) now reports `complete = false` — partial evidence is never treated
+     * as the full set.
+     */
     private fun collectExactLabels(
         root: AccessibilityNodeInfo,
         target: String,
-        out: MutableList<AccessibilityNodeInfo>,
-    ) {
+    ): CandidateScan {
+        val out = ArrayList<AccessibilityNodeInfo>()
+        var matched = 0
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(root)
         var visited = 0
         while (queue.isNotEmpty() && visited++ < MAX_NODES) {
             val n = queue.removeFirst()
-            if (out.size < NAV_MAX_CANDIDATES && exactLabel(n, target)) out.add(n)
+            if (exactLabel(n, target)) {
+                matched++
+                if (out.size < NAV_MAX_CANDIDATES) out.add(n)
+            }
             for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
                 runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
             }
         }
+        val walkedToEnd = queue.isEmpty()
+        return CandidateScan(out, walkedToEnd && matched <= NAV_MAX_CANDIDATES)
     }
 
     /**
@@ -162,17 +186,26 @@ object UiAutomator {
         root: AccessibilityNodeInfo,
         wanted: Set<String>,
     ): Boolean {
-        if (node === root) return false
+        // Logical, not referential: the platform may return another wrapper for the same root
+        // (round 22, review P1).
+        if (sameNode(node, root)) return false
         if (insideScrollable(node, root)) return false
         val labels = labelNodes(node, wanted)
         if (labels.size < 2) return false
         val depths = labels.values.map { depthBelow(node, it) }
+        // Round 22: [UNREACHABLE_DEPTH] means "the parent chain never reached this bar". Two labels
+        // that are both unreachable used to share that sentinel, so the spread check below passed
+        // without any proven membership; refuse instead.
+        if (depths.any { it >= UNREACHABLE_DEPTH }) return false
         if (depths.max() - depths.min() > NAV_MAX_LABEL_SPREAD) return false
         // One tab = one click target, and never one target shared by two tabs.
-        val units = java.util.IdentityHashMap<AccessibilityNodeInfo, String>()
+        // Identity semantics: two units are "the same target" when they are the same logical node,
+        // even through different wrappers (round 22). Only ≤4 labels, so a list is exact.
+        val units = ArrayList<AccessibilityNodeInfo>()
         for ((label, labelNode) in labels) {
             val unit = clickUnit(labelNode, node) ?: return false
-            if (units.put(unit, label) != null) return false
+            if (units.any { sameNode(it, unit) }) return false
+            units.add(unit)
         }
         var count = 0
         val queue = ArrayDeque<AccessibilityNodeInfo>()
@@ -211,7 +244,7 @@ object UiAutomator {
         var cur: AccessibilityNodeInfo? = node
         var depth = 0
         while (cur != null && depth < UNREACHABLE_DEPTH) {
-            if (cur === bar) return depth
+            if (sameNode(cur, bar)) return depth
             cur = runCatching { cur!!.parent }.getOrNull()
             depth++
         }
@@ -227,7 +260,7 @@ object UiAutomator {
         var hops = 0
         while (cur != null && hops++ <= NAV_MAX_HOPS + 2) {
             val node = cur
-            if (node === bar) return null
+            if (sameNode(node, bar)) return null
             if (runCatching { node.isClickable }.getOrDefault(false)) return node
             cur = runCatching { node.parent }.getOrNull()
         }
@@ -244,7 +277,7 @@ object UiAutomator {
         while (cur != null && hops++ <= NAV_MAX_HOPS + 2) {
             val n = cur
             if (runCatching { n.isScrollable }.getOrDefault(false)) return true
-            if (n === root) return false
+            if (sameNode(n, root)) return false
             cur = runCatching { n.parent }.getOrNull()
         }
         return false
@@ -263,13 +296,34 @@ object UiAutomator {
         var hops = 0
         while (cur != null && hops++ < NAV_MAX_HOPS) {
             val node = cur
-            if (node === nav.container) return false
+            if (sameNode(node, nav.container)) return false
             if (runCatching { node.isClickable }.getOrDefault(false) &&
                 runCatching { node.performAction(AccessibilityNodeInfo.ACTION_CLICK) }.getOrDefault(false)
             ) return true
             cur = runCatching { node.parent }.getOrNull()
         }
         return false
+    }
+
+    /**
+     * Logical node identity for the navigation walk.
+     *
+     * Review round 22 (P1): `getParent()`/`getChild()` hand back `AccessibilityNodeInfo` wrapper
+     * objects, and the same logical node is not guaranteed to arrive as the same instance. Reference
+     * identity (`===`, `IdentityHashMap`) therefore cannot decide "same strip", "reached the bar
+     * boundary" or "same click target": with a re-wrapped node the old code either refused a real
+     * strip as ambiguous or stopped enforcing the container/root click boundaries. The framework's
+     * own `equals` compares window id + source node id, i.e. logical identity, so it is used first
+     * and reference identity is kept as the fallback when `equals` is unavailable (a recycled or
+     * detached node can throw).
+     *
+     * This is a JVM-level identity contract only; whether Samsung's UI really re-wraps nodes during
+     * one tree walk is unverified without a device.
+     */
+    private fun sameNode(a: AccessibilityNodeInfo?, b: AccessibilityNodeInfo?): Boolean {
+        if (a == null || b == null) return a === b
+        if (a === b) return true
+        return runCatching { a.equals(b) }.getOrDefault(false)
     }
 
     private fun exactLabel(n: AccessibilityNodeInfo, target: String): Boolean =
@@ -295,7 +349,7 @@ object UiAutomator {
         var hops = 0
         while (cur != null && hops++ < NAV_MAX_HOPS) {
             val node = cur
-            if (node === nav.container) break
+            if (sameNode(node, nav.container)) break
             if (runCatching { node.isSelected }.getOrDefault(false)) return true
             cur = runCatching { node.parent }.getOrNull()
         }

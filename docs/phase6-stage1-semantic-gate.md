@@ -1,5 +1,19 @@
 # 阶段 6 · 第 1 步：语义执行闸门（审查修复报告）
 
+## 第⑳轮：定时复审 `f5d877a`（节点逻辑身份 + 候选集完整性；离线源码 + JVM，未实机）
+
+需要复审；审查未关闭。定时任务本轮唯一写者（`O_CREAT|O_EXCL` 锁），结束仅删自有锁。
+
+1. **[P1] 引用身份判等**：`navControl` 的 `seen.container !== nav.container`、`isNavBar` 的 `node === root`、`depthBelow` 的 `cur === bar`、`clickUnit` 的 `node === bar`、`insideScrollable` 的 `n === root`、`clickTabControl` 的 `node === nav.container`、`selectedState` 的 `node === nav.container` 全部改为 `sameNode()`（先 `===`，再 `runCatching { a.equals(b) }`）；`IdentityHashMap<AccessibilityNodeInfo, String>` 改为按逻辑等价对去重（不依赖 `hashCode`）。理由：`getParent()/getChild()` 返回的是节点信息包装对象，同一逻辑节点不保证同一实例；引用身份会让「同一条被当成两条 → 误判歧义」「容器/窗口根边界失效」「点击单元去重错配」。**语义仍是失败关闭**：拿不到等价关系时退回引用身份，最坏等于旧行为。
+2. **[P1] 深度哨兵显式拒绝**：`depthBelow` 返回 `UNREACHABLE_DEPTH`（1000）时，旧代码只比「深度极差 ≤1」，两个都不可达时极差为 0 因而通过。现在任一标签不可达即拒绝该候选容器——没有父链证明的归属不算归属。
+3. **[P2] 候选上限静默截断**：`collectExactLabels` 返回 `CandidateScan(nodes, complete)`；`matched > NAV_MAX_CANDIDATES`（第 9 个同名节点）或 `MAX_NODES` 中途截断（队列未清空）都置 `complete = false`，`navControl` 直接返回 null。旧的「预算内第一条合格 tab 条」不再被当成唯一容器。
+
+TDD：新 `ClockNodeIdentityTest`(5) 针对上一 head `2212ed6` 的有效 RED **5 / 5 failed**（Truth 断言失败，非编译错误；`logs/pr4-review23-identity-red.txt`），修后 **5 / 5 通过**（`logs/pr4-review23-identity-green.txt`）。5 项分别钉：同一条两个包装对象不判歧义且点击只发一次、容器边界经包装对象仍兜住（0 点击）、窗口根经包装对象不得当导航栏、两侧标签都不可达时拒绝、第 9 个候选导致整轮拒绝。
+
+最终：定向（`voice.semantics.*` + `voice.tools.*`）**172 tests / 0 failed / 0 errors / 0 skipped**，exit=0（`logs/pr4-review23-targeted.txt`）；全量 **2262 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**。失败仍是 `AgentSkillCatalogTest` 1 项、`MemoryStoreTest` 5 项，未改、未跳过；本轮未重跑旧 SHA 基线。
+
+边界（如实）：全部是 JVM 合成无障碍树契约。三星真机在一次遍历内是否真的返回「等价但不同实例」的包装节点**未验证**；若该 ROM 的 `AccessibilityNodeInfo.equals` 不按逻辑身份实现，本轮收益不成立（但不会比旧行为更差）。`equals` 语义按 AOSP（windowId + sourceNodeId 一类逻辑身份）推断，`recycled`/`detached` 节点可能抛异常，已用 `runCatching` 退回引用身份。小型正文双标签卡片仍未被结构规则排除，需用户**重新授权**实机采集脱敏 resource-id/role/层级。设备矩阵不变（历史 4 通过 / 0 失败 / 3 未测），本 SHA 未构建、未安装、未实测。未调用付费 API、未 delegate、未并入 Issue #6、不改受保护规则、不 push main、不合并。
+
 ## 第⑲轮：审查第十八轮（导航栏容器边界 + 容器本身不可点；离线源码 + JVM，未实机）
 
 针对第十八轮审查（`chatgpt-review SHA:56fd90b`）的两条 P2：

@@ -1,5 +1,17 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㉓轮局部修复：第⑳轮定时复审的节点身份与候选完整性（源码 + JVM，未实机）
+
+针对 PR #4 定时复审 `chatgpt-hourly-review SHA:f5d877a`（评论 15:32Z，https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6544851243 ）的两条离线项，先写回归再改代码：
+
+1. **[P1] 引用身份判等**：`navControl`/`isNavBar`/`depthBelow`/`clickUnit`/`insideScrollable`/`clickTabControl`/`selectedState` 原来用 `===` / `!==` / `IdentityHashMap` 判断「同一个 tab 条」「是否到容器边界」「两个标签是否共用点击单元」。平台的 `getParent()/getChild()` 不保证同一逻辑节点返回同一包装对象，后果：①同一条通过两个包装对象上报时被判成两条 → 误判歧义、导航不可用；②`node === root` / `node === nav.container` 失效 → 容器/窗口根的点击边界不再兜住；③`depthBelow` 返回 1000 哨兵。现统一改为 `sameNode()`：先 `===`，再 `runCatching { a.equals(b) }`（AOSP 的 `equals` 比较 windowId + sourceNodeId 这类逻辑身份），拿不到等价时退回引用身份。点击单元去重从 `IdentityHashMap` 改为按逻辑等价比较（每栏最多 4 个标签，线性比较即可，也不依赖 `hashCode` 一致性）。
+2. **[P1 附带] 深度哨兵显式拒绝**：两个标签都「走不回本栏」时深度同为 1000、极差为 0，旧的「同深度」规则会在没有任何归属证明的情况下通过。现在 `depthBelow` 结果为 `UNREACHABLE_DEPTH` 直接拒绝该候选。
+3. **[P2] 候选上限 8 静默截断**：旧 `collectExactLabels` 到 8 个后继续遍历却丢弃匹配，调用方以为拿到了全集。现返回 `CandidateScan(nodes, complete)`；候选溢出或遍历未走完（`MAX_NODES` 截断）都标记为不完整，`navControl` 直接返回 null——部分证据不再当作全集，也不会拿预算内的第一条 tab 条当唯一。
+
+TDD（全部 `--offline --rerun-tasks`）：新 `ClockNodeIdentityTest`(5) 在上一 head `2212ed6` 上 **RED 5 / 5 failed**（断言失败，非编译错误，`logs/pr4-review23-identity-red.txt`），修后 **5 / 5 通过**（`logs/pr4-review23-identity-green.txt`）。定向 `voice.semantics.*` + `voice.tools.*` **172 tests / 0 failed / 0 errors / 0 skipped**，exit=0；全量 `:app:testDebugUnitTest` **2262 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与前轮同类，本轮未改、未跳过、未重跑旧 SHA 基线）。日志只留本机。
+
+边界（如实）：这仍是 JVM 合成树契约。**三星真机在一次遍历里是否真的返回等价但不同实例的包装对象未验证**；如果 `AccessibilityNodeInfo` 在该 ROM 上不按逻辑身份实现 `equals`，行为会退回旧的引用身份语义（不比旧版更差，但收益也不成立）。P2 提到的「小型正文双标签卡片」仍需实机采集脱敏 resource-id/role/层级后才能定策略，本轮未做、也不冒充已关闭。
+
 ## 第㉒轮局部修复：选中态判定在查询/绑定入口的联动矩阵（源码 + JVM，未实机）
 
 第㉑轮把 `selectedState` 收窄到「只在识别出的 tab 条内判选中」后，留下的是**这条改动在出口处是否放宽准入**的疑问（复审 `6544694121` 第 3 条）。本轮把它按入口逐条钉住，并修掉一处诊断混淆：
