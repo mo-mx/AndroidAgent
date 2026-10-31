@@ -1,5 +1,17 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㉑轮局部修复：第十九轮审查（源码 + JVM，未实机）
+
+按 PR #4 定时复审 `6544694121` / `6544641476`（第⑲轮，针对 `3b7cc66`）的头部 P2 修两处，第三处如实未做：
+
+1. **`navControl` 只取全树第一个精确同名节点**（`findFirst`）→ 正文里先出现的「闹钟」段标题/设置行会抢占，真 tab 条即使合格也无法识别，导航被错误拒绝。改为收集全部精确同名候选（上限 8），逐个用 `barFor` 向上验证导航身份；**两条不同容器都合格时判歧义返回 null**，不取第一个。
+2. **`selectedState` 在栏内无 `selected=true` 时扫描整棵窗口树**找任意 `isSelected` → 正文里无关的选中元素会把「无法确认」误诊为「目标未选中」。改为只在识别出的 tab 条子树内判断（含容器自身，兼容容器级上报）；栏内没有任何选中上报时返回 null。安全方向不变：任何情况都不会返回 true。
+3. **未做**：小型正文双标签卡片（≤40 节点、同深度、各自可点）仍能通过结构规则。离线只有合成树，没有真实资源 ID/角色证据；再叠结构启发式只会让真 tab 条更容易被拒，不能证明区分能力。需要实机采集 tab 条与正文卡片的 resource-id/role/层级，属**需授权实机**项。
+
+TDD：新 `ClockNavCandidateTest`(5) 在旧实现上 **RED 4 / 5 failed**（`navControl` 返回 null 而非 tab 条、两条 tab 条未判歧义、两处 `selectedState` 期望 null 实得 false），修后 5/5。定向 `voice.semantics.*`+`voice.tools.*` **156 tests / 0 failed / 0 errors / 0 skipped**，exit=0；全量 **2246 tests / 6 failed / 0 errors / 8 skipped**，exit=1，不是全绿（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，本轮未重跑旧 SHA 基线）。全部 `--offline --rerun-tasks`，日志 `logs/pr4-review20-*` 只留本机。
+
+仍未完成（可离线）：`selectedState` 在查询/绑定入口的联动负向矩阵、`expectedState` 通用终态校验、在线 ToolRouter 同门禁（阶段 2）、对象身份适配。实机（selected 暴露、真实 tab 条布局、抢焦点恢复、计时器唯一对象绑定）与上面第 3 条的证据采集需用户**重新授权**。未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、不改受保护规则、不 push main、不合并。
+
 ## 第⑲轮局部修复：第十八轮审查（导航栏容器边界 + 容器不可点；源码 + JVM，未实机）
 
 `UiAutomator.navControl` 不再把窗口根/正文容器当导航栏：从 control 父节点起爬，`isNavBar` 要求非窗口根、peer 标签深度极差 ≤1、容器子树 ≤40 节点、≥2 个不同 peer 标签；缺证据返回 null。`clickTabControl` 先判 `cur === container` 即拒绝，容器永不点击；`selectedState` 只读容器之前的祖先，容器自身 `isSelected` 不作证据。新 `ClockNavBarBoundaryTest` 6 项，旧实现有效 RED 6 tests / 5 failed（断言失败），修后 6/0，其中「真实 tab 条仍可点击选中」为控制组、修前已过。旧 fixture 补「窗口根在 tab 条之上」结构，断言未删弱。

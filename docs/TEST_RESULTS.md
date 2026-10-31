@@ -235,3 +235,28 @@
 - 全部为 JVM 合成树契约，不是三星真实 UI；`isNavBar` 仍是**启发式**（窗口根/规模/深度/滚动/点击单元五项约束），不是已证明的导航身份。
 - 真机：本 SHA **未构建、未安装、未实测**；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测。实机需用户**重新授权**。
 - `closeAlarm` 仍因缺全列表枚举/业务对象身份 BLOCKED，是安全拒绝，不是功能完成。
+
+## 第㉑轮语义闸门回归（2026-10-31，JVM 合成无障碍树，未实机）
+
+依据 PR #4 第⑲轮复审 `6544694121` / `6544641476`：`navControl` 只看全树第一个精确同名节点；`selectedState` 在栏内无选中时扫描整棵窗口树。两项均已改，第三项（小型正文双标签卡片）未做，原因见下。
+
+### TDD（真实执行，`--offline --rerun-tasks`）
+
+| 阶段 | 结果 | 证据 |
+|---|---|---|
+| 新测试在旧实现上 | **RED 4 / 5 failed** | `navControl` 期望非空实得 null（真 tab 条被正文同名节点抢占）；两条合格 tab 条未判歧义（返回 `NavControl`）；`selectedState` 期望 null 实得 false（两处） |
+| 修后同组 | **5 / 5 通过** | 新增 `ClockNavCandidateTest` |
+| 定向 `voice.semantics.*` + `voice.tools.*` | **156 tests / 0 failed / 0 errors / 0 skipped**，exit=0 | `logs/pr4-review20-targeted.txt`（本地） |
+| 全量 `:app:testDebugUnitTest` | **2246 tests / 6 failed / 0 errors / 8 skipped**，exit=1 | 不是全绿：`AgentSkillCatalogTest > entry filePath points to SKILL md` + `MemoryStoreTest` 5 项，与前轮同类，未改未跳过 |
+
+### 规则变化
+
+- `navControl`：收集全部精确同名候选（≤8），逐个 `barFor` 向上验证；**不同容器都合格 → 歧义 → null**。同一容器内的重复同名节点仍视为同一 tab。
+- `selectedState`：未在控件→容器链路上看到 `selected=true` 时，只在**该 tab 条子树**内查找选中上报（含容器自身）；栏内无上报 → null（无法确认），有上报 → false（不是这个 tab 选中）。正文中无关的 `isSelected` 不再产生 false。
+
+### 未做与边界
+
+- 小型正文双标签卡片（≤40 节点、同深度、各自可点）仍可通过结构规则：离线无真实 resource-id / role 证据，继续叠结构条件只会让真 tab 条更容易被拒。需实机采集，属**需授权实机**项。
+- `isNavBar` 仍是启发式（窗口根/规模/深度/滚动/点击单元/候选歧义），不是已证明的导航身份。
+- 真机：本 SHA 未构建、未安装、未实测；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测。
+- `closeAlarm` 仍因缺全列表枚举/业务对象身份 BLOCKED，是安全拒绝，不是功能完成。

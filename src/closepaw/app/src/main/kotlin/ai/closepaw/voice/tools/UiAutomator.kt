@@ -90,14 +90,52 @@ object UiAutomator {
         if (target.isEmpty()) return null
         val wanted = peers.map { it.trim() }.filter { it.isNotEmpty() }.toSet()
         if (wanted.size < 2) return null
-        val control = findFirst(r) { exactLabel(it, target) } ?: return null
+        // Round 19: every exact-label candidate is considered, not just the first one in the tree.
+        // A `闹钟` section header above the strip used to make the real tab strip unreachable.
+        val candidates = ArrayList<AccessibilityNodeInfo>()
+        collectExactLabels(r, target, candidates)
+        var found: NavControl? = null
+        for (control in candidates) {
+            val nav = barFor(control, r, wanted) ?: continue
+            val seen = found
+            // Two *different* strips that both qualify cannot be told apart → refuse, don't pick one.
+            if (seen != null && seen.container !== nav.container) return null
+            if (seen == null) found = nav
+        }
+        return found
+    }
+
+    /** Walk up from [control] (bounded) to the first ancestor that passes [isNavBar]. */
+    private fun barFor(
+        control: AccessibilityNodeInfo,
+        root: AccessibilityNodeInfo,
+        wanted: Set<String>,
+    ): NavControl? {
         var cur: AccessibilityNodeInfo? = runCatching { control.parent }.getOrNull()
         var hops = 0
         while (cur != null && hops++ < NAV_MAX_HOPS) {
-            if (isNavBar(cur, r, wanted)) return NavControl(control, cur)
+            if (isNavBar(cur, root, wanted)) return NavControl(control, cur)
             cur = runCatching { cur!!.parent }.getOrNull()
         }
         return null
+    }
+
+    /** Bounded collection of every exact-label node for [target] below [root]. */
+    private fun collectExactLabels(
+        root: AccessibilityNodeInfo,
+        target: String,
+        out: MutableList<AccessibilityNodeInfo>,
+    ) {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited++ < MAX_NODES) {
+            val n = queue.removeFirst()
+            if (out.size < NAV_MAX_CANDIDATES && exactLabel(n, target)) out.add(n)
+            for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
+                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
+            }
+        }
     }
 
     /**
@@ -261,19 +299,23 @@ object UiAutomator {
             if (runCatching { node.isSelected }.getOrDefault(false)) return true
             cur = runCatching { node.parent }.getOrNull()
         }
-        // No node in the tree advertises selection at all → the platform does not expose it here.
-        var anySelected = false
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(r)
-        var guard = 0
-        while (queue.isNotEmpty() && guard++ < MAX_NODES) {
-            val n = queue.removeFirst()
-            if (runCatching { n.isSelected }.getOrDefault(false)) { anySelected = true; break }
+        // Round 19: selection is judged inside the identified strip only. A selected card elsewhere on
+        // the page is not evidence that "this tab is not selected" — it used to produce that verdict.
+        // Anything in the strip subtree that reports selection (including the strip container itself,
+        // which some layouts use for container-level reporting) means this tab is not the selected one;
+        // when nothing inside the strip reports selection, the answer is "unknown", never `false`.
+        var stripSelected = false
+        val targets = ArrayList<AccessibilityNodeInfo>()
+        targets.add(nav.container)
+        var visited = 0
+        while (targets.isNotEmpty() && visited++ < MAX_NODES) {
+            val n = targets.removeAt(targets.size - 1)
+            if (runCatching { n.isSelected }.getOrDefault(false)) { stripSelected = true; break }
             for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
-                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
+                runCatching { n.getChild(i) }.getOrNull()?.let { targets.add(it) }
             }
         }
-        if (!anySelected) return null
+        if (!stripSelected) return null
         return false
     }
 
@@ -402,6 +444,12 @@ object UiAutomator {
 
     /** Peer tab labels in one strip sit at the same depth; allow one level of icon-label nesting. */
     private const val NAV_MAX_LABEL_SPREAD = 1
+
+    /**
+     * Exact-label nodes considered when looking for the tab control (round 19). Two or more *distinct*
+     * strips that both qualify are refused as ambiguous instead of picking the first match.
+     */
+    private const val NAV_MAX_CANDIDATES = 8
 
     /**
      * The clock's bottom-navigation labels. Two or more of them under one ancestor is the structural
