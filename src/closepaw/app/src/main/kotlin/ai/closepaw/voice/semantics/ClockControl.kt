@@ -34,12 +34,11 @@ object ClockControl {
     internal data class TabReach(val reached: Boolean, val reason: String, val selected: Boolean? = null)
 
     /**
-     * Click the tab control itself, preferring an exact label match over a containing one.
+     * Click only an exact-label control; missing controls never permit a containing-text click.
      *
      * Device evidence (2026-10-31, build 54e4b77): `clickText("闹钟")` matched the alarm tab's hint
      * card (`对关联闹钟进行分组`) first, so the tap landed on a card while the read still came from
-     * the clock package — the page looked readable but was not the tab. Exact label first, the loose
-     * matcher only as a fallback for layouts that carry extra text on the control.
+     * the clock package — the page looked readable but was not the tab. No loose matcher fallback.
      */
     private fun clickClockTab(tab: String): Boolean? = runCatching {
         val root = UiAutomator.root() ?: return@runCatching null
@@ -75,8 +74,8 @@ object ClockControl {
                 return TabReach(false, "app-not-found")
             }
         }
-        // A located exact control that rejected the click must not become a loose-text click.
-        val clicked = clickClockTab(tab) ?: UiAutomator.clickText(tab)
+        // Missing or failed exact controls never authorize a containing-text click.
+        val clicked = clickClockTab(tab) == true
         val selected = UiAutomator.tabSelected(tab)
         // Only asked when the click was not delivered: it separates "control missing" from
         // "control visible but the tap did nothing".
@@ -346,10 +345,9 @@ object ClockControl {
         // A missing nextAlarm is only a system scheduling observation, not enumeration.
         // Require an explicit empty-state marker; absent/truncated UI is unknown, not empty.
         val empty = listed.isEmpty() && texts.any { it.trim() in setOf("暂无闹钟", "没有闹钟", "无闹钟") }
-        // The clock page is not proof of the *alarm tab*: the world clock shows `H:mm` rows too, so
-        // counting them would invent alarms. Structural evidence is required — either the tab
-        // reports selected, or the page carries alarm switches, or it says the list is empty.
-        val alarmPage = read.selectedTabs["闹钟"] == true || read.checkableCount > 0 || empty
+        // Auxiliary switches/empty markers cannot establish business page identity.
+        // Use exactly the same same-tree package + selected=true gate as pageOk.
+        val alarmPage = onTargetPage(read, "闹钟")
         val readable = pageOk && alarmPage && !truncated && (listed.isNotEmpty() || empty)
         val speech = when {
             !pageOk && nextText != null -> "下一个闹钟是 $nextText；无法读取闹钟列表"

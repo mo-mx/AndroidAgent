@@ -130,6 +130,7 @@ class SemanticExecutionTest {
     }
 
     @Test fun `duplicate alarm times cannot select first row`() {
+        every { UiAutomator.tabSelected("闹钟") } returns true
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("8:00", "8:00"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         val reply = SemanticRunner.run(ctx, "取消八点的闹钟", 1)

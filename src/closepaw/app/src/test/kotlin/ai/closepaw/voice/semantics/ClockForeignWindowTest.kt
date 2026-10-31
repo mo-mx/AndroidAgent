@@ -31,6 +31,7 @@ class ClockForeignWindowTest {
         every { UiAutomator.clickText("定时器") } returns true
         every { UiAutomator.clickText("闹钟") } returns true
         every { IntentActions.nextAlarm(ctx) } returns null
+        every { UiAutomator.tabSelected(any()) } returns true
     }
     @After fun cleanup() = unmockkAll()
 
@@ -115,8 +116,8 @@ class ClockForeignWindowTest {
         assertThat(r.verified).isTrue()
         verify(exactly = 1) { UiAutomator.click(tab) }
         verify(exactly = 0) { UiAutomator.click(hint) }
-        // Only the initial navigation may fall back when its root is unavailable.
-        verify(exactly = 1) { UiAutomator.clickText("闹钟") }
+        // Missing initial root never permits a containing-text fallback.
+        verify(exactly = 0) { UiAutomator.clickText("闹钟") }
     }
 
     @Test fun `alarms are still read when the clock window is the active one`() {

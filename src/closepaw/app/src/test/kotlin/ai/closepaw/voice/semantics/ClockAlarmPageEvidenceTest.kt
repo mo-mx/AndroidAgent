@@ -56,6 +56,9 @@ class ClockAlarmPageEvidenceTest {
         every { Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
         mockkObject(UiAutomator, IntentActions, AppRegistry)
         every { UiAutomator.foregroundPackage() } returns clockPkg
+        every { UiAutomator.root() } returns null
+        every { UiAutomator.waitForText(any(), any()) } returns true
+        every { UiAutomator.click(any()) } returns true
         every { UiAutomator.clickText(any()) } returns true
         every { UiAutomator.tabSelected(any()) } returns true
         every { IntentActions.nextAlarm(ctx) } returns null
@@ -65,7 +68,35 @@ class ClockAlarmPageEvidenceTest {
 
     @After fun cleanup() = unmockkAll()
 
+    @Test fun `switches without selected tab cannot establish alarm page`() {
+        every { UiAutomator.tabSelected("闹钟") } returns true
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("8:00"), rootPackage = clockPkg, serviceAvailable = true,
+            checkableCount = 2, selectedTabs = mapOf("闹钟" to false))
+        val r = ClockControl.queryAlarms(ctx)
+        assertThat(r.verified).isFalse()
+        assertThat(r.detail).contains("alarmPage=false")
+        assertThat(r.speak).contains("无法")
+        assertThat(r.speak).doesNotContain("当前可见列表")
+        assertThat(r.speak).doesNotContain("闹钟列表为空")
+    }
+
+    @Test fun `empty marker without selected tab cannot establish alarm page`() {
+        every { UiAutomator.tabSelected("闹钟") } returns true
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("暂无闹钟"), rootPackage = clockPkg, serviceAvailable = true,
+            selectedTabs = mapOf("闹钟" to null))
+        val r = ClockControl.queryAlarms(ctx)
+        assertThat(r.verified).isFalse()
+        assertThat(r.detail).contains("alarmPage=false")
+        assertThat(r.speak).contains("无法")
+        assertThat(r.speak).doesNotContain("当前可见列表")
+        assertThat(r.speak).doesNotContain("闹钟列表为空")
+    }
+
     @Test fun `fresh selected alarm read is independent of navigation selection`() {
+        val nav = node("闹钟")
+        every { UiAutomator.root() } returns nav
         every { UiAutomator.tabSelected("闹钟") } returns null
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("8:00", "9:00"), nodesVisited = 40, rootPackage = clockPkg,
@@ -108,6 +139,8 @@ class ClockAlarmPageEvidenceTest {
     }
 
     @Test fun `explicit empty marker still proves an empty alarm list`() {
+        val nav = node("闹钟")
+        every { UiAutomator.root() } returns nav
         every { UiAutomator.tabSelected("闹钟") } returns null
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("暂无闹钟"), nodesVisited = 12, rootPackage = clockPkg,

@@ -34,6 +34,23 @@ class ClockTabReachTest {
 
     @After fun cleanup() = unmockkAll()
 
+    @Test fun `missing exact tab with only alarm hint card performs zero clicks`() {
+        val card = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { card.text } returns "对关联闹钟进行分组"
+        every { UiAutomator.root() } returns card
+        every { UiAutomator.clickText("闹钟") } returns true
+        every { UiAutomator.tabSelected("闹钟") } returns null
+        every { UiAutomator.waitForText("闹钟", any()) } returns true
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("对关联闹钟进行分组"), rootPackage = clockPkg, serviceAvailable = true)
+        val r = ClockControl.queryAlarms(ctx)
+        assertThat(r.verified).isFalse()
+        assertThat(r.detail).contains("tab=click-failed-label-only")
+        verify(exactly = 0) { UiAutomator.clickText(any()) }
+        verify(exactly = 0) { UiAutomator.click(any()) }
+        verify(exactly = 0) { card.performAction(any()) }
+    }
+
     @Test fun `failed exact tab never falls back to a hint card`() {
         val root = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
         val tab = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
@@ -85,6 +102,10 @@ class ClockTabReachTest {
     }
 
     @Test fun `a delivered click on a tab that reports not selected is not a reached tab`() {
+        val nav = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { nav.text } returns "闹钟"
+        every { UiAutomator.root() } returns nav
+        every { UiAutomator.click(nav) } returns true
         every { UiAutomator.clickText("闹钟") } returns true
         every { UiAutomator.tabSelected("闹钟") } returns false
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(

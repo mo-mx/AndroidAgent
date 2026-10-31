@@ -1,5 +1,26 @@
 # 阶段 6 · 第 1 步：语义执行闸门（审查修复报告）
 
+## 第⑮轮：审查 6542779543（针对 d543cd3；离线源码 + JVM）
+
+需要复审，尚无独立 reviewer 批准。定时任务由用户暂停，本轮唯一写者；进入时 O_CREAT|O_EXCL 原子创建 .git/semantic-gate-writer.lock（owner/pid/started），完成时仅删除自有锁并检查不存在。
+
+1. P2 模糊点击：openClockTab 移除 clickClockTab(tab)==null 时的 clickText(tab) 包含匹配兜底；精确缺失/点击失败均不授权模糊点击。新增无精确 tab、只有“对关联闹钟进行分组”提示卡的 fixture，断言 verified=false、tab=click-failed-label-only、通用文字点击/节点点击/提示卡 performAction 均0。真实行为 RED 1 tests / 1 failed / 0 errors → GREEN 1 / 0；不是编译错误。
+2. P2 身份一致性：queryAlarms.alarmPage 统一调用 onTargetPage(read, "闹钟")，包名与 selected=true 必须来自同一 ScreenRead；checkableCount 和空态不能建立页面身份。旧实现已有 pageOk 阻止 verified=true，因此不虚构“旧版成功绕过”：新增 switches>0 + selected=false 在旧实现 verified=false，但错误诊断 alarmPage=true；有效 RED 2 tests / 1 failed / 0 errors（alarmPage 断言失败），修后 GREEN 2 / 0。empty + selected=null 在旧实现已安全拒绝，本轮增加防回归，不宣称曾 RED。两条均断言无法确认、不播确定可见列表/确定空态、verified=false。
+3. selected 在三星真实 UI 是否稳定暴露仍待重新授权实机验证；JVM 合成树不证明可用性或跨调用原子快照。本轮未构建 APK、未上机；历史设备矩阵仍4通过/0失败/3未测，当前 SHA 未实测。
+
+测试全部带 --offline --rerun-tasks，仓库根先 source env.sh，再 cd src/closepaw：
+
+    ./gradlew --offline :app:testDebugUnitTest --tests '*ClockTabReachTest.missing exact*' --rerun-tasks --console=plain
+    ./gradlew --offline :app:testDebugUnitTest --tests '*ClockAlarmPageEvidenceTest.*without selected tab*' --rerun-tasks --console=plain
+    ./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.voice.semantics.*' --tests 'ai.closepaw.voice.tools.*' --rerun-tasks --console=plain
+    ./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain
+
+最终定向129 tests / 0 failed / 0 errors / 0 skipped，exit=0；全量2219 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿。AgentSkillCatalogTest 1项、MemoryStoreTest 5项原失败未改、未跳过，未重跑旧SHA基线。全量失败名称见本机 logs/pr4-review15-full-summary.json；日志 logs/pr4-review15-{click-red,click-green,page-red,page-green,targeted,full}.txt，XML与汇总只留本机，不提交日志。
+
+移除模糊点击后首次定向129/11 failed，补全旧 fixture 的导航选中或真实精确节点证据；中间129/3 failed因新导航点击违反既有零点击断言，改fixture为已选中+无点击且显式控制等待，保留原断言，最终129/0。恢复精确tab=1/提示卡=0断言保留，旧 clickText=1 收紧为 clickText=0，未删弱既有安全断言。Android/UI边界 MockK，真实 ClockControl/Runner 执行。
+
+剩余：实机 selected 暴露、抢焦点恢复、真实布局及计时器唯一绑定仍需用户新授权；closeAlarm 因缺全列表/业务对象身份继续 BLOCKED，关闭功能未完成；对象身份适配、在线ToolRouter同门禁（阶段2）和通用业务终态校验（阶段3）属于后续源码工作，不是只能等待实机。未delegate、未调用付费API、未并入Issue6、未改受保护规则、不push main、不合并。回滚用git revert。
+
 ## 第⑭轮：接管 cron 未完成修改，审查 6542191769（离线源码 + JVM）
 
 需要复审；A–D 离线项已完成，尚无独立 reviewer 批准，不合并。接管时保留 cron worker 未提交的 ClockControl.clickClockTab Boolean? 与 ClockTabReachTest 新用例；先临时还原生产代码至 HEAD 验证 RED，再恢复并验证 GREEN，未丢弃这两处来源修改。

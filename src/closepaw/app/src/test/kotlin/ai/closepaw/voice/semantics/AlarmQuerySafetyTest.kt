@@ -15,6 +15,7 @@ class AlarmQuerySafetyTest {
         every { IntentActions.nextAlarm(ctx) } returns null
         every { UiAutomator.foregroundPackage() } returns "com.sec.android.app.clockpackage"
         every { UiAutomator.clickText("闹钟") } returns true
+        every { UiAutomator.tabSelected("闹钟") } returns true
     }
     @After fun cleanup() = unmockkAll()
 
@@ -49,6 +50,7 @@ class AlarmQuerySafetyTest {
     }
     @Test fun `unreachable alarm tab cannot verify empty list`() {
         every { UiAutomator.clickText("闹钟") } returns false
+        every { UiAutomator.tabSelected("闹钟") } returns null
         every { UiAutomator.waitForText("闹钟", any()) } returns false
         val r = ClockControl.queryAlarms(ctx)
         assertThat(r.speak).contains("无法读取闹钟列表")
