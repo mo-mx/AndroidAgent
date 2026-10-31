@@ -3,6 +3,25 @@
 Issue #3 / PR #4；分支 `feat/semantic-gate`；2026-10-31。
 性质：源码分析 + 本机 Gradle JVM 回归，未实机。阶段 1 仍待审查/设备验收，不代表整个 Issue 完成。
 
+## 第三轮审查修复（评论 6538790664）
+
+- P1：统一为 `ActionMemory.recordResult` 一个结果准入入口。时钟创建由 ClockControl 调用一次，Runner 不再重复记录；AppNavigator 也不再嵌套记忆。只有 SUCCESS 且 verified=true 的现有固定手电逆操作可保留；所有时钟 CREATE 即使 verified=true 也不接受时长/时分作为对象身份。
+- 当前时钟 Intent 没有本轮新增对象 ID，也没有按该 ID 撤销的 API，故本轮选择安全拒绝全部时钟创建 undo，不虚构 receipt/对象 ID。删除 ActionMemory 中按 seconds/hour/minute 调用取消的逆操作，缺少证明回答“不能安全撤销”。明确时间/时长的用户取消命令仍保留原有唯一 UI 定位路径，不是 undo。
+- 新的时钟创建尝试会清除旧 undo 状态，防止“刚才”退回更旧的手电等操作。入口调用次数有精确断言。旧 undo 时长传递测试改为更严格的“即使 verified=true，只有时长也不能自动撤销”，不是放宽断言。
+- P2：nextAlarm=null 仅说明系统没有下一个已启用闹钟；当前可见列表有时间时明确列表仍有闹钟、可能含关闭项、不推定全部开关状态；只有明确空态文字可报告当前页面列表为空；UI 不可读或 tab 打不开时 verified=false。可见列表不冒充完整枚举。
+- 有效 RED：`logs/pr4-review3-undo-red.txt` 2 项行为断言失败；`logs/pr4-review3-query-red.txt` 4 项行为断言失败；追加旧记忆污染用例 `logs/pr4-review3-stale-red.txt` 1 项行为断言失败。中途 Boolean? 生产编译错误和测试 Target 导入错误均已修复，不作为 RED。
+- 最终定向 GREEN：48 tests / 0 failed / 0 errors / 0 skipped。类数量 23+10+6+3+2+4。日志 `logs/pr4-review3-targeted.txt`，程序汇总 `logs/pr4-review3-targeted-summary.json`。
+- 全量：2138 tests / 6 failed / 0 errors / 8 skipped，Gradle exit=1，不是全绿。失败仍为 AgentSkillCatalogTest 1 项、MemoryStoreTest 5 项；本轮未重跑旧 SHA 基线。日志 `logs/pr4-review3-full.txt`，失败名称完整保存在 `logs/pr4-review3-full-summary.json`。
+- 真实运行边界：parser / guard / runner / gate / ClockControl / IntentActions / ActionMemory 未替换；Context、Intent、系统 AlarmManager、无障碍树用 MockK。旧同参数对象设置为可点击、可关闭，OEM startActivity 无状态改变；断言旧对象 ACTION_CLICK=0、创建请求=1、记忆入口=1、旧手电调用=0。倒计时覆盖完整 Runner 创建→Runner undo；闹钟覆盖 ClockControl 创建→ActionMemory undo。
+- 无独立 reviewer 结论：依用户要求未使用 delegate；不冒称复审通过。未构建可安装 APK、未实机、未推进阶段 2/3，受保护规则未改。
+
+复现命令（`src/closepaw`，先 `source ../../env.sh`）：
+
+    ./gradlew :app:testDebugUnitTest --tests '*IntentGateTest' --tests '*SemanticExecutionTest' --tests '*TimerObjectExecutionTest' --tests '*IntentCreationVerificationTest' --tests '*ClockUndoSafetyTest' --tests '*AlarmQuerySafetyTest' --console=plain
+    ./gradlew :app:testDebugUnitTest --console=plain
+
+以下为历史轮次记录；历史“undo 保留时长即可撤销”的说明已被本轮身份准入和安全拒绝策略取代。
+
 ## 第二轮审查修复（评论 6538288842）
 
 - 修复新建计时器假验证：旧计时器文字只能说明页面有倒计时，不证明本次请求创建了指定对象。`setTimer` 不再因此返回 `verified=true` 或播报“已经开始”。

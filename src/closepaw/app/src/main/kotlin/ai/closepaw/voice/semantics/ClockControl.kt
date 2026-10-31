@@ -63,12 +63,7 @@ object ClockControl {
 
     fun createTimer(ctx: Context, seconds: Int): ToolResult {
         val r = IntentActions.setTimer(ctx, seconds)
-        if (r.ok) {
-            ActionMemory.record(
-                Action.CREATE, Target.TIMER, mapOf("seconds" to seconds.toString()),
-                "创建了${seconds / 60}分钟倒计时"
-            )
-        }
+        ActionMemory.recordResult(Action.CREATE, Target.TIMER, mapOf("seconds" to "$seconds"), r)
         return r
     }
 
@@ -124,26 +119,11 @@ object ClockControl {
     // ── alarms ──
     fun createAlarm(ctx: Context, hour: Int, minute: Int): ToolResult {
         val r = IntentActions.setAlarm(ctx, hour, minute)
-        if (r.ok) {
-            ActionMemory.record(
-                Action.CREATE, Target.ALARM, mapOf("hour" to "$hour", "minute" to "$minute"),
-                "设了${hour}点${minute}分闹钟"
-            )
-        }
+        ActionMemory.recordResult(Action.CREATE, Target.ALARM, mapOf("hour" to "$hour", "minute" to "$minute"), r)
         return r
     }
 
-    /** Times of the alarms currently listed in the clock app (best effort, UI-derived). */
-    private fun listedAlarmTimes(): List<String> {
-        val out = ArrayList<String>()
-        for (t in UiAutomator.screenTexts(120)) {
-            val m = Regex("^(\\d{1,2}):(\\d{2})$").find(t.trim())
-            if (m != null) out.add("${m.groupValues[1].toInt()}:${m.groupValues[2]}")
-            val m2 = Regex("^(\\d{1,2})\\s*(上午|下午)", RegexOption.IGNORE_CASE).find(t.trim())
-            if (m2 != null) out.add(m2.groupValues[1])
-        }
-        return out.distinct()
-    }
+
 
     fun queryAlarms(ctx: Context): ToolResult {
         val next = IntentActions.nextAlarm(ctx)
@@ -153,15 +133,23 @@ object ClockControl {
         }
         val opened = openClockTab(ctx, "闹钟")
         Thread.sleep(500)
-        val listed = if (opened) listedAlarmTimes() else emptyList()
+        val texts = if (opened) UiAutomator.screenTexts(120) else emptyList()
+        val listed = texts.map { it.trim() }.filter { Regex("^[0-9]{1,2}:[0-9]{2}$").matches(it) }
+        // A missing nextAlarm is only a system scheduling observation, not enumeration.
+        // Require an explicit empty-state marker; absent/truncated UI is unknown, not empty.
+        val empty = listed.isEmpty() && texts.any { it.trim() in setOf("暂无闹钟", "没有闹钟", "无闹钟") }
+        val readable = opened && (listed.isNotEmpty() || empty)
         val speech = when {
             nextText != null && listed.isNotEmpty() ->
-                "下一个闹钟是 $nextText，闹钟列表里有 ${listed.size} 个时间显示"
-            nextText != null -> "下一个闹钟是 $nextText"
-            else -> "现在没有设置中的闹钟"
+                "下一个闹钟是 $nextText，当前可见列表有 ${listed.size} 个时间显示（不代表完整列表）"
+            nextText != null -> "下一个闹钟是 $nextText；无法读取闹钟列表"
+            listed.isNotEmpty() -> "系统没有下一个已启用的闹钟；当前可见列表仍有闹钟，可能包含已关闭的闹钟，不能据此判断全部开关状态"
+            empty -> "系统没有下一个已启用的闹钟；当前页面显示闹钟列表为空"
+            else -> "系统没有下一个已启用的闹钟；无法读取闹钟列表，不能确认是否存在已关闭的闹钟"
         }
         // Query must not mutate anything: no clicks beyond opening the tab.
-        return ToolResult.ok("alarm_query", speech, verified = true, detail = "next=$nextText listed=$listed")
+        return ToolResult.ok("alarm_query", speech, verified = readable,
+            detail = "next=$nextText visible=$listed explicitEmpty=$empty readable=$readable")
     }
 
     /**

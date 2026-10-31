@@ -99,13 +99,12 @@ class SemanticExecutionTest {
         verify(exactly = 1) { AppRegistry.launch(ctx, app) }
     }
 
-    @Test fun `undo timer preserves remembered duration`() {
+    @Test fun `verified timer duration alone is not undo identity`() {
         mockkObject(ClockControl)
-        every { ClockControl.cancelTimer(ctx, any()) } returns ToolResult.unavailable("timer_cancel", "未找到")
-        ActionMemory.record(Action.CREATE, Target.TIMER, mapOf("seconds" to "300"), "测试")
-        ActionMemory.undo(ctx)
-        verify(exactly = 1) { ClockControl.cancelTimer(ctx, 300) }
-        verify(exactly = 0) { ClockControl.cancelTimer(ctx, null) }
+        ActionMemory.recordResult(Action.CREATE, Target.TIMER, mapOf("seconds" to "300"),
+            ToolResult.ok("timer", "测试", verified = true))
+        assertThat(ActionMemory.undo(ctx).speak).contains("不能安全撤销")
+        verify(exactly = 0) { ClockControl.cancelTimer(any(), any()) }
     }
 
     @Test fun `duplicate alarm times cannot select first row`() {

@@ -26,31 +26,25 @@ object ActionMemory {
     var last: Entry? = null
         private set
 
-    fun record(action: Action, target: Target, params: Map<String, String>, speech: String) {
-        last = Entry(action, target, params, speech)
-        Log.i(TAG, "recorded $action/$target $params")
+    /** Single memory boundary. An attempted mutation invalidates older undo state.
+     * Clock intents expose no newly-created object ID and no identity-bound inverse API.
+     * Even verified=true cannot make a duration/time into object identity: fail closed.
+     */
+    fun recordResult(action: Action, target: Target, params: Map<String, String>, result: ToolResult) {
+        if (!action.mutates || target == Target.LAST_ACTION) return
+        last = if (result.ok && result.verified == true && target == Target.TORCH &&
+            action in setOf(Action.ENABLE, Action.DISABLE)) {
+            Entry(action, target, params.toMap(), result.speak)
+        } else null
     }
 
-    fun lastTimerSeconds(): Int? =
-        last?.takeIf { it.target == Target.TIMER && it.action == Action.CREATE }
-            ?.params?.get("seconds")?.toIntOrNull()
+
 
     /** Undo the previous task by issuing its inverse — never by creating something new. */
     fun undo(ctx: Context): ToolResult {
-        val e = last ?: return ToolResult.unavailable("undo", "刚才没有可以撤销的操作", "no memory")
+        val e = last ?: return ToolResult.unavailable("undo", "无法确认刚才变更的具体对象，不能安全撤销", "no verified identity-bound inverse")
         val r = when {
-            e.action == Action.CREATE && e.target == Target.TIMER -> {
-                val seconds = e.params["seconds"]?.toIntOrNull()
-                if (seconds == null) ToolResult.unavailable("undo", "记不住刚才倒计时的时长，不能确定撤销对象", "missing duration")
-                else ClockControl.cancelTimer(ctx, seconds)
-            }
-            e.action == Action.CREATE && e.target == Target.ALARM -> {
-                val h = e.params["hour"]?.toIntOrNull()
-                val m = e.params["minute"]?.toIntOrNull()
-                if (h == null || m == null) {
-                    ToolResult.error("undo", "记不住刚才设的闹钟时间", "missing params")
-                } else ClockControl.closeAlarm(ctx, h, m)
-            }
+
             e.target == Target.TORCH && e.action == Action.ENABLE -> TorchControl.set(ctx, false)
             e.target == Target.TORCH && e.action == Action.DISABLE -> TorchControl.set(ctx, true)
             e.action == Action.OPEN -> ToolResult(

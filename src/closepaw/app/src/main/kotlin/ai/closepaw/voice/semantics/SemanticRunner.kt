@@ -56,9 +56,9 @@ object SemanticRunner {
                 TAG,
                 "exec ${t.describe()} → status=${r.status} verified=${r.verified} detail=${r.detail}"
             )
-            // remember successful mutations so "取消刚才的操作" works
-            if (r.ok && t.action.mutates && t.target != Target.LAST_ACTION) {
-                ActionMemory.record(t.action, t.target, t.params, r.speak)
+            // Clock creation owns its result boundary for direct callers too; never record twice.
+            if (!(t.action == Action.CREATE && t.target in setOf(Target.TIMER, Target.ALARM))) {
+                ActionMemory.recordResult(t.action, t.target, t.params, r)
             }
             outs.add(Outcome(t, r))
         }

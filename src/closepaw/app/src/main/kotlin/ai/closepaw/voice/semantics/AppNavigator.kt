@@ -99,7 +99,7 @@ object AppNavigator {
      */
     fun openResolved(ctx: Context, app: AppRegistry.App, why: String): ToolResult {
         val res = AppRegistry.launch(ctx, app)
-        if (res.ok) ActionMemory.record(Action.OPEN, Target.APP, mapOf("pkg" to app.packageName), res.speak)
+        // Mutation memory is owned by SemanticRunner, never by nested capabilities.
         return ToolResult(res.status, "app", res.speak, "${res.detail} ($why)", res.verified)
     }
 
