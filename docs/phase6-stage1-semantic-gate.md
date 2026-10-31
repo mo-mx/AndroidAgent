@@ -3,6 +3,66 @@
 Issue #3 / PR #4；分支 `feat/semantic-gate`；2026-10-31。
 性质：源码分析 + 本机 Gradle JVM 回归 + 第五轮真机复测。阶段 1 仍待审查/设备验收，不代表整个 Issue 完成。
 
+## 第七轮：同一窗口校验门 + 截断不当完整 + tab 精确匹配（源码 + JVM + 真机只读）
+
+依据：PR #4 复审 `6539848799`（针对 head `3253319`）的三项遗留；本轮 HEAD 起点 `03443b4`，本轮提交 `54e4b77` / `f122920` / `525ca49`（`feat/semantic-gate`）。
+
+### 1) P1：取消/关闭路径改用同一窗口校验门
+
+旧路径：`openClockTab` →（`foregroundPackage()` 另读一次）→ `UiAutomator.root()` 扫描 → 绑定节点 → 点击。检查与使用是两次读，中间窗口可以被 `VoiceActivity` 抢走；即使不被抢走，绑定的树也可能不是被检查的那一棵。
+
+现路径：`verifiedClockWindow(ctx, tab, reach)` —— 取 `UiAutomator.root()` 并**就地**要求该对象 `packageName == com.sec.android.app.clockpackage`，故“检查的”和“使用的”是同一个对象；拿不到时复用 `readClockScreen` 的恢复策略（重开时钟 + 重选 tab，最多 `CLOCK_READ_ATTEMPTS` 次）。`cancelTimer` / `closeAlarm` 都只从这个根绑定节点，并在点击前再查两条：被点节点自身属于时钟包、当前活动窗口仍属时钟。任一不满足：
+
+- `cancelTimer` → `DEVICE_UNAVAILABLE`「无法确认当前是时钟窗口 / 取消前时钟窗口变了」，不点击；
+- `closeAlarm` → `DEVICE_UNAVAILABLE`「无法确认当前是时钟窗口 / 关闭前时钟窗口变了」，**不会**据此说「没有X点的闹钟」。
+
+没有坐标点击、没有盲点兜底、没有为了通过率放宽拒绝分支。
+
+### 2) P2：截断不再被当作完整
+
+- `timerCountFrom(texts, truncated)`：截断时只有「N 个定时器正在运行」这类**陈述式**文本可用；「添加定时器」空态标记与卡片计数都必须基于完整读取。判定顺序修正（旧代码先看空态再看截断，截断树仍可能报 0）。
+- `queryAlarms`：`readable` 要求 `pageOk && alarmPage && !truncated && (listed.isNotEmpty() || empty)`，其中 `alarmPage = reach.selected == true || read.checkableCount > 0 || empty`。新增 `UiAutomator.ScreenRead.checkableCount`（读取时统计 `isCheckable` 节点）作为**结构证据**：世界时钟页同样有 `H:mm` 文本但没有闹钟开关，因此不再可能被枚举成闹钟列表。`detail` 增加 `alarmPage=`/`checkables=`。
+- `closeAlarm`：截断且未找到目标 → 「闹钟列表读取被截断，没法确认…」；未截断但页面不是闹钟列表（无选中态、无开关）→ 「无法确认当前是闹钟列表…」，都不说「没有这个闹钟」。
+
+### 3) tab 到达语义复核（第六轮之后）
+
+第六轮的三态 `selectedState` 已消除“标签可见即到达”：点击失败且只有标签可见 → `click-failed-label-only`，`reached=false`。本轮复核发现**匹配方式**仍有缺陷（真机证据）：`clickText("闹钟")` 与选中态读取都用 `contains`，先命中了闹钟页的提示卡「对关联闹钟进行分组」——既可能点不到 tab，也会把已选中的 tab 读成“未选中”。
+
+- `UiAutomator.selectedState`：**精确标签优先**（`text`/`contentDescription` 去空格小写后相等），包含匹配只作回退。
+- `ClockControl.clickClockTab`：先点标签**精确等于** tab 名的节点，找不到才回退旧的 `clickText`。
+
+### 测试（真实执行）
+
+| 测试 | 断言重点 | 结果 |
+|---|---|---|
+| `ClockWindowGateTest`(8) | 外来窗口不绑定/不点击计时器与闹钟；节点属他包不点击；截断下「添加定时器」不给 0；无开关证据的时钟页不报数量；tab 点击落在标签节点而非提示卡 | 上一提交上 **4 项红** → 修后全绿 |
+| `ClockAlarmPageEvidenceTest`(6) | `checkableCount>0` 才枚举；明确空态可判空；窗口被抢后重开+重选 tab 再点；无法确认窗口时零点击 | 全绿 |
+| `TabSelectedStateTest`(+2) | 包含标签不决定选中；无精确标签时回退 | 先红后绿 |
+| `ClockWindowGateTest`(+1) | tab 精确点击 | 先红后绿 |
+
+- 定向：`ai.closepaw.voice.semantics.*` + `ai.closepaw.voice.tools.*` = **101 tests / 0 failed**。
+- 全量 `./gradlew --offline :app:testDebugUnitTest` = **2194 tests / 6 failed / 8 skipped / 0 errors**；失败仍为既知 `AgentSkillCatalogTest`(1) + `MemoryStoreTest`(5)，与基线一致，**不是全绿**。
+- fixture 补全（未削弱断言）：`AlarmQuerySafetyTest` / `ClockForeignWindowTest` 的闹钟页补 `checkableCount`（真实闹钟行有开关）；`TimerObjectExecutionTest` 的节点补时钟包名；`SemanticExecutionTest` 的“取消不存在的闹钟”改用真实空态页，另一例改为“两个时钟自己的取消按钮、无时长证据”。
+
+### 真机只读复测（本轮，非破坏性）
+
+设备 Samsung SM-F731U1 / Clock 12.5.60.27；APK SHA256 `c42d72227152f9689cfffcfcfe772e2e76a6301c219f78ff8e8949e34d00347a`；`install -r` Success，安装后 `dumpsys accessibility` 仍 `id=ai.closepaw/.app.AgentService, isDefault=true`，`voice_interaction_service` 保持 `ai.closepaw/.voice.ClosepawVoiceInteractionService`（未改助手角色），未 force-stop、未清数据。
+
+| 场景 | 命令 | 实测 detail |
+|---|---|---|
+| 闹钟查询 ×3 | `am start -n ai.closepaw/.voice.VoiceActivity --es fake_text "现在有几个闹钟"` | 2 次 `verified=true visible=[6:00, 7:30, 8:00, 9:20, 10:00, 11:00] alarmPage=true checkables=6 tab=clicked rootPkg=com.sec.android.app.clockpackage nodes=67`；1 次 `verified=false visible=[] tab=clicked-not-selected`（拒读，不报数） |
+| 计时器查询（空态） | `fake_text "现在有几个倒计时"` | `verified=true tab=clicked nodes=44`（count=0，未给数字即 0 分支）；另有 1 次 `tab=label-not-found window=not-clock` 拒绝 |
+| 自建对象：2 分钟倒计时 | `fake_text "设置两分钟倒计时"` | `CREATE/TIMER{seconds=120} status=SUCCESS verified=false detail=clockFg=true countdown-ui=true; no newly created object identity` |
+| 自建对象查询 | `fake_text "现在有几个倒计时"` | `verified=true detail=count=1 tab=clicked nodes=27 rootPkg=clock` |
+| 自建对象取消 | `fake_text "取消两分钟倒计时"` | `CANCEL/TIMER{seconds=120} status=BLOCKED verified=false detail=duration=120 candidates=0 complete=true`（窗口门通过、无「初始时长」证据 → 不点击） |
+| 清理 | 计时器自然到期，`am broadcast -a android.intent.action.DISMISS_TIMER` 结束提示音 | 终态查询 `verified=true nodes=44`（空态，count=0） |
+
+### 明确未解决 / 残余风险
+
+- **到达判定仍非 100% 确定**：本机 2/3 次读为 `tab=clicked`（选中态未观测到 `true`）、1 次 `clicked-not-selected`。`selected` 在本机是否稳定暴露仍未定论；因此“页面正确性”靠 `alarmPage` 结构证据兜底，而非仅靠选中态。
+- **取消/关闭仍不可用（失败闭合）**：本机计时器卡片没有「初始时长/总时长」标签，`cancelTimer` 永远 `BLOCKED`；`closeAlarm` 在真机未执行（本轮授权范围只含只读查询、tab 切换与自建可清理对象）。
+- 矩阵不变：通过 4 / 失败 0 / 未测 3（计时器唯一绑定、五分钟真实参数、取消不存在目标的实机证据）。阶段 1 不因本轮通过；PR #4 不合并。
+
 ## 第六轮：tab“到达”语义拆分（源码 + JVM，未实机）
 
 依据 PR #4 复审 `6539752681` 的 P2：`openClockTab` 用 `clickText(tab) || waitForText(tab, 800)`，点击失败但只要标签仍在屏上就返回 true。

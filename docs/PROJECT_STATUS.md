@@ -1,8 +1,20 @@
 # PROJECT_STATUS — 当前真实状态
 
-最后更新：2026-10-31（第④轮：tab“到达”语义拆分，复审 `6539752681` P2；本轮未实机）
+最后更新：2026-10-31（第⑦轮：同一窗口校验门 + 截断不再当完整 + tab 精确匹配；JVM 全量 + 真机只读复测）
 
-本轮最新状态（第④轮，源码分析 + JVM）：按复审 `6539752681` 的 P2 修 `openClockTab` 的假到达——旧逻辑 `clickText(tab) || waitForText(tab, 800)` 在点击失败时只要标签还可见就算到达，而时钟四个底部标签每页都在。现拆成三个事实（导航控件存在 / 点击已投递 / 目标 tab 报告选中）：`UiAutomator.selectedState` 返回 `true / false / null`，`null`（平台不暴露选中态）与 `false`（明确未选中）不再混同；读取前用 `onTargetPage` 复核“时钟包名 + 该 tab 未报告未选中”。`closeAlarm` 不再读原始活动窗口，外来窗口一律 `DEVICE_UNAVAILABLE`，不把“读不到”说成“没有这个闹钟”。同轮按复审 `6539848799` 补齐：`closeAlarm`/`cancelTimer` 在 scan 前与 click 前各复核一次前台包名（窗口变了就拒绝、不点击），截断读取不再产生确定计数/确定空态。新增 `ClockTabReachTest`(6) + `TabSelectedStateTest`(6) + `ClockWindowBindingTest`(6)，先 RED 后 GREEN；定向 74/74；全量 2177 tests / 6 failed / 8 skipped / 0 errors（仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与基线一致，不是全绿）。本轮未构建 APK、未上机；`selected` 在本机三星时钟是否暴露未验证。矩阵不变：通过 4 / 失败 0 / 未测 3。
+本轮最新状态（第⑦轮，源码分析 + JVM 单测 + 真机只读复测）：处理复审 `6539848799` 对 head `3253319` 的三项遗留。
+
+1. **P1 同一窗口校验门（已修，JVM）**：`cancelTimer` / `closeAlarm` 原来在 `openClockTab` 之后各自 `UiAutomator.root()` 扫描并绑定节点，`foregroundPackage()` 是另一次读——检查能通过，但绑定/点击用的是别的窗口的树。现两处都走 `verifiedClockWindow(ctx, tab, reach)`：返回的根**就是**通过 `packageName == com.sec.android.app.clockpackage` 校验的那个对象，并复用 `readClockScreen` 的“重开时钟 + 重选 tab”有界重试；无法确认即 `DEVICE_UNAVAILABLE`（“无法确认当前是时钟窗口”），绝不说“目标不存在”、绝不点击。点击前再加两条：被点的节点自身 `packageName` 必须是时钟；当前活动窗口仍属时钟。无坐标、无盲点。
+2. **P2 截断不再变确定结论（已修，JVM）**：`timerCountFrom` 的「添加定时器」空态标记移到截断闸门之后（截断时只有「N 个定时器正在运行」这种陈述式文本可用）；`queryAlarms` 除“截断即不可读”外，还要求页面**结构上**是闹钟列表（tab 报告选中 / 页面存在闹钟开关，新增 `ScreenRead.checkableCount` / 明确空态），世界时钟的 `H:mm` 行不再被枚举成闹钟；`closeAlarm` 在回答“没有X点的闹钟”前同样要求该证据。
+3. **tab 到达语义复核（已修，含真机证据）**：第六轮后已无“标签可见即到达”的路径（点击失败仍算 `click-failed-label-only`）。但真机复测暴露新问题：`clickText("闹钟")` 与选中态读取都用了“包含”匹配，命中了闹钟页的提示卡「对关联闹钟进行分组」——于是 tab 有时没切、且已选中的 tab 被报成未选中。现改为**精确标签优先**（`selectedState` 与新增 `clickClockTab`），包含匹配仅作回退。
+
+测试（真实执行，先 RED 后 GREEN）：`ClockWindowGateTest`(8) 在上一提交上 4 项红（外来窗口绑定计时器/闹钟、节点属于别的应用、截断下的「添加定时器」、无闹钟结构证据的时钟页），修后全绿；`ClockAlarmPageEvidenceTest`(6) 钉住新证据契约与窗口恢复；`TabSelectedStateTest` +2、`ClockWindowGateTest` +1 先红后绿（提示卡被当成 tab、tab 未被点击）。定向 101/101 通过；全量 `:app:testDebugUnitTest` **2194 tests / 6 failed / 8 skipped / 0 errors**，失败仍是既知 `AgentSkillCatalogTest`(1) + `MemoryStoreTest`(5)，**不是全绿**。
+
+真机复测（SM-F731U1 / Clock 12.5.60.27，APK SHA256 `c42d7222…d00347a`，`install -r` 后无障碍仍 Bound、`voice_interaction_service` 未改）：ALARM QUERY 3 次 → 2 次 `verified=true visible=[6:00, 7:30, 8:00, 9:20, 10:00, 11:00] tab=clicked checkables=6 rootPkg=clock`，1 次 `verified=false tab=clicked-not-selected visible=[]`（宁可拒读也不报数）；TIMER QUERY 空态 `verified=true`（`nodes=44`），自建 2 分钟倒计时后 `count=1 verified=true`（`nodes=27`）；对自建对象执行 `取消` → `BLOCKED candidates=0 complete=true`（未点击、失败闭合）；测试对象已跑完并用 `ACTION_DISMISS_TIMER` 结束，终态查询回到空态。
+
+残余：`selected` 在本机是否稳定暴露仍未确定（2/3 次读为 `tab=clicked`，1 次 `clicked-not-selected`），因此**到达判定仍非 100% 确定性**，已如实写进 `detail`；取消/关闭路径在真机仍为 BLOCKED（无「初始时长」证据），矩阵维持 通过 4 / 失败 0 / 未测 3。
+
+上一轮状态（第④~⑥轮，源码分析 + JVM）：按复审 `6539752681` 的 P2 修 `openClockTab` 的假到达——旧逻辑 `clickText(tab) || waitForText(tab, 800)` 在点击失败时只要标签还可见就算到达，而时钟四个底部标签每页都在。现拆成三个事实（导航控件存在 / 点击已投递 / 目标 tab 报告选中）：`UiAutomator.selectedState` 返回 `true / false / null`，`null`（平台不暴露选中态）与 `false`（明确未选中）不再混同；读取前用 `onTargetPage` 复核“时钟包名 + 该 tab 未报告未选中”。`closeAlarm` 不再读原始活动窗口，外来窗口一律 `DEVICE_UNAVAILABLE`，不把“读不到”说成“没有这个闹钟”。同轮按复审 `6539848799` 补齐：`closeAlarm`/`cancelTimer` 在 scan 前与 click 前各复核一次前台包名（窗口变了就拒绝、不点击），截断读取不再产生确定计数/确定空态。新增 `ClockTabReachTest`(6) + `TabSelectedStateTest`(6) + `ClockWindowBindingTest`(6)，先 RED 后 GREEN；定向 74/74；全量 2177 tests / 6 failed / 8 skipped / 0 errors（仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与基线一致，不是全绿）。第六轮同样未上机；`selected` 是否暴露当时未验证（第⑦轮已部分实测）。
 上一轮状态（第③轮，实机验证）：按 PR #4 复审 `6539505148` 先采只读证据再修。根因是**读到了 ClosePaw 自己的窗口**：`VoiceActivity` 全屏窗口中途抢焦点，`rootInActiveWindow` 变成 `ai.closepaw nodes=3`，旧代码点完 tab 固定 sleep 500ms 就读且不校验根节点包名，于是把空窗当“时钟页不可读”；次因是 `runningTimerCount` 只认「添加定时器/正在运行」，而本机空态是 `小时/分钟/秒 + 开始` 选择器、运行态是 `取消/暂停` 卡片。已按 TDD 修复并复测：ALARM QUERY `verified=true readable=true`，TIMER QUERY 1 个运行→`count=1`、清理后→0（verified=true）。构建 APK SHA256 `45e74c03…b60a2333`，install -r 后无障碍仍 Bound。矩阵：通过 4 / 失败 0 / 未测 3；计时器取消绑定、五分钟工具参数、取消不存在目标、undo 仍缺安全对象证据。
 
 更早（第②轮）：按复审 P1 做了源码级可观测性改造（`readScreen` 报告 `nodesVisited/nodesTruncated/textsTruncated/rootPkg`，`ClockControl` 报告 tab 到达方式），当时未实机、根因未定位。
@@ -32,7 +44,7 @@
 | 4.6 | Direct Boot 救援通道（未解锁也能被查询/拉起/播报） | 完成 | `docs/direct-boot-rescue-report.md`（实机） |
 | 4.7 | scrcpy 无线投屏 | 视频链路完成，控制注入待人工确认 | `docs/scrcpy-wireless.md` |
 | 5 | 唤醒词 + 声纹（sherpa-onnx KWS + SpeakerEmbedding） | **未开始** | — |
-| 6 | 语义闸门 + 把自研能力包成 ClosePaw ToolSpec | **进行中（阶段 1 设备验收第③轮：时钟读取已修复并实机复测；第④轮 tab 到达语义修复，未实机）** | `docs/phase6-stage1-semantic-gate.md`（源码 + JVM 单测）、`docs/phase6-stage1-device-acceptance.md`（实机） |
+| 6 | 语义闸门 + 把自研能力包成 ClosePaw ToolSpec | **进行中（阶段 1：第③轮时钟读取已实机修好；第⑦轮同一窗口门/截断/tab 精确匹配已修，JVM 全绿定向 + 真机只读复测；取消/关闭仍 BLOCKED 未测）** | `docs/phase6-stage1-semantic-gate.md`（源码 + JVM 单测）、`docs/phase6-stage1-device-acceptance.md`（实机） |
 | 7 | GitHub 协作仓库 | 完成（本次） | 本仓库 |
 
 ## 3. 已验证可用的功能（实机）

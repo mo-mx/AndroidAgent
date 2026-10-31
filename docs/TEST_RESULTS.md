@@ -179,3 +179,32 @@
 按完整项目计：通过2、失败1、未测4；“通过”仅限所述文字验收边界。没有制造危险对象换通过。真人语音全部未测。当前阻塞不是锁屏/未绑定，而是时钟业务UI不可读及缺少安全对象身份/清理证据。未作生产修复，因此无新TDD/构建/全量测试记录；历史2138 tests / 6 failed / 8 skipped仍有效，不宣称本轮全绿。
 
 原始日志、窗口内容、APK与XML只存gitignored logs/stage1-resume-*、logs/stage1-alarm-{baseline,after}.xml，未提交个人对象时间、名称或截图。uiautomator dump仅在无任务执行时作前后只读基线，未在Agent任务中抢连接。未force-stop、清数据、改助手角色、关Wi-Fi或绕过锁屏。后续需在安全测试对象方案明确后补4项未测，并诊断时钟读取缺口；不能合并或据此启动后续阶段。
+
+## 第⑦轮语义闸门回归（2026-10-31，JVM + 真机只读）
+
+依据 PR #4 复审 `6539848799`（head `3253319`）三项遗留；本轮提交 `54e4b77` / `f122920` / `525ca49`。
+
+### JVM（真实执行）
+
+| 项目 | 结果 | 证据 |
+|---|---|---|
+| `ClockWindowGateTest`(8) | 通过 | 上一提交上 4 项红（外来窗口绑定计时器/闹钟、节点属他包、截断下「添加定时器」、无开关证据的时钟页报数），修后全绿 |
+| `ClockAlarmPageEvidenceTest`(6) | 通过 | `checkableCount>0` 才枚举闹钟；明确空态可判空；窗口被抢 → 重开+重选 tab 再点；无法确认窗口零点击 |
+| `TabSelectedStateTest`(8) | 通过 | 含精确标签优先（先红后绿） |
+| 定向 `voice.semantics.*` + `voice.tools.*` | **101 tests / 0 failed** | `--tests` 两包 |
+| 全量 `:app:testDebugUnitTest` | **2194 tests / 6 failed / 8 skipped / 0 errors** | 失败=既知 `AgentSkillCatalogTest`(1)+`MemoryStoreTest`(5)，与基线一致，**不是全绿** |
+
+### 真机（SM-F731U1 / Clock 12.5.60.27，APK SHA256 `c42d7222…d00347a`）
+
+| 用例 | 结果 | 实测 |
+|---|---|---|
+| `install -r` + 无障碍 | 通过 | `Success`；`dumpsys accessibility` 仍 `id=ai.closepaw/.app.AgentService, isDefault=true` |
+| 助手角色未变 | 通过 | `settings get secure voice_interaction_service` = `ai.closepaw/.voice.ClosepawVoiceInteractionService`（安装前后一致） |
+| ALARM QUERY ×3（只读） | 2 次通过 / 1 次如实拒读 | `verified=true visible=[6:00, 7:30, 8:00, 9:20, 10:00, 11:00] checkables=6 tab=clicked nodes=67 rootPkg=clock`；拒读那次 `verified=false visible=[] tab=clicked-not-selected` |
+| TIMER QUERY 空态 | 通过 | `verified=true tab=clicked nodes=44`（0 个在运行）；另有 1 次 `tab=label-not-found window=not-clock` 拒绝 |
+| 自建对象（2 分钟倒计时）查询 | 通过 | `verified=true count=1 nodes=27 rootPkg=clock` |
+| 自建对象取消 | 失败闭合（未点击） | `BLOCKED duration=120 candidates=0 complete=true`；卡片无「初始时长」证据，安全拒绝 |
+| 测试对象清理 | 完成 | 计时器到期后用 `ACTION_DISMISS_TIMER` 结束提示；终态查询 `verified=true nodes=44`（0 个） |
+| 未触碰 | — | 未点击个人闹钟/倒计时开关、未 force-stop、未清数据、未关 Wi-Fi、未改助手角色 |
+
+边界：本轮只验证“读”与“tab 切换”与自建可清理对象；`closeAlarm` / `cancelTimer` 在真机仍不可用（BLOCKED）。到达判定仍有残余不确定性（`tab=clicked` 表示点击已投递但选中态未观测为 true）。矩阵：通过 4 / 失败 0 / 未测 3；阶段 1 未整体通过，PR #4 不合并。
