@@ -501,3 +501,23 @@ TDD：每个修复切片先观察对应行为断言失败，再修改生产代�
 | 全量 | **2345 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**，失败仍是 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（`logs/pr4-round33-full.txt`、`-full2.txt`） |
 
 **边界**：这只证明说法到入参正确，不证明三星时钟接受 4200 s，也不证明创建后能核对；不是一个设备验收项被完成。`一个半小时` 目前算成 1800 s（应为 5400 s）是**另一个**语义问题，本轮未改、也未把它写进测试当正确值——需要先定「一个半/两个半」的规则。实机仍须用户重新授权。
+
+
+## 第㉞轮：手电/Wi-Fi 的真实回读没有交给终态闸门（源码 + JVM，未实机）
+
+无新审查（最新 review `6549082221` 已处理），推进遗留清单的「手电/Wi-Fi 缺对象级回读」。
+
+**问题**：`TorchControl.set` 等 `onTorchModeChanged`、`WifiControl.enable/disable` 读 `isWifiEnabled`，都据此置 `verified=true`，但都不填 `observed`。`TerminalState` 对声明 `expectedState` 的任务要求结构化证据，于是有真实证据的成功被降级播报成「请求已经发出，但没能确认结果」。
+
+**改动**：`TorchControl.outcome(on, cameraId, observed, unavailable)` 抽成纯判定并在成功分支带 `ObservedState("torch","on"/"off")`；`WifiControl.stateResult(...)` 供四条成功返回共用，带 `ObservedState("wifi","on"/"off")`。identity 与 `SemanticParser.identityOf` 的 `target.name.lowercase()` 一致，测试内直接解析原话验证。
+
+**测试** `SwitchReadbackEvidenceTest`(10)：Wi-Fi 三条成功分支真实 MockK（Context+WifiManager）；手电四条纯判定（成功 on/off、无回调 TIMEOUT、相机占用 DEVICE_UNAVAILABLE、回读反状态 EXECUTION_ERROR）；端到端 `SemanticParser.parse → TerminalState.verdict == CONFIRMED`；控制组（去掉证据的同一 SUCCESS 仍 UNPROVEN）。
+
+| 阶段 | 结果 |
+|---|---|
+| 测试先写 + 仅抽函数（行为不变） | **RED 10 / 6 failed / 0 errors**，Truth 断言失败（`logs/pr4-round34-red.txt`） |
+| 实现后同组 | **GREEN 10 / 10**，exit=0（`logs/pr4-round34-green1.txt`） |
+| 定向 `ai.closepaw.voice.*` | **265 / 0 failed / 0 errors / 0 skipped**，exit=0（`logs/pr4-round34-targeted.txt`） |
+| 全量 | **2355 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**，失败仍是 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（`logs/pr4-round34-full.txt`） |
+
+**边界**：手电的 CameraManager 回调/等待仍只有真机证据（JVM 无 Looper，本仓无 Robolectric）；Wi-Fi 的 `SYSTEM_RESTRICTED` 分支因 `Intent(...)` 在 mockable android.jar 返回 null 而无法在 JVM 跑（本轮未改该分支）。设备矩阵不变（4 通过 / 0 失败 / 3 未测），实机需用户重新授权；未构建/安装 APK、未操作手机、未 push main、未合并。

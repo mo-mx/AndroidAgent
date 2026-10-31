@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-11-01 第㉞轮（仅 JVM，未实机）
+
+测什么：手电与 Wi-Fi 的**真实回读是否真的进了终态闸门**。这两处本来就有读回（`onTorchModeChanged`、`isWifiEnabled`），但 `observed` 一直为空，声明了 `on:TORCH`/`on:WIFI` 的任务被 `TerminalState` 一律判 `UNPROVEN` 并改写为「请求已经发出，但没能确认结果」。本轮把它们填进 `ObservedState`，并用解析器原话 + 闸门做端到端断言。
+怎么测：仓库根 `source env.sh`，`cd src/closepaw`，`./gradlew :app:testDebugUnitTest --tests 'ai.closepaw.voice.tools.SwitchReadbackEvidenceTest' --offline --rerun-tasks`（RED，生产代码行为未变）；实现后再跑同组，然后 `--tests 'ai.closepaw.voice.*'`，最后全量同任务不带 `--tests`。
+实际结果：新测试 **RED 10 tests / 6 failed / 0 errors**（Truth 断言失败，非编译失败；4 条控制组本来通过）→ 实现后 **GREEN 10 / 10**（exit=0）；定向 `ai.closepaw.voice.*` **265 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㉝轮 255，+10）；全量 **2355 tests / 6 failed / 0 errors / 8 skipped**（Gradle exit=1，**不是全绿**，失败仍为既有 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，本轮未改未跳过）。
+未验证：手电的 CameraManager 回调时序/阻塞等待（JVM 无 Looper，本轮只覆盖「回调证据 → 结论」）；Wi-Fi 的 `SYSTEM_RESTRICTED` 分支（`openWifiPanel` 需要真实 `Intent`，JVM 跑不了）；真机上这两个开关的实际播报。本轮未构建/安装 APK、未操作手机。
+证据：本机 gitignored `logs/pr4-round34-{red,green1,targeted,full}.txt`，不入库。
+
 ## 2026-11-01 第㉜轮（仅 JVM，未实机）
 
 测什么：撤回创建/取消两条「同类证据当对象结论」的判定——创建路径的「基线无同长度卡 + 表头 +1 + 回读一张该长度卡」不再判 `CONFIRMED`；取消路径的「回读仍有同长度标签」不再判 `CONTRADICTED`。两条都改为 `verified=null` 的 `UNPROVEN`，事实写进 `detail`。

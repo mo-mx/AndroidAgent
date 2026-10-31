@@ -29,6 +29,9 @@ object TorchControl {
     private const val TAG = "TorchControl"
     private const val VERIFY_TIMEOUT_MS = 4000L
 
+    /** Must equal `Target.TORCH.name.lowercase()`, which is the identity the parser declares. */
+    private const val IDENTITY = "torch"
+
     data class Camera(val id: String, val hasFlash: Boolean)
 
     fun findTorchCamera(ctx: Context): Camera? {
@@ -91,26 +94,7 @@ object TorchControl {
             val confirmed = latch.await(VERIFY_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             val state = observed.get()
             Log.i(TAG, "set(on=$on) camera=${cam.id} confirmed=$confirmed observed=$state unavailable=${unavailable.get()}")
-            when {
-                state == on -> ToolResult.ok(
-                    "torch",
-                    if (on) "手电筒已打开" else "手电筒已关闭",
-                    verified = true,
-                    detail = "camera=${cam.id} torch=$state"
-                )
-                state == null && unavailable.get() -> ToolResult.unavailable(
-                    "torch", "手电筒被占用，可能正在使用相机",
-                    "onTorchModeUnavailable after request (camera in use)"
-                )
-                state != null && state != on -> ToolResult.error(
-                    "torch", "手电筒没有切换成功", "requested=$on observed=$state"
-                )
-                else -> ToolResult(
-                    ToolStatus.TIMEOUT, "torch",
-                    if (on) "手电筒请求发出去了，但没等到确认" else "关闭请求发出去了，但没等到确认",
-                    "no matching TorchCallback within ${VERIFY_TIMEOUT_MS}ms", null
-                )
-            }
+            outcome(on = on, cameraId = cam.id, observed = state, unavailable = unavailable.get())
         } catch (e: CameraAccessException) {
             Log.e(TAG, "setTorchMode failed", e)
             ToolResult.error("torch", "相机拒绝了这个操作", e.message ?: "CameraAccessException")
@@ -121,6 +105,44 @@ object TorchControl {
             runCatching { cm.unregisterTorchCallback(callback) }
         }
     }
+
+    /**
+     * The verdict for one torch request, from the callback evidence [set] collected.
+     *
+     * Split out because the plumbing (CameraManager callback + latch) needs a real Looper and
+     * cannot run on the JVM, while this decision can — and the decision is where the promise is
+     * made or dropped.
+     */
+    internal fun outcome(on: Boolean, cameraId: String, observed: Boolean?, unavailable: Boolean): ToolResult =
+        when {
+            // The callback named this camera and reported the state we asked for: that is evidence
+            // of the promised state, so it has to be reported as such. Until round 34 it was not,
+            // and `TerminalState` — which needs structured evidence for `on:TORCH` / `off:TORCH` —
+            // hedged a torch that had really come on into "请求已经发出，但没能确认结果".
+            observed == on -> ToolResult.ok(
+                "torch",
+                if (on) "手电筒已打开" else "手电筒已关闭",
+                verified = true,
+                detail = "camera=$cameraId torch=$observed",
+                observed = ObservedState(
+                    identity = IDENTITY,
+                    state = if (on) "on" else "off",
+                    source = "camera2:torch-callback",
+                ),
+            )
+            observed == null && unavailable -> ToolResult.unavailable(
+                "torch", "手电筒被占用，可能正在使用相机",
+                "onTorchModeUnavailable after request (camera in use)"
+            )
+            observed != null && observed != on -> ToolResult.error(
+                "torch", "手电筒没有切换成功", "requested=$on observed=$observed"
+            )
+            else -> ToolResult(
+                ToolStatus.TIMEOUT, "torch",
+                if (on) "手电筒请求发出去了，但没等到确认" else "关闭请求发出去了，但没等到确认",
+                "no matching TorchCallback within ${VERIFY_TIMEOUT_MS}ms", null
+            )
+        }
 
     // ── process-wide state watcher ──
     // There is no synchronous "is the torch on?" API. A single long-lived callback fills this

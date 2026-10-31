@@ -22,6 +22,20 @@ import android.util.Log
 object WifiControl {
     private const val TAG = "WifiControl"
 
+    /** Must equal `Target.WIFI.name.lowercase()`, which is the identity the parser declares. */
+    private const val IDENTITY = "wifi"
+
+    /**
+     * `isWifiEnabled` is a real read of the radio, so a SUCCESS here knows the promised state.
+     * Round 34: it used to leave `observed` null, and `TerminalState` — which requires structured
+     * evidence for `on:WIFI` / `off:WIFI` — reported a switch that had really flipped as
+     * "请求已经发出，但没能确认结果". Evidence that exists must be handed over, not dropped.
+     */
+    private fun stateResult(speak: String, detail: String, on: Boolean) = ToolResult.ok(
+        "wifi", speak, verified = true, detail = detail,
+        observed = ObservedState(IDENTITY, if (on) "on" else "off", "wifi-manager:isWifiEnabled"),
+    )
+
     private fun manager(ctx: Context): WifiManager? =
         ctx.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
 
@@ -31,7 +45,7 @@ object WifiControl {
         val wm = manager(ctx) ?: return ToolResult.unavailable("wifi", "这台设备没有 Wi-Fi 模块")
         val before = runCatching { wm.isWifiEnabled }.getOrNull()
         if (before == true) {
-            return ToolResult.ok("wifi", "Wi-Fi 已经是开着的", verified = true, detail = "already on")
+            return stateResult("Wi-Fi 已经是开着的", "already on", on = true)
         }
 
         // Single attempt only — repeating a permission-denied API just wastes the user's time.
@@ -40,7 +54,7 @@ object WifiControl {
         }
         val after = runCatching { wm.isWifiEnabled }.getOrNull()
         if (attempted && after == true) {
-            return ToolResult.ok("wifi", "Wi-Fi 已打开", verified = true, detail = "setWifiEnabled ok")
+            return stateResult("Wi-Fi 已打开", "setWifiEnabled ok", on = true)
         }
 
         val opened = openWifiPanel(ctx)
@@ -78,12 +92,14 @@ object WifiControl {
     fun disable(ctx: Context): ToolResult {
         val wm = manager(ctx) ?: return ToolResult.unavailable("wifi", "这台设备没有 Wi-Fi 模块")
         val before = runCatching { wm.isWifiEnabled }.getOrNull()
-        if (before == false) return ToolResult.ok("wifi", "Wi-Fi 已经是关着的", verified = true)
+        if (before == false) {
+            return stateResult("Wi-Fi 已经是关着的", "already off", on = false)
+        }
         val attempted = runCatching { wm.setWifiEnabled(false) }.getOrElse {
             Log.w(TAG, "setWifiEnabled(false) threw", it); false
         }
         val after = runCatching { wm.isWifiEnabled }.getOrNull()
-        if (after == false) return ToolResult.ok("wifi", "Wi-Fi 已关闭", verified = true)
+        if (after == false) return stateResult("Wi-Fi 已关闭", "setWifiEnabled(false) read back off", on = false)
         val opened = openWifiPanel(ctx)
         return ToolResult.restricted(
             "wifi",

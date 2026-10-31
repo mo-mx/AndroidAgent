@@ -1,5 +1,32 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㉞轮：真实回读被终态闸门丢掉——手电/Wi-Fi 从「确认」退回「没法确认」（源码 + JVM，未实机）
+
+本轮无新审查（最新 review `6549082221` 已由第㉜轮处理、第㉝轮已回复 `6549757219`，其后 PR 无新评论），按「无新审查则推进可离线项」处理遗留清单里的 **「手电/Wi-Fi 缺对象级回读」**。查下来不是没有回读，是**回读没交给闸门**。
+
+1. **缺陷（真实，不是措辞问题）**：`TorchControl.set` 会等 `onTorchModeChanged`，`WifiControl.enable/disable` 会前后读 `isWifiEnabled`；两者都用这份真实读回置 `verified = true`，但 `observed` 一直是 `null`。第㉔轮起的 `TerminalState` 对声明了 `expectedState`（`on:WIFI`、`off:TORCH`）的任务要求结构化证据，于是**真的开了的手电、真的切了的 Wi-Fi** 被统一改写成「请求已经发出，但没能确认结果」。过度保守也是不准确——证据存在而契约把它丢掉了。
+2. **改法（最小）**：从 `TorchControl.set` 抽出纯判定 `outcome(on, cameraId, observed, unavailable)`，成功分支填 `ObservedState("torch", "on"|"off", "camera2:torch-callback")`；`WifiControl` 四条成功返回统一走 `stateResult(...)`，填 `ObservedState("wifi", "on"|"off", "wifi-manager:isWifiEnabled")`。identity 与 `SemanticParser.identityOf` 的 `target.name.lowercase()` 对齐（测试里直接解析原话并断言，不靠假设）。超时 / 相机被占用 / 反状态 / 平台拒绝这些分支**不加**证据。
+3. **新测试 `SwitchReadbackEvidenceTest`(10)**：
+   - Wi-Fi 三条成功分支走真实 `WifiControl` 调用（MockK 桩 `Context`+`WifiManager.isWifiEnabled`/`setWifiEnabled`），断言 `observed` 的 identity 与 state；
+   - 手电四条纯判定：`on`/`off` 成功、无回调 → TIMEOUT 无证据、相机被占用 → DEVICE_UNAVAILABLE 无证据、回读为反状态 → EXECUTION_ERROR 无证据；
+   - 端到端：`SemanticParser.parse("打开wifi"/"打开手电筒")` 的任务经 `TerminalState.verdict` 判 `CONFIRMED`、`enforce` 不改写句子；控制组「同一 SUCCESS 结果去掉证据」仍判 `UNPROVEN`。
+
+TDD 与真实数据（全部 `--offline`，仓库根先 `source env.sh`）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 先写测试 + 只把手电判定抽成函数（行为未变） | **RED 10 tests / 6 failed / 0 errors**，全是 Truth 断言失败（`expected: wifi but was: null` 等），4 条控制组本来通过 | `logs/pr4-round34-red.txt` |
+| 实现后同组 | **GREEN 10 / 10**，exit=0 | `logs/pr4-round34-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **265 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㉝轮 255，+10 为本轮新测试） | `logs/pr4-round34-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2355 tests / 6 failed / 0 errors / 8 skipped**，Gradle exit=1，**不是全绿**；失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（本轮未改、未跳过，也未重跑旧 SHA 基线） | `logs/pr4-round34-full.txt` |
+
+边界与遗留（如实）：
+- **手电的 CameraManager 布线仍只有真机证据**：JVM 侧 `Handler(Looper.getMainLooper())` 与回调等待跑不起来（本仓无 Robolectric），本轮只覆盖「回调证据 → 结论」这一步，不覆盖回调是否按时到达。
+- **Wi-Fi 的 `SYSTEM_RESTRICTED` 分支仍不可 JVM 测**：`openWifiPanel` 需要 `Intent(...)`，mockable android.jar 的构造返回 null，测试里会在断言前 NPE，故该分支未纳入（本轮也没有改它）。
+- 首次 RED 用过 `returnsMany`，夹具在第三次读之后拿不到值抛 NPE——那是夹具问题，不是被测行为；改成「超出脚本值后重复最后一个值」，RED 才干净。这一条写在这里，免得把夹具报错误记成 RED。
+- 设备矩阵不变：4 通过 / 0 失败 / 3 未测；本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未并入 Issue #6、未改受保护规则、未 push main、未合并 PR。实机需用户**重新授权**。
+- 遗留不变：`closeAlarm` 缺全列表枚举/稳定身份仍 `BLOCKED`；计时器创建/取消的对象级终态仍是 `UNPROVEN`；创建 undo 安全拒绝；在线 `ToolRouter` 同门禁（阶段 2）。
+
 ## 第㉝轮：语音时长到工具参数之间的一处 60 倍错误（源码 + JVM，未实机）
 
 本轮无新审查（最新 review `6549082221` 已由第㉜轮回复 `6549362112` 处理，其后 PR 无新评论），按「无新审查则推进可离线项」处理遗留清单里的 **「五分钟真实工具参数」**。它不是设备项才有的问题——先补端到端参数断言时，发现解析层就有一个能直接算错的形状。
