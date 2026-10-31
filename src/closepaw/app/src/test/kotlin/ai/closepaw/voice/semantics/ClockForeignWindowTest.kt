@@ -90,6 +90,35 @@ class ClockForeignWindowTest {
         assertThat(r.status).isEqualTo(ToolStatus.SUCCESS)
     }
 
+    @Test fun `recovery selects exact tab rather than a preceding hint card`() {
+        mockkObject(AppRegistry)
+        val app = AppRegistry.App("时钟", clockPkg, emptyList())
+        every { AppRegistry.find(any(), any()) } returns app
+        every { AppRegistry.launch(any(), any()) } returns ToolResult.ok("app", "opened", verified = true)
+        val hint = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        val tab = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        val root = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { hint.text } returns "对关联闹钟进行分组"
+        every { tab.text } returns "闹钟"
+        every { root.childCount } returns 2
+        every { root.getChild(0) } returns hint
+        every { root.getChild(1) } returns tab
+        // Initial navigation has no root; only recovery sees the hint before the real tab.
+        every { UiAutomator.root() } returnsMany listOf(null, root)
+        every { UiAutomator.click(tab) } returns true
+        every { UiAutomator.tabSelected("闹钟") } returns true
+        every { UiAutomator.readScreen(any()) } returnsMany listOf(
+            UiAutomator.ScreenRead(rootPackage = ownPkg, serviceAvailable = true),
+            UiAutomator.ScreenRead(texts = listOf("8:00"), rootPackage = clockPkg,
+                serviceAvailable = true, checkableCount = 1))
+        val r = ClockControl.queryAlarms(ctx)
+        assertThat(r.verified).isTrue()
+        verify(exactly = 1) { UiAutomator.click(tab) }
+        verify(exactly = 0) { UiAutomator.click(hint) }
+        // Only the initial navigation may fall back when its root is unavailable.
+        verify(exactly = 1) { UiAutomator.clickText("闹钟") }
+    }
+
     @Test fun `alarms are still read when the clock window is the active one`() {
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
             texts = listOf("8:00", "9:00"), nodesVisited = 40, rootPackage = clockPkg,

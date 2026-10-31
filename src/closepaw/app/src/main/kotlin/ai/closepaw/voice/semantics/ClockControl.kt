@@ -112,7 +112,7 @@ object ClockControl {
                 val clock = AppRegistry.find(ctx, "时钟") ?: AppRegistry.find(ctx, "闹钟") ?: return@runCatching
                 AppRegistry.launch(ctx, clock)
                 // The clock reopens on its remembered tab; re-select the one this query is about.
-                UiAutomator.clickText(tab)
+                clickClockTab(tab)
             }
             Thread.sleep(CLOCK_READ_RETRY_MS)
             read = UiAutomator.readScreen(limit)
@@ -168,7 +168,7 @@ object ClockControl {
             runCatching {
                 val clock = AppRegistry.find(ctx, "时钟") ?: AppRegistry.find(ctx, "闹钟") ?: return@runCatching
                 AppRegistry.launch(ctx, clock)
-                UiAutomator.clickText(tab)
+                clickClockTab(tab)
             }
             Thread.sleep(CLOCK_READ_RETRY_MS)
             root = UiAutomator.root().takeIf { clockOwned(it) }

@@ -1,5 +1,11 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第⑨轮局部更新（源码分析 + JVM；未实机）
+
+继续处理审查 `6540570445`：两条错窗口恢复路径 `readClockScreen` / `verifiedClockWindow` 改为 `clickClockTab(tab)`，恢复时不再退回 contains 模糊点击。新增 VoiceActivity 窗口→重开时钟→提示卡位于真正 tab 之前的查询回归，要求点精确 tab 且不点提示卡；有效 RED 6 tests / 1 failed，修后定向 107 tests / 0 failed / 0 errors / 0 skipped（`--rerun-tasks`）。全量 2197 tests / 6 failed / 0 errors / 8 skipped，Gradle exit=1，失败仍为 AgentSkillCatalogTest 1项、MemoryStoreTest 5项；未重跑旧SHA基线，不称全绿。日志 `logs/pr4-review9-tab-red.txt`、`pr4-review9-targeted.txt`、`pr4-review9-full.txt` 本地保留。
+
+**仅完成精确重试点击切片，审查未关闭**：P1 全列表对象唯一性仍待修；P2 恢复后同树页面证据与移除旧 selected 回退仍待修，当前不能把重试点击修复等同页面身份已证明。绑定路径这次只同步同一精确点击实现，未新增该路径独立回归。未构建/安装 APK、未操作手机、未调用付费 API；设备验收仍需用户重新授权。阶段1未整体通过、不合并。
+
 ## 第⑧轮局部更新（2026-10-31，源码分析 + JVM；未实机）
 
 处理最新复审 `6540570445` 的隐私日志切片：`closeAlarm` 不再向 Logcat 写目标时间/整页文本，`IntentActions.setTimer` 不再写整页文本，只保留计数与非敏感状态。新增两条实际能力调用测试，用私密标记断言 Log.i 不泄漏；分别先 RED（1/4、1/7 失败）后 GREEN。定向 106 tests / 0 failed / 0 errors / 0 skipped；全量 2196 tests / 6 failed / 0 errors / 8 skipped，Gradle exit=1，不是全绿。失败仍为 AgentSkillCatalogTest 1项 + MemoryStoreTest 5项，本轮未重跑旧SHA基线。
