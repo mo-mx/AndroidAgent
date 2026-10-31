@@ -291,8 +291,99 @@ object ClockControl {
         }
     }
 
+    /**
+     * One complete read of the timer page, reduced to the two facts a creation can be attributed
+     * against: the header's running count and how many cards declare *this* original duration.
+     *
+     * [readable] is false whenever the read cannot support a comparison at all (page identity,
+     * truncation, unparsed count). The duration labels are counted as text, not bound to a node:
+     * that is weaker than [cancelTimer]'s one-control-per-card binding, and it is exactly why a
+     * same-duration twin disables the claim instead of being ignored.
+     */
+    private data class TimerDraft(
+        val readable: Boolean,
+        val count: Int,
+        val ofDuration: Int,
+        val why: String,
+    ) {
+        fun facts(seconds: Int) = "count=$count cards@${seconds}s=$ofDuration why=$why"
+    }
+
+    private fun timerDraft(ctx: Context, seconds: Int): TimerDraft {
+        val reach = openClockTab(ctx, "定时器")
+        Thread.sleep(400)
+        val read = readClockScreen(ctx, "定时器", 60)
+        if (!reach.reached || !onTargetPage(read, "定时器")) return TimerDraft(false, -1, -1, "page-unconfirmed")
+        if (read.textsTruncated || read.nodesTruncated) return TimerDraft(false, -1, -1, "truncated")
+        val count = timerCountFrom(read.texts, truncated = false)
+        val ofDuration = read.texts.count {
+            val s = it.trim()
+            (s.startsWith("初始时长") || s.startsWith("总时长")) &&
+                ai.closepaw.voice.tools.ChineseTime.durationSeconds(s) == seconds
+        }
+        if (count < 0) return TimerDraft(false, -1, ofDuration, "count-unparsed")
+        return TimerDraft(true, count, ofDuration, "ok")
+    }
+
+    /**
+     * Create a timer, then read the timer page back and only claim the object when the evidence can
+     * be attributed to *this* request.
+     *
+     * Round 31: `IntentActions.setTimer` proves delivery (or that the page shows some countdown
+     * wording) but nothing about the requested object, so `expectedState = timer_running:<s>` was
+     * UNPROVEN on every real device. The read-back compares a complete before-read with a complete
+     * after-read and requires all of: no card declared the requested original duration beforehand,
+     * the header count rose by exactly one, and exactly one card declares it afterwards. Everything
+     * else is reported as delivered-without-proof, never as created.
+     *
+     * Residual assumption, stated instead of hidden: a third party creating a timer of the same
+     * duration between the two reads would satisfy the same test. The label is a declared original
+     * duration, not a stable object id — the count-increase requirement is what keeps this narrow.
+     */
     fun createTimer(ctx: Context, seconds: Int): ToolResult {
-        val r = IntentActions.setTimer(ctx, seconds)
+        val before = timerDraft(ctx, seconds)
+        val sent = IntentActions.setTimer(ctx, seconds)
+        val human = if (seconds % 60 == 0) "${seconds / 60}分钟" else "${seconds}秒"
+        // A refused Intent is not graded against the page: nothing was requested.
+        if (sent.status != ToolStatus.SUCCESS) {
+            ActionMemory.recordResult(Action.CREATE, Target.TIMER, mapOf("seconds" to "$seconds"), sent)
+            return sent
+        }
+        val after = timerDraft(ctx, seconds)
+        val facts = "before=${before.facts(seconds)}; after=${after.facts(seconds)}"
+        Log.i(TAG, "timer create readback: $facts")
+        val r = when {
+            !before.readable -> ToolResult.sentWithoutProof(
+                "timer", "已经请求设置${human}的倒计时，但没有读到设置前的页面，没法确认它是否真的开始",
+                "$facts; readback=before-${before.why}"
+            )
+            !after.readable -> ToolResult.sentWithoutProof(
+                "timer", "已经请求设置${human}的倒计时，但没法确认它是否真的开始",
+                "$facts; readback=after-${after.why}"
+            )
+            // The same duration was already on the page: the new object cannot be told apart from
+            // the old one, so a count of matching labels proves nothing about this request.
+            before.ofDuration != 0 -> ToolResult.sentWithoutProof(
+                "timer", "已经请求设置${human}的倒计时，但页面上本来就有同样时长的倒计时，没法确认新的那个是否开始",
+                "$facts; readback=same-duration-twin"
+            )
+            after.count != before.count + 1 -> ToolResult.sentWithoutProof(
+                "timer", "已经请求设置${human}的倒计时，但没法确认它是否真的开始",
+                "$facts; readback=count-not-plus-one"
+            )
+            after.ofDuration == 0 -> ToolResult.sentWithoutProof(
+                "timer", "已经请求设置${human}的倒计时，但页面上没看到这个时长的倒计时",
+                "$facts; readback=duration-card-not-found"
+            )
+            after.ofDuration > 1 -> ToolResult.sentWithoutProof(
+                "timer", "已经请求设置${human}的倒计时，但页面上有多个这个时长的倒计时，没法确认新的那个",
+                "$facts; readback=duration-card-not-single"
+            )
+            else -> ToolResult.ok(
+                "timer", "已经设好${human}的倒计时", verified = true, detail = "$facts; readback=count-plus-one-duration-card",
+                observed = ai.closepaw.voice.tools.ObservedState("timer:$seconds", "running:$seconds", "clock.timerPage"),
+            )
+        }
         ActionMemory.recordResult(Action.CREATE, Target.TIMER, mapOf("seconds" to "$seconds"), r)
         return r
     }

@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-11-01 第㉛轮（仅 JVM，未实机）
+
+测什么：创建倒计时的基线/回读判定——只有「基线无同长度卡 + 表头计数恰好 +1 + 回读恰好一张该长度卡」才算创建成功，其余一律 `verified=null`。
+怎么测：仓库根 `source env.sh` 后 `cd src/closepaw`，`./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.voice.*' --rerun-tasks --console=plain`；再跑全量同任务不带 `--tests`。新测试 `ai.closepaw.voice.tools.TimerCreateReadbackTest`(9) 先写后实现。
+实际结果：新测试 RED 9 tests / 8 failed / 0 errors（Truth 断言失败，非编译失败），实现后 GREEN 9/9；定向 245 tests / 0 failed / 0 errors / 0 skipped（exit=0）；全量 2335 tests / 6 failed / 0 errors / 8 skipped（Gradle exit=1，**不是全绿**，失败仍是 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，本轮未改未跳过）。
+未验证：三星时钟表头计数刷新时序、卡片是否暴露 `初始时长/总时长` 原始时长标签、双标签卡结构、并发第三方创建同长度倒计时的归因漏洞；本轮未构建/安装 APK、未操作手机，创建功能在真机上很可能仍播报「没法确认」，属安全拒绝而非功能完成。
+证据：本机 gitignored `logs/pr4-round31-{red,green1,targeted,full}.txt`，不入库。
+
 ## 2026-11-01 第㉚轮（仅 JVM，未实机）
 
 测什么：撤回「取消倒计时即成功」的判定，并把计时器总数限制为页面明示陈述（表头 / 明确空态句）。

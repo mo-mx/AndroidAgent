@@ -2,6 +2,32 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第㉛轮：创建倒计时的基线与回读（离线源码 + JVM，未实机）
+
+需要复审；审查未关闭。本轮无新审查（最新 review `6548293536` 已由评论 `6548650998` 回复，其后无新评论），按「无新审查则推进可离线项」补上遗留清单里的**创建路径回读**。
+
+**问题**：`ClockControl.createTimer` 只是把 `IntentActions.setTimer` 的结果记录进 `ActionMemory` 就返回。`setIntent` 层最多能证明「请求已投递」和「时钟页面上有某种倒计时措辞」，两者都不能证明**用户要的那个倒计时**存在；`expectedState = timer_running:<秒>` 因此永远 `UNPROVEN`。
+
+**改动**（`ClockControl.kt`）：
+
+- 新增 `TimerDraft` / `timerDraft(ctx, seconds)`：一次完整读，只保留两个可比事实——表头运行中计数、以及页面上**声明该原始时长**（`初始时长/总时长` + `ChineseTime.durationSeconds`）的文本数量；页面身份、截断、计数不可解析都使 `readable=false` 并带 `why`。
+- `createTimer` 先读基线，再发 Intent，再读数，然后判定：
+  - 基线无同长度卡 + 计数恰好 +1 + 回读恰好一张该长度卡 → `verified=true` + `ObservedState("timer:<秒>","running:<秒>")`；
+  - 其余六种情形（基线/回读不可读、同长度 twin、计数未 +1、看不到该长度卡、多张同长度卡）→ `sentWithoutProof`，`verified=null`、`observed=null`，`detail` 记 `readback=…`；
+  - Intent 层非 SUCCESS 原样透传，不读页面评分。
+- 残留假设（写进代码注释与报告）：时长标签不是稳定对象 ID，第三方并发创建同长度倒计时仍可满足同一判据；要求计数 +1 是收窄而非消除。
+
+**真实数据**（`--offline --rerun-tasks`，JDK 17）：
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TimerCreateReadbackTest`(9) 先写，实现未改 | **RED 9 / 8 failed / 0 errors**，Truth 断言失败；`logs/pr4-round31-red.txt` |
+| 实现后同组 | **GREEN 9 / 9**，exit=0；`logs/pr4-round31-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **245 / 0 failed / 0 errors / 0 skipped**；`logs/pr4-round31-targeted.txt` |
+| 全量 | **2335 / 6 failed / 8 skipped**，exit=1，仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5 基线失败；`logs/pr4-round31-full.txt` |
+
+**边界**：JVM 合成树，不是三星真实 UI；表头刷新时序、卡片是否暴露原始时长标签、双标签结构均未验证，真机上很可能落到 `count-not-plus-one` → `UNPROVEN`。本轮未构建/安装 APK、未操作手机；实机验收需用户重新授权。`closeAlarm` 继续 `BLOCKED`，在线 `ToolRouter` 同门禁（阶段 2）未做。
+
 ## 第㉕轮：取消路径的点击时绑定校验（离线源码 + JVM，未实机）
 
 需要复审；审查未关闭。本轮无新审查（最新 reviewed SHA 仍为 `2212ed6`，两条意见已在第㉓轮回复），按「无新审查则推进可离线项」推进计时器对象绑定的**点击时**一半。

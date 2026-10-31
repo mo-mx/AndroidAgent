@@ -1,5 +1,33 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㉛轮：创建倒计时首次有可归因的对象级回读（源码 + JVM，未实机）
+
+本轮无新审查（最新 review `6548293536` 已由第㉚轮回复 `6548650998` 处理，其后 PR 无新评论），按「无新审查则推进可离线项」处理遗留清单里的**创建路径**：`createTimer` 此前完全不做回读，`expectedState = timer_running:<秒>` 在真机上永久 `UNPROVEN`。
+
+1. **回读契约**：`ClockControl.createTimer` 现在做**两次完整读**——发 Intent 之前一次（基线）、之后一次（回读），两次都必须满足「同一窗口门 / `rootPackage` 是时钟 / `selectedTabs["定时器"] == true` / 未被截断 / 表头计数可解析」。
+2. **唯一允许的肯定结论**（三条同时成立）：
+   - 基线页面上**没有任何**卡片声明被请求的原始时长（`初始时长/总时长` 解析值 ≠ 目标）；
+   - 回读表头计数 **恰好 +1**；
+   - 回读页面上**恰好一张**卡片声明该原始时长。
+   成立时 `verified=true` + `ObservedState("timer:<秒>", "running:<秒>")`，`TerminalState` 才能对 `timer_running:<秒>` 判 `CONFIRMED`。
+3. **其余全部 fail-closed**（`ToolResult.sentWithoutProof`，`verified=null`、`observed=null`）：基线/回读不可读（`readback=before-page-unconfirmed|before-truncated|before-count-unparsed` / `after-…`）、同长度倒计时已存在（`readback=same-duration-twin`）、计数没有 +1（`count-not-plus-one`）、回读页面看不到该时长（`duration-card-not-found`）、出现多张同长度卡（`duration-card-not-single`）。Intent 层被系统拒绝时原样透传，不拿页面评价（`EXECUTION_ERROR`）。
+4. **残留假设照写不藏**：时长标签是卡片**声明的原始时长**，不是稳定对象 ID；两个读之间若有第三方创建了同长度倒计时，同一判据也会成立。计数必须 +1 是把这条口子收窄的措施，不是消除。
+
+TDD 与真实数据（全部 `--offline --rerun-tasks`，JDK 17 本地，仓库根先 `source env.sh`）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 先写 `TimerCreateReadbackTest`(9)，生产代码未改 | **RED 9 tests / 8 failed / 0 errors**，Truth 断言失败（非编译失败）；唯一先绿的是「Intent 被拒绝时原样透传」 | `logs/pr4-round31-red.txt` |
+| 实现两段回读后同组 | **GREEN 9 / 9**，exit=0 | `logs/pr4-round31-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **245 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㉚轮 236，+9 为本轮新测试） | `logs/pr4-round31-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2335 tests / 6 failed / 0 errors / 8 skipped**，Gradle exit=1，**不是全绿**；失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（本轮未改、未跳过） | `logs/pr4-round31-full.txt` |
+
+边界与遗留（如实）：
+- 全部证据来自 **JVM 合成无障碍树**，不是三星时钟的真实 UI。真机上表头计数刷新时序、卡片是否用 `初始时长/总时长` 表达原始时长、双标签卡结构**仍全部未验证**；若表头滞后，结果会落到 `count-not-plus-one` → `UNPROVEN`（保守，不假报成功）。
+- 既有副作用：创建前多了一次定时器页面读取（约 +0.4 s 与一次 tab 点击），在时钟不在前台的场景会额外拉起时钟再读一次。这是取得基线的代价，未做性能测量。
+- 本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、不并入 Issue #6、不改受保护规则、不 push main、不合并。实机验收需用户**重新授权**。
+- 仍缺对象级回读的：`closeAlarm`（缺全列表枚举/稳定身份，继续 `BLOCKED`）、手电/Wi-Fi；在线 `ToolRouter` 同门禁（阶段 2）仍未做。
+
 ## 第㉚轮：撤回「取消即成功」；计数与视口不再当对象证据（源码 + JVM，未实机）
 
 处理新复审 `6548293536`（HEAD `4f5734e`，2 条 P1 + 1 条 P2；https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6548293536 ）。上一轮（`4f5734e`）让 `cancelTimer` 点击后回读，方向对但判据不足：**视口缺失 + 计数下降不能归因到被点的那个对象**。本轮把结论收紧到「只能证明它还在，不能证明它没了」。
