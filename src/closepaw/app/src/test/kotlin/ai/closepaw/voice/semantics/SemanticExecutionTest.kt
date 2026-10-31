@@ -57,7 +57,7 @@ class SemanticExecutionTest {
 
     @Test fun `specified timer never falls back to global first cancel`() {
         every { UiAutomator.clickText("定时器") } returns true
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("2 个定时器正在运行", "5 分钟", "10 分钟", "取消", "取消"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         every { UiAutomator.clickText("取消") } returns true
         // Two clock-owned cancel controls and no duration evidence: nothing can be bound uniquely.
@@ -77,6 +77,7 @@ class SemanticExecutionTest {
         every { clockRoot.childCount } returns 2
         every { clockRoot.getChild(0) } returns a
         every { clockRoot.getChild(1) } returns b
+        every { UiAutomator.selectedState(clockRoot, "定时器") } returns true
         every { UiAutomator.root() } returns clockRoot
         val reply = SemanticRunner.run(ctx, "取消五分钟倒计时", 1)
         assertThat(reply).contains("无法唯一定位")
@@ -129,7 +130,7 @@ class SemanticExecutionTest {
     }
 
     @Test fun `duplicate alarm times cannot select first row`() {
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("8:00", "8:00"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         val reply = SemanticRunner.run(ctx, "取消八点的闹钟", 1)
         assertThat(reply).contains("无法唯一定位")
@@ -139,7 +140,7 @@ class SemanticExecutionTest {
 
     @Test fun `alarm cancel reaches lookup and absent target never creates`() {
         // An alarm page that says it is empty is real evidence; the target time is then really absent.
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("暂无闹钟"), nodesVisited = 3,
             rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         every { UiAutomator.tabSelected(any()) } returns true

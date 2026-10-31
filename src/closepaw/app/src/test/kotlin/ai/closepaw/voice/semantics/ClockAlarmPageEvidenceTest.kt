@@ -45,6 +45,7 @@ class ClockAlarmPageEvidenceTest {
         every { n.isChecked } returns false
         every { n.childCount } returns children.size
         children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
+        every { UiAutomator.selectedState(n, any()) } returns true
         return n
     }
 
@@ -64,9 +65,9 @@ class ClockAlarmPageEvidenceTest {
 
     @After fun cleanup() = unmockkAll()
 
-    @Test fun `alarm switches make the page the alarm list even when the tab reports no selection`() {
+    @Test fun `fresh selected alarm read is independent of navigation selection`() {
         every { UiAutomator.tabSelected("闹钟") } returns null
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("8:00", "9:00"), nodesVisited = 40, rootPackage = clockPkg,
             serviceAvailable = true, checkableCount = 2)
 
@@ -93,7 +94,7 @@ class ClockAlarmPageEvidenceTest {
 
     @Test fun `target outside loaded scroll viewport is not declared nonexistent`() {
         // Recycler-style viewport: the off-screen 08:00 row is not loaded into this tree.
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("9:00"), nodesVisited = 30, rootPackage = clockPkg,
             serviceAvailable = true, checkableCount = 1)
 
@@ -108,7 +109,7 @@ class ClockAlarmPageEvidenceTest {
 
     @Test fun `explicit empty marker still proves an empty alarm list`() {
         every { UiAutomator.tabSelected("闹钟") } returns null
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("暂无闹钟"), nodesVisited = 12, rootPackage = clockPkg,
             serviceAvailable = true, checkableCount = 0)
 
@@ -130,7 +131,7 @@ class ClockAlarmPageEvidenceTest {
         // gate then reopens the clock and re-selects the tab, and the third read is the clock.
         every { UiAutomator.root() } returnsMany listOf(
             node("ClosePaw", "ai.closepaw"), node("ClosePaw", "ai.closepaw"), clockRoot)
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("8:00"), nodesVisited = 30, rootPackage = clockPkg,
             serviceAvailable = true, checkableCount = 1)
 

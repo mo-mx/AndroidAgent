@@ -110,7 +110,7 @@ class ClockWindowBindingTest {
     }
 
     @Test fun `timer count is unknown when the read was truncated`() {
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("30 分钟", "29 分钟 30 秒钟", "取消", "暂停"),
             nodesVisited = 600, nodesTruncated = true, textsTruncated = true,
             rootPackage = clockPkg, serviceAvailable = true)
@@ -124,7 +124,7 @@ class ClockWindowBindingTest {
     }
 
     @Test fun `timer count keeps an explicit running-count header even when truncated`() {
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("3 个定时器正在运行"),
             nodesVisited = 600, nodesTruncated = true, textsTruncated = true,
             rootPackage = clockPkg, serviceAvailable = true)

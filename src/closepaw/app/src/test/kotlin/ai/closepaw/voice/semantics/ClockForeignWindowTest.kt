@@ -60,8 +60,8 @@ class ClockForeignWindowTest {
         every { AppRegistry.find(any(), any()) } returns clockApp
         every { AppRegistry.launch(any(), any()) } returns ToolResult.ok("app", "已打开时钟", verified = true)
         every { UiAutomator.readScreen(any()) } returnsMany listOf(
-            UiAutomator.ScreenRead(texts = listOf("ClosePaw"), nodesVisited = 3, rootPackage = ownPkg, serviceAvailable = true),
-            UiAutomator.ScreenRead(texts = listOf("2 个定时器正在运行"), nodesVisited = 9, rootPackage = clockPkg, serviceAvailable = true),
+            UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true), texts = listOf("ClosePaw"), nodesVisited = 3, rootPackage = ownPkg, serviceAvailable = true),
+            UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true), texts = listOf("2 个定时器正在运行"), nodesVisited = 9, rootPackage = clockPkg, serviceAvailable = true),
         )
         val r = ClockControl.queryTimers(ctx)
         assertThat(r.status).isEqualTo(ToolStatus.SUCCESS)
@@ -82,8 +82,8 @@ class ClockForeignWindowTest {
             ToolResult.ok("app", "已打开时钟", verified = true)
         }
         every { UiAutomator.readScreen(any()) } answers {
-            if (launches == 0) UiAutomator.ScreenRead(texts = listOf("ClosePaw"), nodesVisited = 3, rootPackage = ownPkg, serviceAvailable = true)
-            else UiAutomator.ScreenRead(texts = listOf("3 个定时器正在运行"), nodesVisited = 9, rootPackage = clockPkg, serviceAvailable = true)
+            if (launches == 0) UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true), texts = listOf("ClosePaw"), nodesVisited = 3, rootPackage = ownPkg, serviceAvailable = true)
+            else UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true), texts = listOf("3 个定时器正在运行"), nodesVisited = 9, rootPackage = clockPkg, serviceAvailable = true)
         }
         val r = ClockControl.queryTimers(ctx)
         assertThat(launches).isEqualTo(1)
@@ -108,8 +108,8 @@ class ClockForeignWindowTest {
         every { UiAutomator.click(tab) } returns true
         every { UiAutomator.tabSelected("闹钟") } returns true
         every { UiAutomator.readScreen(any()) } returnsMany listOf(
-            UiAutomator.ScreenRead(rootPackage = ownPkg, serviceAvailable = true),
-            UiAutomator.ScreenRead(texts = listOf("8:00"), rootPackage = clockPkg,
+            UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true), rootPackage = ownPkg, serviceAvailable = true),
+            UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true), texts = listOf("8:00"), rootPackage = clockPkg,
                 serviceAvailable = true, checkableCount = 1))
         val r = ClockControl.queryAlarms(ctx)
         assertThat(r.verified).isTrue()
@@ -120,7 +120,7 @@ class ClockForeignWindowTest {
     }
 
     @Test fun `alarms are still read when the clock window is the active one`() {
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("8:00", "9:00"), nodesVisited = 40, rootPackage = clockPkg,
             serviceAvailable = true, checkableCount = 2)
         val r = ClockControl.queryAlarms(ctx)

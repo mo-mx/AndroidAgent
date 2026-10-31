@@ -41,8 +41,8 @@ object ClockControl {
      * the clock package — the page looked readable but was not the tab. Exact label first, the loose
      * matcher only as a fallback for layouts that carry extra text on the control.
      */
-    private fun clickClockTab(tab: String): Boolean = runCatching {
-        val root = UiAutomator.root() ?: return@runCatching false
+    private fun clickClockTab(tab: String): Boolean? = runCatching {
+        val root = UiAutomator.root() ?: return@runCatching null
         val target = tab.trim()
         val queue = ArrayDeque<android.view.accessibility.AccessibilityNodeInfo>()
         queue.add(root)
@@ -58,8 +58,8 @@ object ClockControl {
                 runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
             }
         }
-        false
-    }.getOrDefault(false)
+        null
+    }.getOrNull()
 
     private fun openClockTab(ctx: Context, tab: String): TabReach {
         val fg = UiAutomator.foregroundPackage()
@@ -75,7 +75,8 @@ object ClockControl {
                 return TabReach(false, "app-not-found")
             }
         }
-        val clicked = clickClockTab(tab) || UiAutomator.clickText(tab)
+        // A located exact control that rejected the click must not become a loose-text click.
+        val clicked = clickClockTab(tab) ?: UiAutomator.clickText(tab)
         val selected = UiAutomator.tabSelected(tab)
         // Only asked when the click was not delivered: it separates "control missing" from
         // "control visible but the tap did nothing".
@@ -122,12 +123,11 @@ object ClockControl {
     }
 
     /**
-     * The page is the one this query is about only when both hold: the read came from the clock and
-     * the tab is not reported as unselected. `null` selection is accepted here (some builds do not
-     * expose it) but is reported as `tab=` in [describe]; an explicit `false` is a wrong page.
+     * Package and selected=true must come from the same ScreenRead root. Missing/null/false
+     * evidence is not page identity; navigation-time selection is diagnostic only.
      */
-    private fun onTargetPage(read: UiAutomator.ScreenRead, reach: TabReach) =
-        read.rootPackage == CLOCK_PKG && reach.selected != false
+    private fun onTargetPage(read: UiAutomator.ScreenRead, tab: String) =
+        read.rootPackage == CLOCK_PKG && read.selectedTabs[tab] == true
 
     /**
      * Result of the single window gate used by every path that binds and clicks a node.
@@ -161,7 +161,7 @@ object ClockControl {
      * — but it hands back the window itself instead of texts, so the nodes bound later provably come
      * from the window that was verified. Retries are bounded; no coordinate fallback.
      */
-    private fun verifiedClockWindow(ctx: Context, tab: String, reach: TabReach): ClockWindow {
+    private fun verifiedClockWindow(ctx: Context, tab: String): ClockWindow {
         var root = UiAutomator.root().takeIf { clockOwned(it) }
         var attempt = 1
         while (root == null && attempt < CLOCK_READ_ATTEMPTS) {
@@ -175,14 +175,12 @@ object ClockControl {
             attempt++
         }
         if (root == null) return ClockWindow(null, null, attempt, "window-not-clock")
-        // A recovered window cannot inherit selection evidence from before focus was lost.
+        // Only the binding tree can establish its own tab identity, on every attempt.
         val treeSelected = runCatching { UiAutomator.selectedState(root, tab) }.getOrNull()
-        if (attempt > 1 && treeSelected == null) {
-            return ClockWindow(null, null, attempt, "recovered-tab-unproven")
+        if (treeSelected != true) {
+            return ClockWindow(null, treeSelected, attempt, "binding-tab-unproven")
         }
-        // Initial-window evidence is retained for now; query and initial navigation need a separate
-        // same-tree contract. This recovery-only gate does not claim those review items are closed.
-        val selected = if (attempt > 1) treeSelected else treeSelected ?: reach.selected
+        val selected = treeSelected
         val reason = when (selected) {
             true -> "window-clock-tab-selected"
             false -> "window-clock-tab-not-selected"
@@ -223,10 +221,10 @@ object ClockControl {
         val reach = openClockTab(ctx, "定时器")
         Thread.sleep(500)
         val read = readClockScreen(ctx, "定时器", 60)
-        if (!reach.reached || !onTargetPage(read, reach)) {
+        if (!reach.reached || !onTargetPage(read, "定时器")) {
             return ToolResult(
                 ToolStatus.DEVICE_UNAVAILABLE, "timer_query",
-                "没读到时钟的定时器页面，没法确认现在有没有倒计时", describe(read, reach) + " window=not-clock"
+                "没读到时钟的定时器页面，没法确认现在有没有倒计时", describe(read, reach) + " window=not-clock", false
             )
         }
         val truncated = read.textsTruncated || read.nodesTruncated
@@ -264,7 +262,7 @@ object ClockControl {
         // Same window gate the read path uses: the tree this scan binds from must *be* the clock.
         // A separate foreground check is not enough — it can pass while the tree used below comes
         // from another window, which is exactly the blind-click this refuses to do.
-        val window = verifiedClockWindow(ctx, "定时器", reach)
+        val window = verifiedClockWindow(ctx, "定时器")
         if (!window.confirmable) {
             return ToolResult.unavailable("timer_cancel", "无法确认当前是时钟窗口，取消不了倒计时",
                 "window=not-clock attempts=${window.attempts}")
@@ -340,7 +338,7 @@ object ClockControl {
         val reach = openClockTab(ctx, "闹钟")
         Thread.sleep(500)
         val read = readClockScreen(ctx, "闹钟", 120)
-        val pageOk = reach.reached && onTargetPage(read, reach)
+        val pageOk = reach.reached && onTargetPage(read, "闹钟")
         // A clipped tree means the list may be missing rows: it cannot support a definite count.
         val truncated = read.textsTruncated || read.nodesTruncated
         val texts = if (pageOk) read.texts else emptyList()
@@ -351,7 +349,7 @@ object ClockControl {
         // The clock page is not proof of the *alarm tab*: the world clock shows `H:mm` rows too, so
         // counting them would invent alarms. Structural evidence is required — either the tab
         // reports selected, or the page carries alarm switches, or it says the list is empty.
-        val alarmPage = reach.selected == true || read.checkableCount > 0 || empty
+        val alarmPage = read.selectedTabs["闹钟"] == true || read.checkableCount > 0 || empty
         val readable = pageOk && alarmPage && !truncated && (listed.isNotEmpty() || empty)
         val speech = when {
             !pageOk && nextText != null -> "下一个闹钟是 $nextText；无法读取闹钟列表"
@@ -388,7 +386,7 @@ object ClockControl {
         // closeAlarm used to read the raw active window; our own voice window would then look like an
         // alarm list without the target time, i.e. "no such alarm" instead of "could not read".
         val read = readClockScreen(ctx, "闹钟", 120)
-        if (!onTargetPage(read, reach)) {
+        if (!onTargetPage(read, "闹钟")) {
             return ToolResult.unavailable(
                 "alarm_close",
                 "没读到时钟的闹钟页面，没法确认${hour}点${minute}分有没有闹钟",
@@ -409,7 +407,7 @@ object ClockControl {
                 )
             }
             // Times on a clock page are not proof of the alarm tab (world clock shows `H:mm` too).
-            if (reach.selected != true && read.checkableCount == 0) {
+            if (read.selectedTabs["闹钟"] != true && read.checkableCount == 0) {
                 return ToolResult.unavailable(
                     "alarm_close",
                     "无法确认当前是闹钟列表，没法确认${hour}点${minute}分有没有闹钟",
@@ -429,7 +427,7 @@ object ClockControl {
         // Bind only from the window that is verified to be the clock, and only inside the smallest
         // subtree with exactly one clock time and one switch. Never click the time node (opens an
         // editor), an ancestor, or a coordinate fallback.
-        val window = verifiedClockWindow(ctx, "闹钟", reach)
+        val window = verifiedClockWindow(ctx, "闹钟")
         if (!window.confirmable) {
             return ToolResult.unavailable("alarm_close", "无法确认当前是时钟窗口，没有执行操作",
                 "window=not-clock attempts=${window.attempts}")

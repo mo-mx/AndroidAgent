@@ -21,6 +21,7 @@ class TimerObjectExecutionTest {
         every { n.packageName } returns "com.sec.android.app.clockpackage"
         every { n.childCount } returns children.size
         children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
+        every { UiAutomator.selectedState(n, any()) } returns true
         return n
     }
     @Before fun setup() {
@@ -73,7 +74,7 @@ class TimerObjectExecutionTest {
         every { right.isClickable } returns true
         every { right.performAction(AccessibilityNodeInfo.ACTION_CLICK) } returns true
         every { UiAutomator.clickText("闹钟") } returns true
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("9:00", "8:00"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         every { UiAutomator.root() } returns node("", node("", node("9:00"), wrong), node("", node("8:00"), right))
         val result = ClockControl.closeAlarm(ctx, 8, 0)

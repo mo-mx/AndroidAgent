@@ -45,6 +45,7 @@ class ClockWindowGateTest {
         every { n.isChecked } returns false
         every { n.childCount } returns children.size
         children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
+        every { UiAutomator.selectedState(n, any()) } returns true
         return n
     }
 
@@ -58,7 +59,7 @@ class ClockWindowGateTest {
         every { UiAutomator.clickText(any()) } returns true
         every { UiAutomator.tabSelected(any()) } returns true
         every { IntentActions.nextAlarm(ctx) } returns null
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("8:00"), nodesVisited = 20, rootPackage = clockPkg, serviceAvailable = true)
     }
 
@@ -167,7 +168,7 @@ class ClockWindowGateTest {
     @Test fun `timer cancel refuses a cancel button whose node belongs to another app`() {
         every { UiAutomator.clickText("定时器") } returns true
         every { UiAutomator.tabSelected("定时器") } returns true
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("5 分钟", "取消"), nodesVisited = 30, rootPackage = clockPkg, serviceAvailable = true)
         // The root is the clock, but the control that would be clicked claims another owner.
         val cancel = node("取消", ownPkg)
@@ -185,7 +186,7 @@ class ClockWindowGateTest {
     @Test fun `alarm close refuses a switch whose node belongs to another app`() {
         every { UiAutomator.clickText("闹钟") } returns true
         every { UiAutomator.tabSelected("闹钟") } returns true
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("8:00"), nodesVisited = 30, rootPackage = clockPkg, serviceAvailable = true)
         val toggle = node("", ownPkg)
         every { toggle.isCheckable } returns true
@@ -252,7 +253,7 @@ class ClockWindowGateTest {
         every { UiAutomator.clickText("闹钟") } returns false
         every { UiAutomator.waitForText("闹钟", any()) } returns true
         every { UiAutomator.tabSelected("闹钟") } returns true
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("8:00"), nodesVisited = 30, rootPackage = clockPkg,
             serviceAvailable = true, checkableCount = 1)
 

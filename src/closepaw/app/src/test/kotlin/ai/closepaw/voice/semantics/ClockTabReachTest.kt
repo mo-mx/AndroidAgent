@@ -34,6 +34,27 @@ class ClockTabReachTest {
 
     @After fun cleanup() = unmockkAll()
 
+    @Test fun `failed exact tab never falls back to a hint card`() {
+        val root = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        val tab = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { root.childCount } returns 1
+        every { root.getChild(0) } returns tab
+        every { tab.text } returns "闹钟"
+        every { UiAutomator.root() } returns root
+        every { UiAutomator.click(tab) } returns false
+        // This represents the old contains-match hitting the hint card instead.
+        every { UiAutomator.clickText("闹钟") } returns true
+        every { UiAutomator.tabSelected("闹钟") } returns null
+        every { UiAutomator.waitForText("闹钟", any()) } returns true
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("8:00"), rootPackage = clockPkg, checkableCount = 1, serviceAvailable = true)
+        val r = ClockControl.queryAlarms(ctx)
+        assertThat(r.verified).isFalse()
+        assertThat(r.detail).contains("tab=click-failed-label-only")
+        verify(exactly = 0) { UiAutomator.clickText("闹钟") }
+        verify(exactly = 1) { UiAutomator.click(tab) }
+    }
+
     @Test fun `click failure with only the tab label visible is not a reached tab`() {
         every { UiAutomator.clickText("闹钟") } returns false
         every { UiAutomator.waitForText("闹钟", any()) } returns true
@@ -80,7 +101,7 @@ class ClockTabReachTest {
         every { UiAutomator.clickText("闹钟") } returns false
         every { UiAutomator.waitForText("闹钟", any()) } returns true
         every { UiAutomator.tabSelected("闹钟") } returns true
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("8:00"), nodesVisited = 40, rootPackage = clockPkg, serviceAvailable = true)
 
         val r = ClockControl.queryAlarms(ctx)

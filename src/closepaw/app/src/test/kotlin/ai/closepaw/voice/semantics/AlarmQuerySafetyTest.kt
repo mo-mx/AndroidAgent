@@ -19,7 +19,7 @@ class AlarmQuerySafetyTest {
     @After fun cleanup() = unmockkAll()
 
     @Test fun `null next alarm with disabled entries is not an empty list`() {
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true),
             // A real alarm row carries a switch; without that structural evidence the page could be
             // the world clock and its `H:mm` rows must not be enumerated as alarms.
             texts = listOf("闹钟", "8:00", "已关闭"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage",
@@ -34,7 +34,7 @@ class AlarmQuerySafetyTest {
         verify(exactly = 0) { UiAutomator.click(any()) }
     }
     @Test fun `explicit empty state permits empty list report`() {
-        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true),
             texts = listOf("闹钟", "暂无闹钟"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         val r = ClockControl.queryAlarms(ctx)
         assertThat(r.speak).contains("闹钟列表为空")

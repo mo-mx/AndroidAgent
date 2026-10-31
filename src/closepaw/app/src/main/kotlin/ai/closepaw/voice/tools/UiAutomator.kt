@@ -211,6 +211,7 @@ object UiAutomator {
          * that happens to show `H:mm` text".
          */
         val checkableCount: Int = 0,
+        val selectedTabs: Map<String, Boolean?> = emptyMap(),
     )
 
     const val MAX_NODES = 600
@@ -244,6 +245,7 @@ object UiAutomator {
             for (i in 0 until n.childCount) runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
         }
         val pkg = runCatching { r.packageName?.toString() }.getOrNull()
-        return ScreenRead(out, visited, queue.isNotEmpty(), dropped, pkg, serviceAvailable, checkables)
+        return ScreenRead(out, visited, queue.isNotEmpty(), dropped, pkg, serviceAvailable, checkables,
+            listOf("闹钟", "定时器").associateWith { selectedState(r, it) })
     }
 }

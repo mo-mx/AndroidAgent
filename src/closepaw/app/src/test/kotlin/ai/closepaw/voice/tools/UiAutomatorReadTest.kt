@@ -23,6 +23,20 @@ class UiAutomatorReadTest {
         return n
     }
 
+    @Test fun `selection evidence belongs to the root whose texts were read`() {
+        val alarm = node("闹钟")
+        val timer = node("定时器")
+        every { alarm.isSelected } returns true
+        every { timer.isSelected } returns false
+        val r = UiAutomator.readTree(node("", alarm, timer, node("8:00")), 60, true)
+        assertThat(r.selectedTabs["闹钟"]).isTrue()
+        assertThat(r.selectedTabs["定时器"]).isFalse()
+        assertThat(r.texts).contains("8:00")
+        val missing = UiAutomator.readTree(node("8:00"), 60, true)
+        assertThat(missing.selectedTabs["闹钟"]).isNull()
+        assertThat(missing.selectedTabs["定时器"]).isNull()
+    }
+
     @Test fun `texts dropped past the limit are reported as truncated`() {
         val r = UiAutomator.readTree(node("", node("a"), node("b"), node("c")), limit = 2, serviceAvailable = true)
         assertThat(r.texts).containsExactly("a", "b")
