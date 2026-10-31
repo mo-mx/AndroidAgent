@@ -102,19 +102,38 @@ class TimerCancelReadbackTest {
     )
 
     @Test
-    fun `cancel whose card is gone from a confirmed page confirms no running timer`() {
+    fun `a disappeared duration label is not proof that the requested timer is gone`() {
+        // Round 29 review P1: a missing label in one viewport plus a lower count cannot be
+        // attributed to the clicked card — there is no stable timer id to bind them.
         every { UiAutomator.readScreen(any()) } returns screen("添加定时器")
 
         val r = ClockControl.cancelTimer(ctx, 300)
 
         assertThat(r.status).isEqualTo(ToolStatus.SUCCESS)
-        assertThat(r.verified).isTrue()
-        assertThat(r.observed).isNotNull()
-        assertThat(r.observed!!.identity).isEqualTo("timer:300")
-        assertThat(r.observed!!.state).isEqualTo("none")
-        assertThat(r.detail).doesNotContain("still-listed")
-        assertThat(TerminalState.verdict(cancelTask(), r)).isEqualTo(TerminalState.Verdict.CONFIRMED)
+        assertThat(r.verified).isNull()
+        assertThat(r.observed).isNull()
+        assertThat(r.detail).contains("readback=count-not-attributable")
+        assertThat(TerminalState.verdict(cancelTask(), r)).isEqualTo(TerminalState.Verdict.UNPROVEN)
         verify(exactly = 1) { cancel.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+    }
+
+    @Test
+    fun `another timer ending while the bound card leaves the viewport is not a cancellation`() {
+        // Review P1 reproduction: two timers were running, the click missed, the other timer ran
+        // out, and the 300 s card is out of the visible tree. Count went 2 -> 1 and the label is
+        // absent, but nothing ties that drop to the object the user asked to cancel.
+        every { UiAutomator.readScreen(any()) } returns
+            screen("1 个定时器正在运行", "初始时长：10分钟", "取消")
+
+        val r = ClockControl.cancelTimer(ctx, 300)
+
+        assertThat(r.status).isEqualTo(ToolStatus.SUCCESS)
+        assertThat(r.verified).isNull()
+        assertThat(r.observed).isNull()
+        assertThat(r.speak).doesNotContain("已取消")
+        assertThat(r.detail).contains("stillListed=false")
+        assertThat(r.detail).contains("readback=")
+        assertThat(TerminalState.verdict(cancelTask(), r)).isEqualTo(TerminalState.Verdict.UNPROVEN)
     }
 
     @Test

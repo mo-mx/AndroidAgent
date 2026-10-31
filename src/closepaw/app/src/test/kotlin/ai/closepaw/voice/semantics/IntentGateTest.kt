@@ -55,7 +55,9 @@ class IntentGateTest {
     ))
 
     private fun allow(utterance: String, t: SemanticTask, c: IntentGate.ToolCall) {
-        val d = IntentGate.check(utterance, t, c)
+        // SemanticRunner now hands the gate the identity it derives for the target, so the gate has
+        // something to compare on both sides; an explicit identity on the call still wins.
+        val d = IntentGate.check(utterance, t, c.copy(identity = c.identity ?: t.targetIdentity))
         assertThat(d.allowed).isTrue()
         assertThat(d.reason).isEmpty()
     }
@@ -139,8 +141,11 @@ class IntentGateTest {
         allow(u, t, call(Action.CREATE, Target.TIMER, mapOf("seconds" to "300")))
 
         // ...but the same dropped parameter with a different argument is refused.
-        val d = refuse(u, t, call(Action.CREATE, Target.TIMER, mapOf("seconds" to "5")))
-        assertThat(d.reason).contains("utterance/argument mismatch")
+        // The call now carries the identity the runner derives from its own args, so a 5 s call
+        // names `timer:5` and is refused as an identity drift before the parameter check runs —
+        // a stricter refusal than the old wording, not a weaker one.
+        val d = refuse(u, t, call(Action.CREATE, Target.TIMER, mapOf("seconds" to "5"), "timer:5"))
+        assertThat(d.reason).contains("drift")
     }
 
     @Test

@@ -77,6 +77,17 @@ class TerminalExpectedStateTest {
         assertThat(v).isEqualTo(TerminalState.Verdict.UNPROVEN)
     }
 
+    @Test fun `evidence naming an object the task never declared is not confirmation`() {
+        // Round 29 review P2: the parser does not set targetIdentity for a cancel, so evidence
+        // naming `timer:300` was compared against nothing and passed. An undeclared identity is
+        // absence of correspondence, not a match.
+        val v = TerminalState.verdict(
+            timerTask(identity = null),
+            claimed(observed = ObservedState(identity = "timer:300", state = "none")),
+        )
+        assertThat(v).isEqualTo(TerminalState.Verdict.UNPROVEN)
+    }
+
     @Test fun `evidence without a state token is not confirmation`() {
         val v = TerminalState.verdict(
             timerTask(identity = "timer#1"),

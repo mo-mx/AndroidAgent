@@ -214,30 +214,49 @@ object ClockControl {
     }
 
     /**
-     * Number of running timers, parsed from the timer tab header. -1 when unreadable.
+     * Number of running timers, but only as far as the page *states* it. -1 when unknown.
      *
-     * A truncated tree can cut cards off the end, so counting cards in a truncated read would report
-     * a definite number that is probably wrong; when [truncated] the card count is -1 (unknown).
-     * An explicit "N 个定时器正在运行" header is a statement, not a list scan, and stays usable.
+     * Round 29 review P1: this used to answer from a viewport scan — a bare `添加定时器`, the create
+     * picker, or a count of visible cards. None of those enumerate the running list: the list can
+     * scroll, a card can leave the visible tree while still running, and `添加定时器` is only the
+     * create entry point. Reporting such a number as a total let a *lower* viewport count be read
+     * as "this timer is gone". So a total now comes from a sentence only:
+     *
+     *  - `N 个定时器正在运行` (including `0 个定时器正在运行`) — a header the page itself states;
+     *  - an explicit empty sentence (`没有正在运行的定时器`, `暂无定时器`, …).
+     *
+     * Anything else is -1. A truncated tree invalidates the empty sentence too, but not the header:
+     * a statement does not become false because the traversal budget ran out.
      */
-    fun runningTimerCount(): Int = timerCountFrom(UiAutomator.readScreen(60).texts)
-
     internal fun timerCountFrom(texts: List<String>, truncated: Boolean = false): Int {
         for (t in texts) {
             Regex("(\\d+)\\s*个定时器正在运行").find(t)?.let { return it.groupValues[1].toInt() }
         }
-        // A clipped tree may have cut cards away, so a bare "添加定时器" marker cannot prove the list
-        // is empty: it is only the empty state when the whole page was read.
         if (truncated) return -1
-        if (texts.any { it.contains("添加定时器") && !it.contains("正在运行") }) return 0
+        val trimmed = texts.map { it.trim() }
+        if (trimmed.any { t -> emptyTimerSentences.any { s -> t.contains(s) } }) return 0
+        return -1
+    }
+
+    private val emptyTimerSentences = listOf(
+        "没有正在运行的定时器", "没有在运行的定时器", "暂无定时器", "无正在运行的定时器",
+    )
+
+    /**
+     * Lower bound on the running timers visible in one read, or -1 when the shape is unreadable.
+     *
+     * This is safe to speak as "at least N": every counted card carries both an original-duration
+     * marker and its own cancel/pause control in this very read. It is deliberately *not* a total —
+     * cards below the fold are simply not seen — so callers must never hand it to a completion
+     * claim about a specific object.
+     */
+    internal fun visibleTimerCards(texts: List<String>, truncated: Boolean = false): Int {
+        if (truncated) return -1
         val trimmed = texts.map { it.trim() }
         val hasDuration = trimmed.any { Regex("\\d+\\s*(分钟|秒钟|小时)").containsMatchIn(it) }
         val cancels = trimmed.count { it == "取消" }
         val hasCardControl = trimmed.any { it == "暂停" || it == "继续" || it == "重置" }
         if (hasDuration && hasCardControl && cancels > 0) return cancels
-        // Measured empty state on Samsung Clock 12.5.60.27: the create picker replaces the cards.
-        val picker = listOf("小时", "分钟", "秒").all { it in trimmed } && "开始" in trimmed
-        if (picker && cancels == 0) return 0
         return -1
     }
 
@@ -253,15 +272,22 @@ object ClockControl {
         }
         val truncated = read.textsTruncated || read.nodesTruncated
         val n = timerCountFrom(read.texts, truncated)
+        // A viewport scan is only ever a lower bound: safe to speak as "at least N", never as a
+        // total, and never as the basis for "that timer is gone".
+        val floor = if (n >= 0) n else visibleTimerCards(read.texts, truncated)
         return when {
-            n < 0 -> ToolResult(
+            n > 0 -> ToolResult.ok("timer_query", "现在有${n}个倒计时在运行", verified = true,
+                detail = "count=$n ${describe(read, reach)}")
+            n == 0 -> ToolResult.ok("timer_query", "现在没有正在运行的倒计时", verified = true, detail = describe(read, reach))
+            floor > 0 -> ToolResult.ok(
+                "timer_query", "页面上至少能看到${floor}个倒计时在运行，但没法确认一共有几个",
+                detail = "lowerBound=$floor count=unparsed ${describe(read, reach)}",
+            )
+            else -> ToolResult(
                 ToolStatus.DEVICE_UNAVAILABLE, "timer_query",
-                "打开了时钟的定时器页面，但这个页面上没有识别出倒计时，没法确认",
+                "打开了时钟的定时器页面，但没法确认现在有几个倒计时在运行",
                 describe(read, reach) + " count=unparsed truncated=$truncated"
             )
-            n == 0 -> ToolResult.ok("timer_query", "现在没有正在运行的倒计时", verified = true, detail = describe(read, reach))
-            else -> ToolResult.ok("timer_query", "现在有${n}个倒计时在运行", verified = true,
-                detail = "count=$n ${describe(read, reach)}")
         }
     }
 
@@ -367,35 +393,29 @@ object ClockControl {
             " after=${afterCount} page=${if (afterPage) "timer-selected" else "unconfirmed"}" +
             " truncated=$afterTruncated stillListed=$boundStillListed"
         Log.i(TAG, "timer cancel readback: $facts")
-        val observed = ai.closepaw.voice.tools.ObservedState(identity, "none", "clock.timerPage")
+        // Round 29 review P1: nothing here identifies *the* cancelled object. `after.texts` is one
+        // viewport, `afterCount` is a counter that other timers can move on their own (one may have
+        // just run out), and the duration label is not a stable id. So a lower count plus a missing
+        // label is NOT evidence that the bound card is gone — the click may have missed while
+        // another timer ended off-screen. The only object-level statement allowed is the negative
+        // one: the very same card, with the same original duration, is still listed.
+        val reason = when {
+            !afterPage -> "page-unconfirmed"
+            afterTruncated -> "truncated"
+            beforeCount < 0 || afterCount < 0 -> "count-not-attributable"
+            afterCount >= beforeCount -> "count-not-lower"
+            else -> "count-not-attributable"
+        }
         return when {
-            // Could not read the page back at all: the request may well have landed, but nothing
-            // object-level supports saying so.
-            !afterPage || afterTruncated || afterCount < 0 ->
-                ToolResult.sentWithoutProof("timer_cancel", "已请求取消指定倒计时，但无法确认最终状态",
-                    facts + "; readback=" + when {
-                        !afterPage -> "page-unconfirmed"
-                        afterTruncated -> "truncated"
-                        else -> "count-unparsed"
-                    })
             // The card we bound is still on the page: the clock did not cancel it.
-            boundStillListed && afterCount > 0 -> ToolResult(
+            boundStillListed && afterPage -> ToolResult(
                 ToolStatus.SUCCESS, "timer_cancel", "已请求取消，但时钟仍显示这个倒计时", facts, false,
                 ai.closepaw.voice.tools.ObservedState(identity, "running:$bound", "clock.timerPage"),
             )
-            // Label gone *and* the running count dropped (or the page is now empty): two facts that
-            // agree. A missing header cannot lower a count by itself.
-            !boundStillListed && (
-                (beforeCount >= 1 && afterCount < beforeCount) ||
-                    (beforeCount < 0 && afterCount == 0)
-                ) -> ToolResult(
-                ToolStatus.SUCCESS, "timer_cancel", "已取消这个倒计时，时钟的定时器页面已经没有它了", facts,
-                true, observed,
-            )
-            // Label gone but the count did not drop: the two observations disagree, so neither is
-            // allowed to become a completion claim.
+            // Everything else: the request may well have landed, but no read-back can attribute the
+            // change to this object. Reported as delivered-without-proof, never as cancelled.
             else -> ToolResult.sentWithoutProof("timer_cancel", "已请求取消指定倒计时，但无法确认最终状态",
-                facts + "; readback=count-not-lower")
+                facts + "; readback=$reason")
         }
     }
 

@@ -237,8 +237,9 @@ class ClockSelectionEntryMatrixTest {
         val r = ClockControl.cancelTimer(ctx, 300)
 
         assertThat(r.status).isEqualTo(ToolStatus.SUCCESS)
-        // Bound and clicked, but the cancel outcome was never read back → unknown (null), not false.
-        assertThat(r.verified).isNull()
+        // Bound and clicked, but no confirmation: the reader never proves the *same* object left
+        // the list, so `verified` may be false (still listed) or null (unknown) — never true.
+        assertThat(r.verified).isNotEqualTo(true)
         verify(exactly = 1) { cancel.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
     }
 

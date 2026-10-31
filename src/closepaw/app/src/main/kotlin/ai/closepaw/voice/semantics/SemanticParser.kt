@@ -228,10 +228,30 @@ object SemanticParser {
             params = params,
             conditions = if (t.contains("如果")) listOf(t.substringAfter("如果")) else emptyList(),
             expectedState = expectedStateOf(normalised, effectiveTarget, params),
+            targetIdentity = identityOf(normalised, effectiveTarget, params),
             confidence = confidence,
             ambiguity = ambiguity,
             raw = t,
         )
+    }
+
+    /**
+     * The object identity this utterance pins down, derived from the *same* parsed parameters that
+     * produce `expectedState`. Round 29 review P2: without this, `TerminalState` had nothing to
+     * compare a read-back against on the real voice path, and its identity check silently passed.
+     *
+     * These are parameter-derived names (`timer:<seconds>`, `alarm:<H>:<M>`), not stable device ids —
+     * Samsung's timer list exposes no such id yet, which is why the timer surface still refuses to
+     * claim a cancellation as done.
+     */
+    private fun identityOf(a: Action, t: Target, p: Map<String, String>): String? = when {
+        t == Target.TIMER -> p["seconds"]?.takeIf { it.isNotBlank() }?.let { "timer:$it" }
+        t == Target.ALARM && p["hour"] != null ->
+            "alarm:${p["hour"]}:${p["minute"] ?: "0"}"
+        // Switches already had a name at the tool boundary (`target.name.lowercase()`); matching it
+        // exactly keeps the gate from blocking a legitimate call over letter case.
+        t == Target.TORCH || t == Target.WIFI || t == Target.BLUETOOTH -> t.name.lowercase()
+        else -> null
     }
 
     private fun expectedStateOf(a: Action, t: Target, p: Map<String, String>): String = when {

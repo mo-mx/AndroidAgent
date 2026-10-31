@@ -1,5 +1,34 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㉚轮：撤回「取消即成功」；计数与视口不再当对象证据（源码 + JVM，未实机）
+
+处理新复审 `6548293536`（HEAD `4f5734e`，2 条 P1 + 1 条 P2；https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6548293536 ）。上一轮（`4f5734e`）让 `cancelTimer` 点击后回读，方向对但判据不足：**视口缺失 + 计数下降不能归因到被点的那个对象**。本轮把结论收紧到「只能证明它还在，不能证明它没了」。
+
+1. **[P1] 取消成功判定撤回**：`ClockControl.cancelTimer` 点击后仍回读同一页面，但**唯一允许的对象级结论是否定的**——同一形态的 `初始时长/总时长` 标签仍在 → `verified=false` + `ObservedState("timer:<秒>","running:<秒>")`（`TerminalState` 判 `CONTRADICTED`）。标签消失 + 计数下降**不再**推出 `verified=true`：一次读只覆盖当前视口、计数会被「另一个计时器自然结束」改变、时长标签也不是稳定 ID。其余全部 `sentWithoutProof`（`verified=null`、`observed=null`），`detail` 记 `readback=page-unconfirmed|truncated|count-not-lower|count-not-attributable`，句子固定「已请求取消指定倒计时，但无法确认最终状态」，不再出现「已取消」。
+2. **[P1] 计数只认页面自己的陈述**：`timerCountFrom` 现在只从 `N 个定时器正在运行` 表头或明确空态句（`没有正在运行的定时器` / `暂无定时器` / `无正在运行的定时器`）取总数。`添加定时器`（创建入口）、创建 picker、可见卡片数量**一律不再当 0 或当总数**。新增 `visibleTimerCards` 作为「视口内至少几张卡」的下界，`queryTimers` 在总量未知但下界 > 0 时只说「页面上至少能看到 N 个倒计时在运行，但没法确认一共有几个」；总量与下界都没有时 `DEVICE_UNAVAILABLE` 且不播确定数字。
+3. **[P2] 身份对应不再默认放行**：`TerminalState.identityMatches` 原先在 `task.targetIdentity == null` 时直接返回 `true`，等于真实语音路径从未核对对象身份。现在**双侧都必须声明身份且相等**；`SemanticParser.identityOf` 从与 `expectedState` 同一批参数派生身份（`timer:<秒>`、`alarm:H:M`、开关的 `torch|wifi|bluetooth` 小写，与工具边界既有 `target.name.lowercase()` 对齐），`SemanticRunner` 的 `ToolCall` 同步携带 `timerIdentity(secs)`，避免新身份把合法 timer 调用误判成 identity drift。
+
+TDD 与真实数据（全部 `--offline --rerun-tasks`，JDK 17 本地）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 先写/改测试，生产代码未改 | **RED 是编译失败**：`visibleTimerCards` 未解析，断言未执行；`isEqualTo` 未解析是连带 | `logs/pr4-review29-red.txt` |
+| 按新契约实现后首次定向 | **236 tests / 10 failed / 0 errors**：6 条 `IntentGateTest` 旧夹具未携带工具边界的新身份、`ClockSelectionEntryMatrixTest`（`verified` 由 null 变 false）、`TerminalUnprovenMutationTest`（身份不再可省），以及本轮我自己 2 条新测试期望写错（utterance 与 reason 串） | `logs/pr4-review29-targeted.txt` |
+| 夹具对齐新契约后 | **236 tests / 0 failed / 0 errors / 0 skipped**，exit=0 | `logs/pr4-review29-targeted3.txt` |
+| 全量 `:app:testDebugUnitTest` | **2326 tests / 6 failed / 0 errors / 8 skipped**，Gradle exit=1，**不是全绿**；失败仍是 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（本轮未改、未跳过、未重跑旧 SHA 基线） | `logs/pr4-review29-full.txt` |
+
+断言变动如实说明（没有整类删除）：
+- `ClockSelectionEntryMatrixTest`「取消已绑定的卡片」：原断言 `verified == null`（旧实现根本不回读），改为 `verified != true`——回读后既可能 `null`（无法归因）也可能 `false`（卡片仍在），两者都不是成功。
+- `TerminalUnprovenMutationTest`「CONFIRMED 直通」：原夹具不声明身份，正是 P2 指出的漏洞；改为声明 `timer` 后仍断言 `CONFIRMED` 且结果不被改写；同时 `TerminalExpectedStateTest` 新增用例断言「未声明身份 + 有身份证据 = UNPROVEN」。
+- `IntentGateTest`：`allow()` 按 `SemanticRunner` 的真实约定补上工具侧身份；「5 秒 vs 300 秒」那条改为断言 `identity drift`（比原来的参数不一致检查更早拒绝），不是放行。
+- `TimerCancelReadbackTest`：原来两条「必须 CONFIRMED」的正向用例改为断言 `verified=null` + `UNPROVEN`，并新增「另一个计时器自然结束 + 目标卡移出视口」负例。
+
+边界与遗留（如实）：
+- 三星时钟是否暴露稳定 timer 对象 ID、页头计数刷新时序、可滚动列表完整性、导航栏与正文双标签卡片结构：**仍全部未验证**；本轮未构建/安装 APK、未操作手机。取消功能在真机上仍只会说「无法确认」——这是合规结果，不是功能完成。
+- 可见副作用：在总量未知的页面上，`queryTimers` 会从「现在有 N 个」退到「至少 N 个」或「没法确认」。旧 picker 空态判定来自一次真机采集，但「picker 出现」不等于「列表为空」，按审查要求撤回；真正空页面的文案需重新实机采集后才能恢复确定性播报。
+- `createTimer` / `closeAlarm` / 手电 / Wi-Fi 仍无对象级回读；`closeAlarm` 因缺全列表/对象身份继续 `BLOCKED`；在线 `ToolRouter` 同门禁（阶段 2）仍未做。
+- 未调用付费 API、未 delegate 给本地小模型、不并入 Issue #6、未改 `AGENTS.md` 等受保护规则、不 push main、不合并。
+
 ## 第㉙轮：取消倒计时首次给出对象级回读证据（源码 + JVM，未实机）
 
 第㉘轮遗留的最大缺口是「`observed` 没有真实生产者」：所有声明了 `expectedState` 的变更在真机上一律 `UNPROVEN`，`CONFIRMED` / `CONTRADICTED` 只有 JVM 夹具可达。本轮先补最容易证伪的一处：**取消计时器点击之后回读同一个定时器页面**。

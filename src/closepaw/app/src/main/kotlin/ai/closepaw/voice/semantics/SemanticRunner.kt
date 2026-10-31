@@ -97,14 +97,16 @@ object SemanticRunner {
                 // No silent 300 s default: an unknown duration is a question, not a guess.
                 val secs = t.params["seconds"]?.toIntOrNull()
                     ?: return ask(t, "要计时多久？")
-                guarded(t, IntentGate.ToolCall(Action.CREATE, Target.TIMER, mapOf("seconds" to "$secs"))) {
+                guarded(t, IntentGate.ToolCall(
+                    Action.CREATE, Target.TIMER, mapOf("seconds" to "$secs"), timerIdentity(secs),
+                )) {
                     ClockControl.createTimer(ctx, secs)
                 }
             }
             Action.CANCEL, Action.CLOSE, Action.DELETE -> {
                 val seconds = t.params["seconds"]?.toIntOrNull()
                 val args = seconds?.let { mapOf("seconds" to "$it") } ?: emptyMap()
-                guarded(t, IntentGate.ToolCall(t.action, Target.TIMER, args)) {
+                guarded(t, IntentGate.ToolCall(t.action, Target.TIMER, args, seconds?.let { timerIdentity(it) })) {
                     ClockControl.cancelTimer(ctx, seconds)
                 }
             }
@@ -281,6 +283,13 @@ object SemanticRunner {
         Log.i(TAG, "restricted → accessibility panel fallback for $target")
         return SystemPanelAutomator.setEnabled(ctx, target, on)
     }
+
+    /**
+     * The identity a timer call carries into [IntentGate]. Same derivation as
+     * `SemanticParser.identityOf`, so the gate compares two independently built strings rather
+     * than a value copied from the task — but it is a duration, not a stable device id.
+     */
+    private fun timerIdentity(seconds: Int) = "timer:$seconds"
 
     private fun ask(t: SemanticTask, question: String) = ToolResult(
         ToolStatus.BLOCKED, t.action.name.lowercase(), question,

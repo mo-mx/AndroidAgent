@@ -142,11 +142,16 @@ object TerminalState {
     }
 
     /**
-     * A read-back is about the promised object only when it names one and, if the task also named
-     * one, the names agree. A missing identity on either side is absence of evidence, not proof.
+     * A read-back is about the promised object only when *both* sides name one and the names agree.
+     *
+     * Round 29 review P2: this used to return `true` when the task declared no identity, so evidence
+     * naming `timer:300` was compared against nothing and passed — the gate never actually checked
+     * correspondence on the real voice path. An undeclared identity is absence of correspondence,
+     * not a match; the parser now derives one (see `SemanticParser.identityOf`) so a path that wants
+     * object-level confirmation has to name its object.
      */
     private fun identityMatches(task: SemanticTask, observed: ai.closepaw.voice.tools.ObservedState): Boolean {
-        val want = task.targetIdentity?.trim()?.takeIf { it.isNotEmpty() } ?: return true
+        val want = task.targetIdentity?.trim()?.takeIf { it.isNotEmpty() } ?: return false
         val got = observed.identity?.trim()?.takeIf { it.isNotEmpty() } ?: return false
         return want.equals(got, ignoreCase = true)
     }

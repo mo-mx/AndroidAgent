@@ -148,10 +148,11 @@ class ClockWindowGateTest {
         assertThat(r.detail).contains("readable=false")
     }
 
-    @Test fun `truncated timer tree cannot turn the add marker into zero running timers`() {
-        // The empty-state marker only means "empty" when the whole page was read.
+    @Test fun `the add marker never becomes a zero running-timer count`() {
+        // Round 29 review P1: `添加定时器` is a create entry point, not a statement about the
+        // running list, so it cannot prove zero — complete read or not.
         assertThat(ClockControl.timerCountFrom(listOf("添加定时器", "取消"), truncated = true)).isEqualTo(-1)
-        assertThat(ClockControl.timerCountFrom(listOf("添加定时器", "取消"), truncated = false)).isEqualTo(0)
+        assertThat(ClockControl.timerCountFrom(listOf("添加定时器", "取消"), truncated = false)).isEqualTo(-1)
     }
 
     @Test fun `truncated timer tree still trusts an explicit running-count header`() {

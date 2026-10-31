@@ -104,9 +104,11 @@ class TerminalUnprovenMutationTest {
             "五分钟的倒计时已经开始",
             ObservedState(identity = "timer", state = "running:300", source = "clock-ui"),
         )
-        // No target identity declared, so only the state token is compared.
-        assertThat(TerminalState.verdict(timerTask(), r)).isEqualTo(TerminalState.Verdict.CONFIRMED)
-        assertThat(TerminalState.enforce(timerTask(), r)).isEqualTo(r)
+        // Round 29 review P2: evidence must correspond to an identity the task declared. Here both
+        // sides name the same object, so the claim is confirmed and left alone.
+        val task = timerTask().copy(targetIdentity = "timer")
+        assertThat(TerminalState.verdict(task, r)).isEqualTo(TerminalState.Verdict.CONFIRMED)
+        assertThat(TerminalState.enforce(task, r)).isEqualTo(r)
     }
 
     @Test fun `mutation that already reported unknown keeps its own sentence`() {

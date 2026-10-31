@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-11-01 第㉚轮（仅 JVM，未实机）
+
+测什么：撤回「取消倒计时即成功」的判定，并把计时器总数限制为页面明示陈述（表头 / 明确空态句）。
+怎么测：仓库根 `source env.sh` 后 `cd src/closepaw`，`./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.voice.semantics.*' --tests 'ai.closepaw.voice.tools.*' --rerun-tasks --console=plain`；再跑全量同任务不带 `--tests`。
+实际结果：定向 236 tests / 0 failed / 0 errors / 0 skipped（exit=0）；全量 2326 tests / 6 failed / 0 errors / 8 skipped（Gradle exit=1，**不是全绿**，失败仍是 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，本轮未改未跳过）。
+未验证：三星时钟是否暴露稳定 timer 对象 ID、页头计数刷新时序、可滚动列表完整性、导航栏与正文双标签卡片结构；本轮未构建/安装 APK、未操作手机。取消动作在真机上仍只会播报「无法确认最终状态」——这是安全拒绝，不是功能完成。
+证据：本机 gitignored `logs/pr4-review29-{red,targeted,targeted3,full}.txt`，不入库。
+
 ## 2026-10-31 阶段1授权部署：锁屏阻塞（功能未测）
 
 测什么：PR4 head 2ff514ff0b333f9dafe6947685c059fff91cf475 的debug构建、保留配置覆盖安装、设备基线及非破坏性回归。
