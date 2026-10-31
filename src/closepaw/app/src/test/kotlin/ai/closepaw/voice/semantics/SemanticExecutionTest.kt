@@ -26,6 +26,16 @@ class SemanticExecutionTest {
     }
     @After fun cleanup() = unmockkAll()
 
+    @Test fun `delete alarm must not announce closure after unverified click`() {
+        mockkObject(ClockControl)
+        every { ClockControl.closeAlarm(ctx, 8, 0) } returns ToolResult.ok("alarm_close", "已请求关闭，但无法确认最终状态", verified = false)
+        val result = ClockControl.deleteAlarm(ctx, 8, 0)
+        assertThat(result.verified).isFalse()
+        assertThat(result.speak).doesNotContain("已经关闭")
+        assertThat(result.speak).contains("无法确认")
+        assertThat(result.speak).contains("未删除")
+    }
+
     @Test fun `planner and call cannot collude against original cancel intent`() {
         val raw = "取消五分钟倒计时"
         val forged = SemanticParser.parse(raw).single().copy(action = Action.CREATE)

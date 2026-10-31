@@ -228,7 +228,7 @@ object ClockControl {
         return if (r.ok) {
             ToolResult(
                 ToolStatus.SUCCESS, "alarm_delete",
-                "${hour}点${minute}分的闹钟已经关闭（三星时钟删除需要长按，我只关闭了它）",
+                "${r.speak}；未删除闹钟（此路径仅请求关闭）",
                 r.detail, verified = r.verified
             )
         } else r

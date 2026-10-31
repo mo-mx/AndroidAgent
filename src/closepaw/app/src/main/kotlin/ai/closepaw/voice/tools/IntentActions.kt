@@ -15,9 +15,8 @@ import java.util.Locale
  * Standard Android intents exposed as capabilities, with verification of the *actual* effect.
  *
  * The distinction this file enforces (asked for explicitly): "startActivity succeeded" is not
- * "the alarm exists". For alarms we read AlarmManager.getNextAlarmClock(). For timers there is
- * no public read API, so we verify through the UI when accessibility is connected, and otherwise
- * say plainly that creation could not be confirmed.
+ * "the alarm exists". Next-alarm and timer-screen observations cannot uniquely identify a
+ * newly created object, so creation remains unverified until target-specific read-back exists.
  */
 object IntentActions {
     private const val TAG = "IntentActions"
@@ -88,9 +87,10 @@ object IntentActions {
         Log.i(TAG, "timer verify: fg=$fg clockFg=$clockForeground countdown=$countdownShown texts=$texts")
 
         return when {
-            clockForeground && countdownShown -> ToolResult.ok(
-                "timer", "${human}倒计时已经开始了", verified = true,
-                detail = "clockFg=true countdown-ui=true"
+            clockForeground && countdownShown -> ToolResult(
+                ToolStatus.SUCCESS, "timer",
+                "${human}的倒计时请求已经发送，但无法确认新倒计时是否开始，请在时钟里核对",
+                "clockFg=true countdown-ui=true; no newly created object identity", verified = false
             )
             clockForeground -> ToolResult(
                 ToolStatus.SUCCESS, "timer",
@@ -137,12 +137,15 @@ object IntentActions {
         val hhmm = String.format(Locale.CHINA, "%d点%02d分", hour, minute)
         val exact = gotH == hour && gotM == minute
         return when {
-            exact -> ToolResult.ok(
-                "alarm", "闹钟已经设在${hhmm}", verified = true, detail = "next=${gotH}:${gotM}"
+            exact -> ToolResult(
+                ToolStatus.SUCCESS, "alarm",
+                "已发出${hhmm}的闹钟请求，但无法确认本次是否新增或更新，请在时钟里核对",
+                "before=${before?.triggerTime} next=$trigger; matching next alarm is not creation proof",
+                verified = false
             )
             trigger != null -> ToolResult(
                 ToolStatus.SUCCESS, "alarm",
-                "已经发出${hhmm}的闹钟请求，但系统里记录的是${gotH}点${gotM}分，可能还停在确认界面",
+                "已发出${hhmm}的闹钟请求，但无法确认本次结果；系统下一个闹钟为${gotH}点${gotM}分，不能据此判断目标是否已创建",
                 "next=${gotH}:${gotM} (mismatch)", verified = false
             )
             else -> ToolResult(

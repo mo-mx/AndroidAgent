@@ -3,6 +3,17 @@
 Issue #3 / PR #4；分支 `feat/semantic-gate`；2026-10-31。
 性质：源码分析 + 本机 Gradle JVM 回归，未实机。阶段 1 仍待审查/设备验收，不代表整个 Issue 完成。
 
+## 第二轮审查修复（评论 6538288842）
+
+- 修复新建计时器假验证：旧计时器文字只能说明页面有倒计时，不证明本次请求创建了指定对象。`setTimer` 不再因此返回 `verified=true` 或播报“已经开始”。
+- 修复新建闹钟假验证：`nextAlarmClock` 时间匹配不能证明本次新增/更新；匹配也返回 `verified=false`。更早的其他闹钟不代表目标不存在，不再推测停在确认界面。这里只降级不可靠的验证，不引入未经验证的对象回读器。
+- 删除闹钟保留 `closeAlarm` 的真实反馈，明确“未删除”；未确认关闭不播报“已经关闭”。
+- 新增真实 `IntentActions.setTimer/setAlarm` 调用测试，Android Intent/Context/AlarmManager 与无障碍边界用 MockK；覆盖旧十分钟倒计时、既存同时间闹钟、更早其他闹钟。删除反馈测试隔离 closeAlarm 返回值，不冒称该测试覆盖了真实 UI。
+- TDD 有效 RED：`logs/pr4-creation-red.txt`（1 行为断言失败）、`pr4-alarm-create-red.txt`（2 行为断言失败）、`pr4-delete-feedback-red.txt`（1 行为断言失败）。首次 Intent 链 mock 不全的 NullPointerException 已修复，不作为 RED 证据。
+- GREEN：四类定向 JVM 测试 **42 tests / 0 failed / 0 skipped**（23+10+6+3），`logs/pr4-review2-targeted.txt`。命令为上文定向命令加 `--tests '*IntentCreationVerificationTest'`。
+- 全量实跑 **2132 tests / 6 failed / 8 skipped / 0 errors**，命令退出失败，`logs/pr4-review2-full.txt`；失败仍是 AgentSkillCatalogTest 1 项、MemoryStoreTest 5 项。本轮未重新运行旧 SHA 基线，不把上轮基线复跑写成本轮动作。
+- 未构建 APK、未操作手机、未验证 expectedState，阶段 1 待复审，阶段 2/3 未推进。
+
 ## 已修复的审查问题
 
 1. ALARM 能力表补上 CANCEL。回归经过真实 `SemanticParser → CapabilityGuard → SemanticRunner → IntentGate → ClockControl`，8 点闹钟不存在时进入查询并拒绝，不会调用创建。
