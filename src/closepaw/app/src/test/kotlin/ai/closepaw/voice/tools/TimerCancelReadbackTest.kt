@@ -23,9 +23,10 @@ import org.junit.Test
  * These fixtures pin the post-click read-back contract on the same page that was bound:
  *
  *  - page identity + a complete read + the bound duration label gone + a *decreased* running count
- *    → `verified = true` with `ObservedState(identity = "timer:<seconds>", state = "none")`;
- *  - the bound duration label still listed → `verified = false` with `state = "running:<seconds>"`,
- *    which [TerminalState] refuses as CONTRADICTED;
+ *    → still UNPROVEN: no stable id ties the change to the clicked object;
+ *  - the bound duration label still listed → also UNPROVEN (round 33 review P2). A same duration is
+ *    not a same object: the clicked card may be gone while a twin scrolled into view. Never
+ *    `CONTRADICTED`, and never before the truncation/page gates;
  *  - unreadable page, truncated tree, unparsed count, or two facts that disagree
  *    (label gone but count not lower) → no evidence at all (`verified = null`, `observed = null`).
  *
@@ -137,19 +138,64 @@ class TimerCancelReadbackTest {
     }
 
     @Test
-    fun `cancel whose card is still listed contradicts the promised absence`() {
+    fun `a still listed same duration card is not proof that the clicked timer survived`() {
+        // Round 33 review P2: a same *duration* is not a same *object*. The click may well have
+        // cancelled the bound card while another 5-minute card that was out of view scrolled in.
+        // Speaking "时钟仍显示这个倒计时" would be an object-level claim this read cannot make.
         every { UiAutomator.readScreen(any()) } returns
             screen("1 个定时器正在运行", "初始时长：5分钟", "取消")
 
         val r = ClockControl.cancelTimer(ctx, 300)
 
         assertThat(r.status).isEqualTo(ToolStatus.SUCCESS)
-        assertThat(r.verified).isFalse()
-        assertThat(r.observed!!.identity).isEqualTo("timer:300")
-        assertThat(r.observed!!.state).isEqualTo("running:300")
-        assertThat(TerminalState.verdict(cancelTask(), r)).isEqualTo(TerminalState.Verdict.CONTRADICTED)
-        assertThat(TerminalState.enforce(cancelTask(), r).status).isEqualTo(ToolStatus.EXECUTION_ERROR)
+        assertThat(r.verified).isNull()
+        assertThat(r.observed).isNull()
+        assertThat(r.speak).doesNotContain("仍显示这个倒计时")
+        assertThat(r.detail).contains("readback=same-duration-still-listed")
+        assertThat(TerminalState.verdict(cancelTask(), r)).isEqualTo(TerminalState.Verdict.UNPROVEN)
         verify(exactly = 1) { cancel.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+    }
+
+    @Test
+    fun `a successful cancel with a same duration twin scrolled into view is not a failure`() {
+        // Review P2 reproduction: two timers running, the 5-minute one really was cancelled, and the
+        // 10-minute one ended so the header dropped 2 -> 1, while another 5-minute card (off-screen
+        // before the click) is now listed. Count is lower and a 5-minute label is present: the old
+        // code graded this CONTRADICTED and told the user the cancel failed.
+        val five = node("", node("初始时长：5分钟"), cancel)
+        val ten = node("", node("初始时长：10分钟"), node("取消"))
+        val running = node("", node("2 个定时器正在运行"), five, ten)
+        every { UiAutomator.root() } returns running
+        // The binding tree is a *different* object here, so the tab-selected fact must be restubbed.
+        every { UiAutomator.selectedState(any(), any()) } returns true
+        every { UiAutomator.readScreen(any()) } returns
+            screen("1 个定时器正在运行", "初始时长：5分钟", "取消")
+
+        val r = ClockControl.cancelTimer(ctx, 300)
+
+        assertThat(r.status).isEqualTo(ToolStatus.SUCCESS)
+        assertThat(r.verified).isNull()
+        assertThat(r.observed).isNull()
+        assertThat(r.detail).contains("before=2")
+        assertThat(r.detail).contains("after=1")
+        assertThat(r.detail).contains("readback=same-duration-still-listed")
+        assertThat(TerminalState.verdict(cancelTask(), r)).isEqualTo(TerminalState.Verdict.UNPROVEN)
+        assertThat(TerminalState.enforce(cancelTask(), r).status).isEqualTo(ToolStatus.SUCCESS)
+    }
+
+    @Test
+    fun `a truncated read-back cannot contradict the promise either`() {
+        // The label check used to run before the truncation gate, so a clipped page that happened to
+        // contain a same-duration label was reported as a failed cancellation.
+        every { UiAutomator.readScreen(any()) } returns
+            screen("1 个定时器正在运行", "初始时长：5分钟", truncated = true)
+
+        val r = ClockControl.cancelTimer(ctx, 300)
+
+        assertThat(r.verified).isNull()
+        assertThat(r.observed).isNull()
+        assertThat(r.detail).contains("readback=truncated")
+        assertThat(TerminalState.verdict(cancelTask(), r)).isEqualTo(TerminalState.Verdict.UNPROVEN)
     }
 
     @Test

@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-11-01 第㉜轮（仅 JVM，未实机）
+
+测什么：撤回创建/取消两条「同类证据当对象结论」的判定——创建路径的「基线无同长度卡 + 表头 +1 + 回读一张该长度卡」不再判 `CONFIRMED`；取消路径的「回读仍有同长度标签」不再判 `CONTRADICTED`。两条都改为 `verified=null` 的 `UNPROVEN`，事实写进 `detail`。
+怎么测：仓库根 `source env.sh` 后 `cd src/closepaw`，`./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.voice.tools.Timer*' --rerun-tasks --console=plain`，再跑 `--tests 'ai.closepaw.voice.*'`，最后全量同任务不带 `--tests`。新/改测试 `TimerCreateReadbackTest`(10)、`TimerCancelReadbackTest`(8) 先写后实现。
+实际结果：新契约先写 → RED **28 tests / 5 failed / 0 errors**（Truth 断言失败，非编译失败；5 条正是本轮改的契约）；实现后同组 GREEN **28 / 28**（exit=0）——其中一条因测试自身换绑定的根节点后 `selectedState` 需重打桩，第一次修后仍 1 failed（`DEVICE_UNAVAILABLE`），补桩后转绿，如实记录；定向 `ai.closepaw.voice.*` **248 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㉛轮 245，+3 净增）；全量 **2338 tests / 6 failed / 0 errors / 8 skipped**（Gradle exit=1，**不是全绿**，失败仍是既有 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，本轮未改未跳过）。
+未验证：三星时钟是否暴露稳定 timer 对象 ID、可滚动列表是否全量枚举、表头计数刷新时序、真机创建/取消的实际播报；本轮未构建/安装 APK、未操作手机。结论：创建与取消在真机上都只播报「没法确认」，属安全拒绝，不是功能完成。
+证据：全量日志本机 gitignored `logs/pr4-r33-full.txt`（不入库）；RED/GREEN/定向三段为本轮控制台输出，未单独存盘。
+
 ## 2026-11-01 第㉛轮（仅 JVM，未实机）
 
 测什么：创建倒计时的基线/回读判定——只有「基线无同长度卡 + 表头计数恰好 +1 + 回读恰好一张该长度卡」才算创建成功，其余一律 `verified=null`。

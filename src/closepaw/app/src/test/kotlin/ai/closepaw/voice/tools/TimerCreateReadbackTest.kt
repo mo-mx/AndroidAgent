@@ -21,17 +21,18 @@ import org.junit.Test
  *
  * The contract pinned here — deliberately the narrowest one that can be attributed:
  *
- *  - a complete before-read of the timer page with **no** card declaring the requested original
- *    duration, then a complete after-read with the header count exactly +1 and **exactly one** card
- *    declaring that original duration → `verified = true` with
- *    `ObservedState("timer:<s>", "running:<s>")`;
+ *  - a complete before-read of the timer page, then a complete after-read with the header count
+ *    exactly +1 and **exactly one** card declaring the requested original duration →
+ *    `verified = null` (UNPROVEN) with a reason naming the read-back: consistent with this
+ *    request, never proof of it (round 33 review P1 — one viewport is not an enumeration);
  *  - an existing same-duration twin (before count of that duration > 0), a count that did not rise
  *    by exactly one, zero or several matching cards, a truncated read, or a page whose identity is
  *    not the clock → no evidence at all (`verified = null`, `observed = null`), never a success.
  *
- * The duration label is the card's own declared *original* duration, not a stable object id, so a
- * third party creating a timer concurrently still defeats attribution; that residual assumption is
- * documented rather than papered over. Synthetic trees only — no device evidence.
+ * No branch of this read-back may produce `CONFIRMED`: the duration label is the card's own
+ * declared *original* duration, not a stable object id, and the loaded tree may hold only the
+ * visible part of a scrollable list. Attribution needs a stable id or a full enumeration, neither
+ * of which exists yet. Synthetic trees only — no device evidence.
  */
 class TimerCreateReadbackTest {
     private val ctx = mockk<Context>()
@@ -96,7 +97,12 @@ class TimerCreateReadbackTest {
     )
 
     @Test
-    fun `a new card with the requested original duration plus a count increase proves the creation`() {
+    fun `a new card with the requested original duration still cannot be attributed to this request`() {
+        // Round 33 review P1: a viewport read is not an enumeration. `textsTruncated=false` only says
+        // the loaded tree was walked without hitting the budget; a scrollable/virtualised timer list
+        // can hold cards this read never saw. So "no 5-minute card beforehand + header +1 + one
+        // 5-minute card afterwards" is consistent with this request *and* with somebody else's
+        // creation, which is exactly what the next test reproduces. Evidence, but not a verdict.
         queue(
             screen("0 个定时器正在运行"),
             screen("1 个定时器正在运行", "初始时长：5分钟", "取消"),
@@ -105,12 +111,33 @@ class TimerCreateReadbackTest {
         val r = ClockControl.createTimer(ctx, 300)
 
         assertThat(r.status).isEqualTo(ToolStatus.SUCCESS)
-        assertThat(r.verified).isTrue()
-        assertThat(r.observed?.identity).isEqualTo("timer:300")
-        assertThat(r.observed?.state).isEqualTo("running:300")
+        assertThat(r.verified).isNull()
+        assertThat(r.observed).isNull()
         assertThat(r.detail).contains("before=count=0")
         assertThat(r.detail).contains("after=count=1")
-        assertThat(TerminalState.verdict(createTask(), r)).isEqualTo(TerminalState.Verdict.CONFIRMED)
+        assertThat(r.detail).contains("readback=count-plus-one-duration-card-unattributed")
+        assertThat(r.speak).doesNotContain("已经设好")
+        assertThat(TerminalState.verdict(createTask(), r)).isEqualTo(TerminalState.Verdict.UNPROVEN)
+    }
+
+    @Test
+    fun `a same duration card that was merely off-screen in the baseline is not this creation`() {
+        // Review P1 reproduction: the pre-read never saw a 5-minute card (it was out of view) but one
+        // was running; this request did not land; another source created a 10-minute timer, header
+        // went 1 -> 2 and the 5-minute card scrolled into view. All three old conditions held, so the
+        // old code said "已经设好". It must not.
+        queue(
+            screen("1 个定时器正在运行", "初始时长：10分钟", "取消"),
+            screen("2 个定时器正在运行", "初始时长：5分钟", "取消", "初始时长：10分钟", "取消"),
+        )
+
+        val r = ClockControl.createTimer(ctx, 300)
+
+        assertThat(r.verified).isNull()
+        assertThat(r.observed).isNull()
+        assertThat(r.speak).doesNotContain("已经设好")
+        assertThat(r.detail).contains("readback=count-plus-one-duration-card-unattributed")
+        assertThat(TerminalState.verdict(createTask(), r)).isEqualTo(TerminalState.Verdict.UNPROVEN)
     }
 
     @Test

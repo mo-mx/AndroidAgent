@@ -1,5 +1,28 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㉜轮：撤回创建/取消里最后一处「同类证据」冒充对象结论（源码 + JVM，未实机）
+
+处理新复审（HEAD `54039d1`，2 条：1 P1 + 1 P2；https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6549082221 ）。核心一句话：**一次视口读取不是枚举，相同时长不是同一个对象**。上一轮把「视口」当成了列表全貌，本轮把两处判定一起撤回到 `UNPROVEN`。
+
+1. **[P1] `createTimer` 不再判 `CONFIRMED`**：`timerDraft` 只在**已加载的无障碍树**里数 `初始时长/总时长` 文本，`textsTruncated=false` 只说明遍历没超预算，**不说明可滚动/虚拟化列表已全量枚举**。因此「基线无同长度卡 + 表头 +1 + 回读恰好一张该长度卡」与「本次请求没生效 + 视口外的同长度卡滚进来 + 别人新建了另一个长度」同构。三条全过时的分支改为 `sentWithoutProof`（`verified=null`、`observed=null`），`detail` 记 `readback=count-plus-one-duration-card-unattributed`，句子为「…页面上出现了这个时长的卡片，但没法确认是这次创建的，请在时钟里核对」，不再出现「已经设好」。
+2. **[P2] `cancelTimer` 不再判 `CONTRADICTED`**：`boundStillListed` 只证明**页面上还有某个同长度计时器**，不证明被点的那个还在（点它真的成功了、另一张同长度卡滚进来，也会命中）。该分支改为 `sentWithoutProof`，`detail` 记 `readback=same-duration-still-listed`，句子为「…页面上仍有一个同样时长的倒计时，无法确认是不是刚才那个」。同时把 `stillListed` 的判断移到**页面/截断门之后**（此前它抢在 `truncated` 之前，截断页也可能被判成取消失败）。
+3. **净效果（如实）**：`TerminalState` 对计时器创建/取消**目前没有任何路径能判 `CONFIRMED`/`CONTRADICTED`**——`timer_running:<秒>` 与 `no_running_timer` 在真机上只能是 `UNPROVEN`。这是有意的：要判终态，先要有稳定对象 ID 或全量枚举，二者都还不存在。回读仍然做，事实仍写进 `detail`，只是不再替你下结论。
+
+TDD 与真实数据（全部 `--offline --rerun-tasks`，仓库根先 `source env.sh`）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 先改 `TimerCreateReadbackTest`(10)、`TimerCancelReadbackTest`(8)，生产代码未改 | **RED 28 tests / 5 failed / 0 errors**，Truth 断言失败（非编译失败）；5 条正是本轮要改的契约，含两条复审给出的反例布局 | 控制台输出，未单独存盘 |
+| 实现后同组 | 首跑 **1 failed**（`before=2` 用例返回 `DEVICE_UNAVAILABLE`：测试换了绑定根节点，`selectedState` 桩未跟着换）；补桩后 **28 / 28 GREEN**，exit=0 | 控制台输出，未单独存盘 |
+| 定向 `ai.closepaw.voice.*` | **248 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㉛轮 245，+3 净增） | 控制台输出 + `app/build/test-results` 聚合 |
+| 全量 `:app:testDebugUnitTest` | **2338 tests / 6 failed / 0 errors / 8 skipped**，Gradle exit=1，**不是全绿**；失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（本轮未改、未跳过） | `logs/pr4-r33-full.txt` |
+
+边界与遗留（如实）：
+- 证据全部来自 **JVM 合成无障碍树**，不是三星真实时钟 UI；真机上计时器列表是否虚拟化、卡片是否用 `初始时长/总时长` 表达原始时长、表头刷新时序**仍未验证**。
+- 待办性质变化：创建/取消的「对象级终态」现在是**已知不可达**，而不是待调参。下一步要么拿到稳定对象 ID（真机采集脱敏树后确认有无 resource-id/可跨读关联的稳定字段），要么先做列表全量枚举（滚动+合并多次读，需实机验证滚动边界），两者都需要**用户重新授权实机**。
+- `closeAlarm` 仍 `BLOCKED`（缺全列表枚举/稳定身份，安全拒绝）；`cancelTimer` 未校时钟窗口的旧项本轮未动；查询结果截断未当作不完整、计时器唯一绑定、五分钟真实工具参数等遗留不变。
+- 本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未并入 Issue #6、未改受保护规则、未 push main、未合并 PR。
+
 ## 第㉛轮：创建倒计时首次有可归因的对象级回读（源码 + JVM，未实机）
 
 本轮无新审查（最新 review `6548293536` 已由第㉚轮回复 `6548650998` 处理，其后 PR 无新评论），按「无新审查则推进可离线项」处理遗留清单里的**创建路径**：`createTimer` 此前完全不做回读，`expectedState = timer_running:<秒>` 在真机上永久 `UNPROVEN`。

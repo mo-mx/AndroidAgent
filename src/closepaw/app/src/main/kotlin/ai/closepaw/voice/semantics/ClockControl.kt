@@ -326,19 +326,21 @@ object ClockControl {
     }
 
     /**
-     * Create a timer, then read the timer page back and only claim the object when the evidence can
-     * be attributed to *this* request.
+     * Create a timer, then read the timer page back and report only what the read supports.
      *
      * Round 31: `IntentActions.setTimer` proves delivery (or that the page shows some countdown
-     * wording) but nothing about the requested object, so `expectedState = timer_running:<s>` was
-     * UNPROVEN on every real device. The read-back compares a complete before-read with a complete
-     * after-read and requires all of: no card declared the requested original duration beforehand,
-     * the header count rose by exactly one, and exactly one card declares it afterwards. Everything
-     * else is reported as delivered-without-proof, never as created.
+     * wording) but nothing about the requested object, so this read-back was added. Round 33 review
+     * P1 showed the read-back itself cannot carry a verdict: `timerDraft` counts duration labels in
+     * *the loaded accessibility tree*, and `textsTruncated = false` only means the walk stayed inside
+     * its budget — a scrollable/virtualised timer list still holds cards this read never saw. So
+     * `before.ofDuration == 0` cannot prove the baseline had no same-duration timer, and the pair
+     * (no such card before, count +1, one such card after) is equally consistent with a request that
+     * never landed plus somebody else's creation. Every branch is therefore UNPROVEN; the facts are
+     * reported, the conclusion is not.
      *
-     * Residual assumption, stated instead of hidden: a third party creating a timer of the same
-     * duration between the two reads would satisfy the same test. The label is a declared original
-     * duration, not a stable object id — the count-increase requirement is what keeps this narrow.
+     * Attribution would need a stable object id in the read-back or a full enumeration of the list.
+     * Neither exists yet, and inventing one from a viewport is how the old branch shipped a false
+     * "已经设好".
      */
     fun createTimer(ctx: Context, seconds: Int): ToolResult {
         val before = timerDraft(ctx, seconds)
@@ -379,9 +381,14 @@ object ClockControl {
                 "timer", "已经请求设置${human}的倒计时，但页面上有多个这个时长的倒计时，没法确认新的那个",
                 "$facts; readback=duration-card-not-single"
             )
-            else -> ToolResult.ok(
-                "timer", "已经设好${human}的倒计时", verified = true, detail = "$facts; readback=count-plus-one-duration-card",
-                observed = ai.closepaw.voice.tools.ObservedState("timer:$seconds", "running:$seconds", "clock.timerPage"),
+            // Every check passed — and that still is not attribution. The pre-read only proves the
+            // loaded tree held no such card, not that the timer list held none, so this shape is
+            // reachable with a request that did nothing plus an off-screen twin plus a foreign
+            // creation. Facts, not a verdict.
+            else -> ToolResult.sentWithoutProof(
+                "timer",
+                "已经请求设置${human}的倒计时，页面上出现了这个时长的卡片，但没法确认是这次创建的，请在时钟里核对",
+                "$facts; readback=count-plus-one-duration-card-unattributed"
             )
         }
         ActionMemory.recordResult(Action.CREATE, Target.TIMER, mapOf("seconds" to "$seconds"), r)
@@ -464,11 +471,9 @@ object ClockControl {
         val clicked = button.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         if (!clicked) return ToolResult.error("timer_cancel", "已定位倒计时，但取消按钮不可操作", "node click failed")
         val bound = matching.single().second
-        val identity = "timer:$bound"
         // Read back the same page the click was bound from. `ACTION_CLICK == true` is the gesture,
-        // not the outcome, so the promise "no running timer" is only graded on what the clock shows
-        // afterwards. Counts come from the same tree as the labels, so a shortened page cannot
-        // report a decrease that the visible cards do not support.
+        // not the outcome, so nothing is claimed from it. Counts come from the same tree as the
+        // labels, so a shortened page cannot report a decrease that the visible cards do not support.
         val beforeCount = timerCountFrom(boundTexts, truncated = !complete)
         Thread.sleep(700)
         val after = readClockScreen(ctx, "定时器", 60)
@@ -484,30 +489,29 @@ object ClockControl {
             " after=${afterCount} page=${if (afterPage) "timer-selected" else "unconfirmed"}" +
             " truncated=$afterTruncated stillListed=$boundStillListed"
         Log.i(TAG, "timer cancel readback: $facts")
-        // Round 29 review P1: nothing here identifies *the* cancelled object. `after.texts` is one
-        // viewport, `afterCount` is a counter that other timers can move on their own (one may have
-        // just run out), and the duration label is not a stable id. So a lower count plus a missing
-        // label is NOT evidence that the bound card is gone — the click may have missed while
-        // another timer ended off-screen. The only object-level statement allowed is the negative
-        // one: the very same card, with the same original duration, is still listed.
+        // Rounds 29 and 33 reviews: nothing in this read identifies *the* cancelled object. One
+        // viewport is not an enumeration, the header count can be moved by other timers, and a
+        // declared original duration is not a stable id.
+        //   - lower count + label gone  → could be this click, or another timer ending off-screen;
+        //   - label still listed        → could be a *different* timer of the same duration that
+        //                                 scrolled in after this one was cancelled.
+        // Neither direction supports an object-level verdict, so `stillListed` no longer produces a
+        // CONTRADICTED "时钟仍显示这个倒计时" (round 33 review P2), and it is checked only after the
+        // page/truncation gates instead of before them.
         val reason = when {
             !afterPage -> "page-unconfirmed"
             afterTruncated -> "truncated"
+            boundStillListed -> "same-duration-still-listed"
             beforeCount < 0 || afterCount < 0 -> "count-not-attributable"
             afterCount >= beforeCount -> "count-not-lower"
             else -> "count-not-attributable"
         }
-        return when {
-            // The card we bound is still on the page: the clock did not cancel it.
-            boundStillListed && afterPage -> ToolResult(
-                ToolStatus.SUCCESS, "timer_cancel", "已请求取消，但时钟仍显示这个倒计时", facts, false,
-                ai.closepaw.voice.tools.ObservedState(identity, "running:$bound", "clock.timerPage"),
-            )
-            // Everything else: the request may well have landed, but no read-back can attribute the
-            // change to this object. Reported as delivered-without-proof, never as cancelled.
-            else -> ToolResult.sentWithoutProof("timer_cancel", "已请求取消指定倒计时，但无法确认最终状态",
-                facts + "; readback=$reason")
+        val speak = if (reason == "same-duration-still-listed") {
+            "已请求取消指定倒计时，页面上仍有一个同样时长的倒计时，无法确认是不是刚才那个"
+        } else {
+            "已请求取消指定倒计时，但无法确认最终状态"
         }
+        return ToolResult.sentWithoutProof("timer_cancel", speak, facts + "; readback=$reason")
     }
 
     // ── alarms ──
