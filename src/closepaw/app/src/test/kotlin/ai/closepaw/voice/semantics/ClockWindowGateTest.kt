@@ -181,4 +181,27 @@ class ClockWindowGateTest {
         assertThat(r.speak).contains("这个开关不属于时钟窗口")
         verify(exactly = 0) { toggle.performAction(any()) }
     }
+
+    @Test fun `tab switch clicks the tab label itself not a card that contains it`() {
+        // Real device shape: the hint card 对关联闹钟进行分组 sits above the tab bar. The loose
+        // matcher tapped the card, the page never changed, and the read still came from the clock.
+        val hint = node("对关联闹钟进行分组")
+        val tab = node("", clockPkg)
+        every { tab.contentDescription } returns "闹钟"
+        val tree = node("", clockPkg, hint, tab)
+        every { UiAutomator.root() } returns tree
+        every { UiAutomator.click(tab) } returns true
+        every { UiAutomator.clickText("闹钟") } returns false
+        every { UiAutomator.waitForText("闹钟", any()) } returns true
+        every { UiAutomator.tabSelected("闹钟") } returns true
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("8:00"), nodesVisited = 30, rootPackage = clockPkg,
+            serviceAvailable = true, checkableCount = 1)
+
+        val r = ClockControl.queryAlarms(ctx)
+
+        assertThat(r.verified).isTrue()
+        verify(exactly = 1) { UiAutomator.click(tab) }
+        assertThat(r.detail).contains("tab=selected")
+    }
 }

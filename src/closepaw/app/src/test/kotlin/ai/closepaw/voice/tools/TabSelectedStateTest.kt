@@ -68,4 +68,19 @@ class TabSelectedStateTest {
         every { parent.parent } returns null
         assertThat(UiAutomator.selectedState(rootWith(tab), "闹钟")).isTrue()
     }
+
+    @Test fun `a label that merely contains the tab name does not decide the selection`() {
+        // Device evidence 2026-10-31: the alarm tab carries a hint card reading 对关联闹钟进行分组.
+        // A containing match hit that card first, so the selected tab was reported as not selected
+        // (and the query refused a page that was actually correct).
+        val hint = node("对关联闹钟进行分组")
+        val tab = node(null, desc = "闹钟", selected = true)
+        val page = node("第 1 页，共 2 页", selected = true)
+        assertThat(UiAutomator.selectedState(rootWith(hint, page, tab), "闹钟")).isTrue()
+    }
+
+    @Test fun `containing label still works when no exact label exists`() {
+        val tab = node("闹钟 已开启", selected = true)
+        assertThat(UiAutomator.selectedState(rootWith(tab), "闹钟")).isTrue()
+    }
 }

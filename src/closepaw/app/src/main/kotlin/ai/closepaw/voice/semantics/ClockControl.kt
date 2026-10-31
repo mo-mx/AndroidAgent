@@ -33,6 +33,34 @@ object ClockControl {
      */
     internal data class TabReach(val reached: Boolean, val reason: String, val selected: Boolean? = null)
 
+    /**
+     * Click the tab control itself, preferring an exact label match over a containing one.
+     *
+     * Device evidence (2026-10-31, build 54e4b77): `clickText("闹钟")` matched the alarm tab's hint
+     * card (`对关联闹钟进行分组`) first, so the tap landed on a card while the read still came from
+     * the clock package — the page looked readable but was not the tab. Exact label first, the loose
+     * matcher only as a fallback for layouts that carry extra text on the control.
+     */
+    private fun clickClockTab(tab: String): Boolean = runCatching {
+        val root = UiAutomator.root() ?: return@runCatching false
+        val target = tab.trim()
+        val queue = ArrayDeque<android.view.accessibility.AccessibilityNodeInfo>()
+        queue.add(root)
+        var guard = 0
+        while (queue.isNotEmpty() && guard++ < UiAutomator.MAX_NODES) {
+            val n = queue.removeFirst()
+            val labels = listOfNotNull(
+                runCatching { n.text?.toString() }.getOrNull(),
+                runCatching { n.contentDescription?.toString() }.getOrNull(),
+            ).map { it.trim() }
+            if (labels.any { it == target }) return@runCatching UiAutomator.click(n)
+            for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
+                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
+            }
+        }
+        false
+    }.getOrDefault(false)
+
     private fun openClockTab(ctx: Context, tab: String): TabReach {
         val fg = UiAutomator.foregroundPackage()
         var launched = false
@@ -47,7 +75,7 @@ object ClockControl {
                 return TabReach(false, "app-not-found")
             }
         }
-        val clicked = UiAutomator.clickText(tab)
+        val clicked = clickClockTab(tab) || UiAutomator.clickText(tab)
         val selected = UiAutomator.tabSelected(tab)
         // Only asked when the click was not delivered: it separates "control missing" from
         // "control visible but the tap did nothing".
