@@ -14,6 +14,9 @@ object ChineseTime {
         '五' to 5, '六' to 6, '七' to 7, '八' to 8, '九' to 9,
     )
 
+    /** Chinese or Arabic numeral, decimals allowed ("1.5"). Shared by the duration patterns. */
+    private const val NUM = "(?:\\d+(?:\\.\\d+)?|[零〇一二两三四五六七八九十百]+)"
+
     /** Parses 0–99 written in Chinese or Arabic digits. */
     fun number(s: String): Int? {
         if (s.isEmpty()) return null
@@ -44,36 +47,65 @@ object ChineseTime {
         return if (seen) total + section else null
     }
 
-    /** "十分钟" / "半小时" / "一个半小时" / "45秒" → seconds. */
+    /**
+     * "十分钟" / "半小时" / "一个半小时" / "1.5小时" / "45秒" → seconds.
+     *
+     * The match is by *consumed phrase*, not by first fragment: whatever the pattern eats is
+     * removed before the next unit is looked for, so `一小时十分钟` is 4200 s and nothing is counted
+     * twice. A numeral that cannot be read fails the whole utterance (`null` → callers ask again)
+     * instead of falling back to a suffix reading.
+     *
+     * Round 35 — three shapes were being read as a different duration than the words mean:
+     *   `半分钟`    → 1800 s, because 半 in the minute slot was read as "half *of an hour*"
+     *   `一个半小时` → 1800 s, because the hour pattern matched the trailing `半小时`
+     *   `1.5小时`   → 18000 s, because `\d+` matched the `5` after the decimal point
+     * Each value becomes `AlarmClock.EXTRA_LENGTH`, and `IntentGate` cross-checks against this same
+     * function, so a wrong parse was invisible to the gate. Hence: the compound shapes below are
+     * tried before the plain ones, and numbers may be decimal.
+     */
     fun durationSeconds(text: String): Int? {
-        val t = text.replace(" ", "")
-        var total = 0
+        var work = text.replace(" ", "")
+        var total = 0.0
         var matched = false
+        var badNumeral = false
 
-        val hour = Regex("(半|\\d+|[零〇一二两三四五六七八九十百]+)(个)?(小时|钟头)").find(t)
-        if (hour != null) {
-            val v = hour.groupValues[1]
-            total += if (v == "半") 1800 else (number(v) ?: return null) * 3600
+        /** Consumes the first match of [re] and adds `secondsOf(match)` to the total. */
+        fun take(re: Regex, secondsOf: (MatchResult) -> Double?): Boolean {
+            val m = re.find(work) ?: return false
+            val secs = secondsOf(m)
+            if (secs == null) {
+                badNumeral = true
+                return false
+            }
+            work = work.removeRange(m.range)
+            total += secs
             matched = true
+            return true
         }
-        // Minutes are converted to seconds at the point they are added. The old code added the raw
-        // minute count into `total` and then multiplied the *whole* accumulator by 60, so any
-        // utterance that named both hours and minutes came out 60× too long ("一小时十分钟" →
-        // 216600 s). The gate could not catch it: it compares the utterance against this same
-        // parser's output, so both sides agreed on the wrong number.
-        val min = Regex("(半|\\d+|[零〇一二两三四五六七八九十百]+)(个)?(分钟|分)").find(t)
-        if (min != null) {
-            val v = min.groupValues[1]
-            total += (if (v == "半") 30 else (number(v) ?: return null)) * 60
-            matched = true
-        }
-        val sec = Regex("(\\d+|[零〇一二两三四五六七八九十百]+)秒").find(t)
-        if (sec != null) {
-            total += number(sec.groupValues[1]) ?: return null
-            matched = true
-        }
-        return if (matched && total > 0) total else null
+
+        // 一个半小时 / 两个半小时 — must be tried before the plain hour shape, which would otherwise
+        // match the trailing 半小时 and drop the leading numeral.
+        take(Regex("($NUM)个?半个?(?:小时|钟头)")) { m -> num(m.groupValues[1])?.let { (it + 0.5) * 3600 } }
+        // 半小时 on its own.
+        take(Regex("半(?:个)?(?:小时|钟头)")) { 1800.0 }
+        // 一小时半 / 两小时半 — trailing 半 means another half hour.
+        take(Regex("($NUM)个?(?:小时|钟头)半")) { m -> num(m.groupValues[1])?.let { it * 3600 + 1800 } }
+        // 一小时 / 1.5小时 / 一个钟头.
+        take(Regex("($NUM)个?(?:小时|钟头)")) { m -> num(m.groupValues[1])?.let { it * 3600 } }
+        // 半分钟 is 30 s, not half an hour: it must be tried before the N分钟 shape.
+        take(Regex("半(?:个)?(?:分钟|分)")) { 30.0 }
+        // 一分半 / 三分钟半.
+        take(Regex("($NUM)个?(?:分钟|分)半")) { m -> num(m.groupValues[1])?.let { it * 60 + 30 } }
+        // 十分钟 / 六十分.
+        take(Regex("($NUM)个?(?:分钟|分)")) { m -> num(m.groupValues[1])?.let { it * 60 } }
+        // 45秒.
+        take(Regex("($NUM)秒")) { m -> num(m.groupValues[1]) }
+
+        return if (matched && !badNumeral && total > 0) Math.round(total).toInt() else null
     }
+
+    /** Arabic or Chinese numeral, decimals included ("1.5"), for [durationSeconds]. */
+    private fun num(raw: String): Double? = raw.toDoubleOrNull() ?: number(raw)?.toDouble()
 
     /** "7点半" / "八点二十" / "下午三点" → (hour24, minute). */
     fun clockTime(text: String): Pair<Int, Int>? {

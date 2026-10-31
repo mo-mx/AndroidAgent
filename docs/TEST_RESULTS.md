@@ -341,3 +341,37 @@
 - 这是**证据分级 + 返回边界的强制判定**，不是业务状态回读本身；`CONTRADICTED → EXECUTION_ERROR` 分支目前只有 JVM 夹具覆盖（现无生产者会在回读后报 `false`），真机从未触发。
 - 创建/取消后回读对象存在性与计数、在线 ToolRouter 同门禁（阶段 2）、正文双标签卡片身份仍未完成；后者需实机采集脱敏 UI 树。
 - 本 SHA **未构建、未安装、未实机**；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测，新一轮实机需用户**重新授权**。
+
+## 第㉟轮：手电回调归属 + 时长短语整段解析（离线源码 + JVM，未实机）
+
+依据 PR #4 复审 `6550162379`（HEAD `1a77501`）的 2 条 P1。命令：仓库根 `source env.sh` → `cd src/closepaw` → `./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain`。
+
+### 被测缺陷（源码分析）
+
+1. **手电**：`onTorchModeChanged` 无条件写 `observed`；`set()` 拿到 `confirmed` 却未传给 `outcome`；`outcome` 只要 `observed == on` 即 `SUCCESS + verified=true + ObservedState`。注册回调的初始态因此可被当成本次请求的结果，`onTorchModeUnavailable` 之后也不影响结论。
+2. **时长**：`半分钟` = 1800 s（`半` 在分钟位被当成半小时），`一个半小时` = 1800 s（小时正则吃掉尾部 `半小时`），`1.5小时` = 18000 s（`\d+` 从 `5` 起匹配）。三值都会成为 `AlarmClock.EXTRA_LENGTH`，且 `IntentGate` 用同一函数复核，因此闸门放行。
+
+### 修复
+
+| 文件 | 改动 |
+|---|---|
+| `tools/TorchControl.kt` | 新增 `RequestTracker`（baseline / postState / unavailable / requested / confirmed）；`set()` 先有界等 baseline（1200 ms）再发请求，`confirmed` 与 `tracker` 状态一起交给 `outcome` |
+| `tools/TorchControl.kt` | `outcome(on, cameraId, observed, unavailable, confirmed, baseline)`：`unavailable` 优先于成功；成功仅当 `confirmed && observed == on`；否则 `TIMEOUT` + `verified=null` + 无 `observed` |
+| `tools/ChineseTime.kt` | `durationSeconds` 重写为按整段短语消费：复合形优先、数字支持小数、已消费片段移除、不可读数词整句 `null` |
+
+### TDD
+
+| 阶段 | 结果 | 证据 |
+|---|---|---|
+| 新测试先写 + 仅加参数/骨架（行为未改） | **RED 31 tests / 12 failed / 0 errors**，全部断言失败 | `logs/pr4-round35-red.txt`；4/5 `ChineseTimePhraseUnitTest`、3/3 `TimerCompoundDurationArgumentTest`、5/9 `TorchAttributionTest`；控制组 `ChineseTimeDurationTest` 4/0、`SwitchReadbackEvidenceTest` 10/0 |
+| 实现后同组 | **34 / 34 GREEN，exit=0** | `logs/pr4-round35-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **282 / 0 failed / 0 errors / 0 skipped**，exit=0（上轮 265，+17） | `logs/pr4-round35-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2372 / 6 failed / 0 errors / 8 skipped**，**exit=1，不是全绿** | `logs/pr4-round35-full.txt`；失败仍为 `AgentSkillCatalogTest > entry filePath points to SKILL md` 1 + `MemoryStoreTest` 5 |
+
+### 边界
+
+- 手电真实回调时序、`BASELINE_TIMEOUT_MS` 是否够用、三星相机是否在注册后立刻推初始事件：**均未实机**。JVM 只能覆盖归属判定，`set()` 的 CameraManager 布线不可在 JVM 跑（本仓无 Robolectric）。
+- 时长修复只证明「说法 → 工具入参」，不证明三星时钟接受 4200 s / 30 s。
+- 全量 6 项失败是历史既知项，本轮未改未跳过，也未重跑旧 SHA 基线。
+- 本 SHA 未构建、未安装 APK、未操作手机；设备矩阵维持 4 通过 / 0 失败 / 3 未测。
+

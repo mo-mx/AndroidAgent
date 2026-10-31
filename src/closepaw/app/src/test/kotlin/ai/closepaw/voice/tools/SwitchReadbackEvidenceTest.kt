@@ -111,7 +111,7 @@ class SwitchReadbackEvidenceTest {
     }
 
     @Test fun `torch on reports the callback state as evidence`() {
-        val r = TorchControl.outcome(on = true, cameraId = "0", observed = true, unavailable = false)
+        val r = TorchControl.outcome(on = true, cameraId = "0", observed = true, unavailable = false, confirmed = true, baseline = false)
         assertThat(r.status).isEqualTo(ToolStatus.SUCCESS)
         assertThat(r.verified).isTrue()
         assertThat(r.observed?.identity).isEqualTo("torch")
@@ -120,26 +120,26 @@ class SwitchReadbackEvidenceTest {
     }
 
     @Test fun `torch off reports the callback state as evidence`() {
-        val r = TorchControl.outcome(on = false, cameraId = "0", observed = false, unavailable = false)
+        val r = TorchControl.outcome(on = false, cameraId = "0", observed = false, unavailable = false, confirmed = true, baseline = true)
         assertThat(r.observed?.state).isEqualTo("off")
         assertThat(TerminalState.verdict(torchTask("关闭手电筒"), r)).isEqualTo(TerminalState.Verdict.CONFIRMED)
     }
 
     @Test fun `torch without a callback carries no evidence`() {
-        val r = TorchControl.outcome(on = true, cameraId = "0", observed = null, unavailable = false)
+        val r = TorchControl.outcome(on = true, cameraId = "0", observed = null, unavailable = false, confirmed = false, baseline = null)
         assertThat(r.status).isEqualTo(ToolStatus.TIMEOUT)
         assertThat(r.verified).isNull()
         assertThat(r.observed).isNull()
     }
 
     @Test fun `torch busy camera carries no evidence`() {
-        val r = TorchControl.outcome(on = true, cameraId = "0", observed = null, unavailable = true)
+        val r = TorchControl.outcome(on = true, cameraId = "0", observed = null, unavailable = true, confirmed = false, baseline = null)
         assertThat(r.status).isEqualTo(ToolStatus.DEVICE_UNAVAILABLE)
         assertThat(r.observed).isNull()
     }
 
     @Test fun `torch reported the opposite state is an error not a success`() {
-        val r = TorchControl.outcome(on = true, cameraId = "0", observed = false, unavailable = false)
+        val r = TorchControl.outcome(on = true, cameraId = "0", observed = false, unavailable = false, confirmed = false, baseline = true)
         assertThat(r.status).isEqualTo(ToolStatus.EXECUTION_ERROR)
         assertThat(r.verified).isFalse()
         assertThat(r.observed).isNull()

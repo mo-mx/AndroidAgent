@@ -521,3 +521,42 @@ TDD：每个修复切片先观察对应行为断言失败，再修改生产代�
 | 全量 | **2355 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**，失败仍是 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（`logs/pr4-round34-full.txt`） |
 
 **边界**：手电的 CameraManager 回调/等待仍只有真机证据（JVM 无 Looper，本仓无 Robolectric）；Wi-Fi 的 `SYSTEM_RESTRICTED` 分支因 `Intent(...)` 在 mockable android.jar 返回 null 而无法在 JVM 跑（本轮未改该分支）。设备矩阵不变（4 通过 / 0 失败 / 3 未测），实机需用户重新授权；未构建/安装 APK、未操作手机、未 push main、未合并。
+
+## 第㉟轮：手电回读的归属、时长短语的整段解析（源码 + JVM，未实机）
+
+来源：PR #4 复审 `6550162379`（针对 `1a77501`）两条 P1。第㉞轮把手电回调状态接进 `TerminalState`，方向对，但证据没有归属。
+
+### P1-1 手电：请求前的回调被当成本次结果
+
+`set()` 里 `onTorchModeChanged` 无条件 `observed.set(enabled)`；`latch.await` 得到的 `confirmed` **没有传给** `outcome`；`outcome` 只判断 `observed == on`。可复现：初始回调 `on=true`，请求后 `onTorchModeUnavailable`（或请求后没有匹配回调）→ 仍然「手电筒已打开」+ `verified=true` + `ObservedState`，`TerminalState` 进一步判 `CONFIRMED`。
+
+改法（归属契约写成可测代码）：
+
+- `RequestTracker(cameraId, on)`，字段 `baseline / postState / unavailable / requested / confirmed`；
+- `markRequested()` 之前到达的事件只写 `baseline`，一律不确认；`onTorchModeUnavailable` 也只在请求后生效；
+- `set()` 先有界等 baseline（`BASELINE_TIMEOUT_MS = 1200`）再 `markRequested()` + `setTorchMode`，`outcome(..., confirmed = latch && tracker.confirmed, baseline = tracker.baseline)`；
+- `outcome`：`unavailable` 优先（成功之后才 unavailable 同样不报成功）→ 成功仅当 `confirmed && observed == on` → 反状态 `EXECUTION_ERROR` → 其余 `TIMEOUT` + `verified=null` + 无 `observed`。
+
+残留（写进代码注释）：baseline 窗口内若一个事件都没到，请求照发，此时结果按「未确认」处理——fail closed，不假设。
+
+### P1-2 时长：三个口语被读成别的时长
+
+| 说法 | 应有 | 修复前 |
+|---|---|---|
+| `半分钟` | 30 s | 1800 s |
+| `一个半小时` | 5400 s | 1800 s |
+| `1.5小时` | 5400 s | 18000 s |
+
+`IntentGate` 用 `ChineseTime.durationSeconds` 复核工具参数，两侧同错 → 闸门放行；值最终进 `AlarmClock.EXTRA_LENGTH`。改为按整段短语消费（复合形优先、小数支持、消费后从待匹配串移除、不可读数词整句 `null`）。
+
+### 测试
+
+| 阶段 | 结果 |
+|---|---|
+| 测试先写 + 只加 `confirmed/baseline` 参数与 `RequestTracker` 骨架 | **RED 31 / 12 failed / 0 errors**（断言失败，非编译错误） |
+| 实现后同组 | **34 / 34 GREEN，exit=0** |
+| 定向 `ai.closepaw.voice.*` | **282 / 0 failed / 0 errors / 0 skipped**，exit=0 |
+| 全量 | **2372 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（`AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5） |
+
+**未实机**：手电回调时序、baseline 窗口长度、三星时钟是否接受这些秒数都未验证；设备矩阵维持 4 通过 / 0 失败 / 3 未测，实机需用户重新授权。`closeAlarm` 仍 BLOCKED（安全拒绝），计时器对象级终态仍 UNPROVEN，在线 `ToolRouter` 同门禁（阶段 2）未开始。
+
