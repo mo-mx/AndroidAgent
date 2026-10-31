@@ -23,6 +23,9 @@ class TabSelectedStateTest {
         every { n.text } returns text
         every { n.contentDescription } returns desc
         every { n.isSelected } returns selected
+        // Round 20: a real tab is tappable, and the bar is only a bar when every peer label owns a
+        // click target. The assertions below are unchanged.
+        every { n.isClickable } returns true
         every { n.childCount } returns 0
         every { n.parent } returns null
         return n

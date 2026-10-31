@@ -18,6 +18,8 @@ class UiAutomatorReadTest {
         every { n.text } returns text
         every { n.contentDescription } returns null
         every { n.packageName } returns "com.sec.android.app.clockpackage"
+        // Round 20: every peer tab label owns a click target, so these nodes stay tappable tabs.
+        every { n.isClickable } returns true
         every { n.childCount } returns children.size
         children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
         // Tab identity is proven by a navigation bar, so the fixture must expose the real parents.

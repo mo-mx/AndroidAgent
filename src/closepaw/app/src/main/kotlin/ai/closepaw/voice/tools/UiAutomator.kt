@@ -109,7 +109,13 @@ object UiAutomator {
      *  - the window root is never a bar — a page body always shows tab labels somewhere;
      *  - the peer labels must sit at the same depth (±1), as tabs in one strip do;
      *  - the bar must be small; an ancestor that swallowed the page content is not a bar;
-     *  - at least two distinct peer labels must be present.
+     *  - at least two distinct peer labels must be present;
+     *  - the bar must not live inside a scrolling surface: page content scrolls, a tab strip does
+     *    not (round 20 — a tab-shaped strip inside a list is content, not navigation);
+     *  - each peer label must own a click target below the bar, and two peer labels must never
+     *    share one. A `闹钟` section header next to a tappable `定时器` settings row has no per-label
+     *    unit, so it is refused instead of clicked (round 20: it used to deliver ACTION_CLICK to
+     *    that row).
      *
      * This is still a heuristic — absence of a bar returns null, never a guess.
      */
@@ -119,10 +125,17 @@ object UiAutomator {
         wanted: Set<String>,
     ): Boolean {
         if (node === root) return false
-        val depths = labelDepths(node, wanted)
-        if (depths.size < 2) return false
-        val spread = depths.values.max() - depths.values.min()
-        if (spread > NAV_MAX_LABEL_SPREAD) return false
+        if (insideScrollable(node, root)) return false
+        val labels = labelNodes(node, wanted)
+        if (labels.size < 2) return false
+        val depths = labels.values.map { depthBelow(node, it) }
+        if (depths.max() - depths.min() > NAV_MAX_LABEL_SPREAD) return false
+        // One tab = one click target, and never one target shared by two tabs.
+        val units = java.util.IdentityHashMap<AccessibilityNodeInfo, String>()
+        for ((label, labelNode) in labels) {
+            val unit = clickUnit(labelNode, node) ?: return false
+            if (units.put(unit, label) != null) return false
+        }
         var count = 0
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(node)
@@ -136,20 +149,67 @@ object UiAutomator {
         return count <= NAV_MAX_BAR_NODES
     }
 
-    /** Depth of the first exact-label node for each peer label inside [node]'s subtree. */
-    private fun labelDepths(node: AccessibilityNodeInfo, wanted: Set<String>): Map<String, Int> {
-        val found = HashMap<String, Int>()
-        val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
-        queue.add(node to 0)
+    /** The first exact-label node for each peer label inside [node]'s subtree. */
+    private fun labelNodes(node: AccessibilityNodeInfo, wanted: Set<String>): Map<String, AccessibilityNodeInfo> {
+        val found = HashMap<String, AccessibilityNodeInfo>()
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(node)
         var guard = 0
         while (queue.isNotEmpty() && guard++ < MAX_NODES) {
-            val (n, depth) = queue.removeFirst()
-            for (label in wanted) if (label !in found && exactLabel(n, label)) found[label] = depth
+            val n = queue.removeFirst()
+            for (label in wanted) if (label !in found && exactLabel(n, label)) found[label] = n
             for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
-                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it to depth + 1) }
+                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
             }
         }
         return found
+    }
+
+    /**
+     * Distance from [node] up to [bar]; [UNREACHABLE_DEPTH] when the parent chain does not lead
+     * there. Walking parents — not a subtree scan — is what proves the label sits inside this bar.
+     */
+    private fun depthBelow(bar: AccessibilityNodeInfo, node: AccessibilityNodeInfo): Int {
+        var cur: AccessibilityNodeInfo? = node
+        var depth = 0
+        while (cur != null && depth < UNREACHABLE_DEPTH) {
+            if (cur === bar) return depth
+            cur = runCatching { cur!!.parent }.getOrNull()
+            depth++
+        }
+        return UNREACHABLE_DEPTH
+    }
+
+    /**
+     * The click target a tab label owns: itself or its nearest clickable ancestor, never the bar
+     * container. `null` = this label is not an interactive tab, so the container is not a strip.
+     */
+    private fun clickUnit(label: AccessibilityNodeInfo, bar: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var cur: AccessibilityNodeInfo? = label
+        var hops = 0
+        while (cur != null && hops++ <= NAV_MAX_HOPS + 2) {
+            val node = cur
+            if (node === bar) return null
+            if (runCatching { node.isClickable }.getOrDefault(false)) return node
+            cur = runCatching { node.parent }.getOrNull()
+        }
+        return null
+    }
+
+    /**
+     * A tab strip lives outside the scrolling surface: anything inside a scrollable ancestor is page
+     * content (list rows, cards) and is never navigation.
+     */
+    private fun insideScrollable(node: AccessibilityNodeInfo, root: AccessibilityNodeInfo): Boolean {
+        var cur: AccessibilityNodeInfo? = node
+        var hops = 0
+        while (cur != null && hops++ <= NAV_MAX_HOPS + 2) {
+            val n = cur
+            if (runCatching { n.isScrollable }.getOrDefault(false)) return true
+            if (n === root) return false
+            cur = runCatching { n.parent }.getOrNull()
+        }
+        return false
     }
 
     /**
@@ -336,6 +396,9 @@ object UiAutomator {
      * and is not a tab strip (review round 18: the page root satisfied the old two-label rule).
      */
     private const val NAV_MAX_BAR_NODES = 40
+
+    /** Depth that can never be a real label depth; also the "not inside this bar" marker. */
+    private const val UNREACHABLE_DEPTH = 1_000
 
     /** Peer tab labels in one strip sit at the same depth; allow one level of icon-label nesting. */
     private const val NAV_MAX_LABEL_SPREAD = 1

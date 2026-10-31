@@ -106,6 +106,7 @@ class ClockForeignWindowTest {
         every { hint.text } returns "对关联闹钟进行分组"
         every { tab.text } returns "闹钟"
         every { peer.text } returns "定时器"
+        every { peer.isClickable } returns true
         every { root.childCount } returns 3
         every { root.getChild(0) } returns hint
         every { root.getChild(1) } returns tab

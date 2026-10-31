@@ -249,7 +249,9 @@ class ClockWindowGateTest {
         val tab = node("", clockPkg)
         every { tab.contentDescription } returns "闹钟"
         // Tab identity requires a navigation bar: a peer tab label must sit next to it.
-        val tree = node("", clockPkg, hint, tab, node("定时器"))
+        val peer = node("定时器", clockPkg)
+        every { peer.isClickable } returns true
+        val tree = node("", clockPkg, hint, tab, peer)
         every { tab.isClickable } returns true
         every { tab.performAction(any()) } returns true
         // Round 19: the bar is not the window root; the window sits above it.

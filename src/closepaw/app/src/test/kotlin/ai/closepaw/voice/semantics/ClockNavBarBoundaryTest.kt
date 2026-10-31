@@ -146,8 +146,8 @@ class ClockNavBarBoundaryTest {
 
     @Test
     fun `selection carried only by the nav bar container is not tab selection`() {
-        val tab = n("闹钟", selected = false)
-        val peer = n("定时器", selected = false)
+        val tab = n("闹钟", selected = false, clickable = true)
+        val peer = n("定时器", selected = false, clickable = true)
         val bar = n(selected = true, containerOf = listOf(tab, peer))
         val root = n(containerOf = listOf(bar))
 

@@ -208,3 +208,30 @@
 | 未触碰 | — | 未点击个人闹钟/倒计时开关、未 force-stop、未清数据、未关 Wi-Fi、未改助手角色 |
 
 边界：本轮只验证“读”与“tab 切换”与自建可清理对象；`closeAlarm` / `cancelTimer` 在真机仍不可用（BLOCKED）。到达判定仍有残余不确定性（`tab=clicked` 表示点击已投递但选中态未观测为 true）。矩阵：通过 4 / 失败 0 / 未测 3；阶段 1 未整体通过，PR #4 不合并。
+
+## 第⑳轮语义闸门回归（2026-10-31，JVM 合成无障碍树，未实机）
+
+依据 PR #4 第⑱轮复审评论 `6544037799` 要求补的「同包正文两个时钟标签、无导航栏」负向夹具，另修掉夹具暴露的真实误点击。
+
+### 源码分析结论（非实机）
+
+旧 `UiAutomator.navControl/isNavBar` 对内容页（`闹钟` 段标题 + 可点 `定时器` 设置行）返回了 `NavControl`，`ClockControl.clickClockTab("定时器")` 返回 **true** 并对该设置行投递了 `ACTION_CLICK`。查询侧只因 `selectedTabs` 读回为空而未报成功，但**点击已经发生**——这是把内容行当导航 tab 的误操作路径。
+
+### TDD（真实执行）
+
+| 阶段 | 结果 | 证据 |
+|---|---|---|
+| 先写测试、旧实现跑 | **RED 4 / 7 failed** | `expected null but was true`（`clickClockTab`）、`NavControl(control=…)` 非空（滚动列表内 tab 条）、入口层 detail `tab=clicked`（应 `tab=click-failed-label-only`） |
+| 修 `isNavBar` 后 | **7 / 7 通过** | 新增 `ClockContentLabelGateTest` |
+| 定向 `voice.semantics.*` + `voice.tools.*`（`--rerun-tasks`） | **151 tests / 0 failed / 0 errors / 0 skipped** | `logs/pr4-review20-targeted.txt`（本地） |
+| 全量 `:app:testDebugUnitTest`（`--rerun-tasks`） | **2241 tests / 6 failed / 8 skipped / 0 errors，exit=1** | 不是全绿：`AgentSkillCatalogTest`(1) + `MemoryStoreTest`(5)，与本轮前基线同名同类，未改未跳过 |
+
+新增/变更规则（`UiAutomator`）：导航栏不得位于滚动容器内；每个 peer 标签必须各自拥有栏内点击目标且不得共用；标签→栏的从属关系用父链（`depthBelow`）证明，不再用子树 BFS 猜。
+
+旧夹具冲突：16 项既有测试的合成 tab 条把标签写成不可点（relaxed mock 默认 `isClickable=false`），按真实 UI 补 `isClickable=true`；**断言未删、未弱化**。
+
+### 边界
+
+- 全部为 JVM 合成树契约，不是三星真实 UI；`isNavBar` 仍是**启发式**（窗口根/规模/深度/滚动/点击单元五项约束），不是已证明的导航身份。
+- 真机：本 SHA **未构建、未安装、未实测**；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测。实机需用户**重新授权**。
+- `closeAlarm` 仍因缺全列表枚举/业务对象身份 BLOCKED，是安全拒绝，不是功能完成。

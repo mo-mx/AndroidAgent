@@ -92,7 +92,7 @@ class ClockTabControlIdentityTest {
 
     @Test fun `tab inside nav container is clicked only with ACTION_CLICK on the control`() {
         val tab = n("闹钟", clickable = true)
-        val peer = n("定时器")
+        val peer = n("定时器", clickable = true)
         val bar = container(tab, peer)
         every { tab.parent } returns bar
         every { peer.parent } returns bar
@@ -107,7 +107,7 @@ class ClockTabControlIdentityTest {
 
     @Test fun `non-clickable tab with no clickable ancestor never falls back to a gesture`() {
         val tab = n("闹钟", clickable = false)
-        val peer = n("定时器")
+        val peer = n("定时器", clickable = true)
         val bar = container(tab, peer)
         every { tab.parent } returns bar
         every { peer.parent } returns bar
@@ -130,7 +130,7 @@ class ClockTabControlIdentityTest {
         every { item.childCount } returns 1
         every { item.getChild(0) } returns label
         every { label.parent } returns item
-        val peer = n("定时器")
+        val peer = n("定时器", clickable = true)
         val bar = container(item, peer)
         every { item.parent } returns bar
         every { peer.parent } returns bar
@@ -164,8 +164,8 @@ class ClockTabControlIdentityTest {
     }
 
     @Test fun `selected state is read from the tab and its nav container only`() {
-        val tab = n("闹钟", selected = false)
-        val peer = n("定时器", selected = true)
+        val tab = n("闹钟", selected = false, clickable = true)
+        val peer = n("定时器", selected = true, clickable = true)
         val bar = container(tab, peer)
         every { tab.parent } returns bar
         every { peer.parent } returns bar

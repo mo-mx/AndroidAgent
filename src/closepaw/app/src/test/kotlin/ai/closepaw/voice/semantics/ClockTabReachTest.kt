@@ -82,6 +82,7 @@ class ClockTabReachTest {
         every { peer.packageName } returns clockPkg
         every { tab.text } returns "闹钟"
         every { peer.text } returns "定时器"
+        every { peer.isClickable } returns true
         every { tab.parent } returns root
         every { peer.parent } returns root
         // The tab is a real nav control (bar = 闹钟 + 定时器) but the phone refuses the click.
@@ -156,6 +157,7 @@ class ClockTabReachTest {
         every { nav.parent } returns bar
         every { peer.packageName } returns clockPkg
         every { peer.text } returns "定时器"
+        every { peer.isClickable } returns true
         every { peer.parent } returns bar
         // Round 19: the bar is not the window root; the window sits above it.
         val win = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
