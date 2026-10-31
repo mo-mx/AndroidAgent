@@ -144,7 +144,8 @@ class SemanticExecutionTest {
             rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         every { UiAutomator.tabSelected(any()) } returns true
         val reply = SemanticRunner.run(ctx, "取消八点的闹钟", 1)
-        assertThat(reply).contains("没有8点0分的闹钟")
+        assertThat(reply).contains("当前可见区域未找到8点0分的闹钟")
+        assertThat(reply).contains("不能确认不存在")
         verify(exactly = 1) { UiAutomator.readScreen(120) }
         verify(exactly = 0) { IntentActions.setAlarm(any(), any(), any()) }
         verify(exactly = 0) { UiAutomator.click(any()) }

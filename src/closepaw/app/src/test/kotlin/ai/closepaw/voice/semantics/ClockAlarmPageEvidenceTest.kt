@@ -91,6 +91,21 @@ class ClockAlarmPageEvidenceTest {
         assertThat(r.speak).doesNotContain("当前可见列表")
     }
 
+    @Test fun `target outside loaded scroll viewport is not declared nonexistent`() {
+        // Recycler-style viewport: the off-screen 08:00 row is not loaded into this tree.
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("9:00"), nodesVisited = 30, rootPackage = clockPkg,
+            serviceAvailable = true, checkableCount = 1)
+
+        val r = ClockControl.closeAlarm(ctx, 8, 0)
+
+        assertThat(r.verified).isFalse()
+        assertThat(r.speak).contains("当前可见区域未找到")
+        assertThat(r.speak).contains("不能确认不存在")
+        assertThat(r.speak).doesNotContain("不用关闭")
+        verify(exactly = 0) { UiAutomator.click(any()) }
+    }
+
     @Test fun `explicit empty marker still proves an empty alarm list`() {
         every { UiAutomator.tabSelected("闹钟") } returns null
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(

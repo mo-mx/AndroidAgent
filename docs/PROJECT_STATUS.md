@@ -1,5 +1,12 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第⑩轮局部更新（源码分析 + JVM；未实机）
+
+处理复审 `6541088857` 的 P1 否定结论切片：当前可见区域未找到目标，不再声称“没有这个闹钟/不用关闭”，改为“不能确认不存在，没有执行关闭”。新增未加载滚动区域目标回归：有效 RED 7 tests / 1 failed。既有 Runner 空态回归改为更保守的范围反馈断言，保留读取一次、创建零次、通用点击零次断言。最终定向 `--rerun-tasks` 108 tests / 0 failed / 0 errors / 0 skipped；全量 2198 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿（AgentSkillCatalogTest 1项、MemoryStoreTest 5项；本轮未重跑旧SHA基线）。日志 `logs/pr4-review10-red.txt`、`pr4-review10-targeted.txt`、`pr4-review10-full.txt` 本地保留。
+
+**仅修复不可证明不存在的播报，不关闭 P1**：可见目标仍缺全局唯一身份，关闭路径的全局唯一性防护、视口外重复目标回归仍待处理。P2 恢复后同树页面证据、移除旧 selected 回退、绑定恢复独立负向回归仍待处理。仍有离线任务，不是只能等待实机。未构建/安装 APK、未操作手机、未调用付费 API、未动 Issue #6；新实机需重新授权。需要复审，阶段1未整体通过、不合并。
+
+
 ## 第⑨轮局部更新（源码分析 + JVM；未实机）
 
 继续处理审查 `6540570445`：两条错窗口恢复路径 `readClockScreen` / `verifiedClockWindow` 改为 `clickClockTab(tab)`，恢复时不再退回 contains 模糊点击。新增 VoiceActivity 窗口→重开时钟→提示卡位于真正 tab 之前的查询回归，要求点精确 tab 且不点提示卡；有效 RED 6 tests / 1 failed，修后定向 107 tests / 0 failed / 0 errors / 0 skipped（`--rerun-tasks`）。全量 2197 tests / 6 failed / 0 errors / 8 skipped，Gradle exit=1，失败仍为 AgentSkillCatalogTest 1项、MemoryStoreTest 5项；未重跑旧SHA基线，不称全绿。日志 `logs/pr4-review9-tab-red.txt`、`pr4-review9-targeted.txt`、`pr4-review9-full.txt` 本地保留。

@@ -413,8 +413,8 @@ object ClockControl {
             }
             return ToolResult.unavailable(
                 "alarm_close",
-                "没有${hour}点${minute}分的闹钟，不用关闭",
-                "target time not listed → nothing to close (create NOT attempted)"
+                "当前可见区域未找到${hour}点${minute}分的闹钟，不能确认不存在，没有执行关闭",
+                                "target not visible; full list not enumerated; create NOT attempted"
             )
         }
 
