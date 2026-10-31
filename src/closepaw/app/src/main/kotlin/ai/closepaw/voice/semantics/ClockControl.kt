@@ -15,8 +15,8 @@ import android.util.Log
  *  - CANCEL/DELETE never falls back to CREATE. If the target does not exist we say so.
  *  - The clock app's UI is the source of truth, because Android exposes no API to enumerate or
  *    cancel arbitrary timers (ACTION_DISMISS_TIMER only dismisses a *ringing* timer).
- *  - Every mutation is verified: timer count before/after, alarm switch state, and — when the
- *    alarm is the next one — AlarmManager.nextAlarmClock.
+ *  - A scoped click is not cancellation verification. Mutations without fresh business-state
+ *    read-back return verified=false; expectedState is not evaluated here.
  */
 object ClockControl {
     private const val TAG = "ClockControl"
@@ -73,49 +73,52 @@ object ClockControl {
     }
 
     /**
-     * Cancel a running timer. Uses the "取消" button on the timer tab and verifies the count
-     * dropped — the API cannot do this for a timer that is not ringing.
+     * Cancel only a uniquely bound timer card. A countdown/remaining-time label is NOT original
+     * duration evidence. Unknown Samsung UI shapes fail closed (no global button or coordinates).
+     * Supported evidence is an explicit 初始时长/总时长 label in the same smallest subtree as
+     * exactly one cancel control. This adapter has JVM fixtures only, not device acceptance.
      */
-    fun cancelTimer(ctx: Context): ToolResult {
+    fun cancelTimer(ctx: Context, seconds: Int? = null): ToolResult {
         if (!openClockTab(ctx, "定时器")) {
-            return ToolResult.unavailable(
-                "timer_cancel", "打不开时钟，取消不了倒计时", "clock app not reachable"
-            )
+            return ToolResult.unavailable("timer_cancel", "打不开时钟，取消不了倒计时", "clock not reachable")
         }
         Thread.sleep(600)
-        val before = runningTimerCount()
-        if (before == 0) {
-            return ToolResult.unavailable("timer_cancel", "现在没有正在运行的倒计时，不用取消", "count=0")
-        }
-        // Prefer matching the remembered duration, else cancel the top-most one.
-        val remembered = ActionMemory.lastTimerSeconds()
-        var clicked = false
-        if (remembered != null) {
-            val label = "${remembered / 60} 分钟"
-            if (UiAutomator.waitForText(label, 1200)) {
-                clicked = UiAutomator.clickText("取消")
+        val root = UiAutomator.root()
+        val candidates = ArrayList<Pair<android.view.accessibility.AccessibilityNodeInfo, Int>>()
+        var visited = 0
+        var complete = true
+        fun scan(n: android.view.accessibility.AccessibilityNodeInfo?): Pair<List<android.view.accessibility.AccessibilityNodeInfo>, List<Int>> {
+            if (n == null || ++visited > 800) { complete = false; return emptyList<android.view.accessibility.AccessibilityNodeInfo>() to emptyList() }
+            val text = listOfNotNull(n.text?.toString(), n.contentDescription?.toString())
+            val buttons = ArrayList<android.view.accessibility.AccessibilityNodeInfo>()
+            if (text.any { it.trim() == "取消" }) buttons.add(n)
+            val durations = ArrayList<Int>()
+            text.filter { it.trim().startsWith("初始时长") || it.trim().startsWith("总时长") }
+                .mapNotNull { ai.closepaw.voice.tools.ChineseTime.durationSeconds(it) }.distinct().let { durations.addAll(it) }
+            var childBound = false
+            for (i in 0 until n.childCount) {
+                val before = candidates.size
+                val (bs, ds) = scan(n.getChild(i))
+                buttons.addAll(bs); durations.addAll(ds)
+                if (candidates.size > before) childBound = true
             }
+            // Do not bind a global container or widen an already-bound card to a sibling.
+            if (n != root && !childBound && buttons.size == 1 && durations.size == 1) candidates.add(buttons.single() to durations.single())
+            return buttons to durations
         }
-        if (!clicked) clicked = UiAutomator.clickText("取消")
-        Log.i(TAG, "cancelTimer clicked=$clicked before=$before")
-        if (!clicked) {
-            return ToolResult.error("timer_cancel", "没找到取消按钮，倒计时还在运行", "no cancel node")
+        val (allButtons, _) = scan(root)
+        val matching = candidates.filter { seconds == null || it.second == seconds }
+        // An unreadable second card might be the same requested duration, so it cannot be ignored.
+        if (!complete || allButtons.size != candidates.size || matching.size != 1) {
+            return ToolResult(ToolStatus.BLOCKED, "timer_cancel",
+                "无法唯一定位你说的倒计时，请在时钟中确认具体对象", "duration=$seconds candidates=${matching.size} complete=$complete", false)
         }
-        Thread.sleep(1200)
-        val after = runningTimerCount()
-        return when {
-            after in 0..(before - 1) -> ToolResult.ok(
-                "timer_cancel",
-                if (after == 0) "倒计时已经取消了" else "已经取消一个倒计时，还剩${after}个",
-                verified = true, detail = "count $before→$after"
-            )
-            after == before -> ToolResult.error(
-                "timer_cancel", "点了取消，但倒计时还在跑", "count unchanged $after"
-            )
-            else -> ToolResult(
-                ToolStatus.TIMEOUT, "timer_cancel", "点了取消，但没法确认结果", "count=$after"
-            )
-        }
+        val button = matching.single().first
+        // Never use UiAutomator.click: that helper may climb parents or inject coordinates.
+        val clicked = button.isClickable && button.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        return if (!clicked) ToolResult.error("timer_cancel", "已定位倒计时，但取消按钮不可操作", "node click failed")
+        else ToolResult(ToolStatus.SUCCESS, "timer_cancel", "已请求取消指定倒计时，但无法确认最终状态",
+            "bound duration=${matching.single().second}; ACTION_CLICK=$clicked; business state not read back", false)
     }
 
     // ── alarms ──
@@ -183,40 +186,39 @@ object ClockControl {
             )
         }
 
-        // Find the row whose text is the time, then its switch.
-        val timeNode = UiAutomator.findNode(target) ?: UiAutomator.findNode("${hour}:${minute}")
-            ?: return ToolResult.error("alarm_close", "看到了这个时间，但找不到开关", "node gone")
-        val row = generateSequence(timeNode) { it.parent }.take(4).toList()
-        val switch = row.mapNotNull { r ->
-            UiAutomator.findFirst(r) { n ->
-                val cls = n.className?.toString()?.lowercase() ?: ""
-                cls.contains("switch") || n.isCheckable
+        if (texts.count { it.trim() == target || it.trim() == "${hour}:${minute}" } != 1) {
+            return ToolResult(ToolStatus.BLOCKED, "alarm_close", "无法唯一定位这个时间的闹钟，请确认具体对象", "duplicate time", false)
+        }
+        // Bind only within the smallest subtree with exactly one clock time and one switch.
+        // Never click the time node (opens an editor), an ancestor, or a coordinate fallback.
+        val matches = ArrayList<android.view.accessibility.AccessibilityNodeInfo>()
+        var visited = 0
+        var complete = true
+        fun scan(n: android.view.accessibility.AccessibilityNodeInfo?): Pair<List<String>, List<android.view.accessibility.AccessibilityNodeInfo>> {
+            if (n == null || ++visited > 800) { complete = false; return emptyList<String>() to emptyList() }
+            val times = listOfNotNull(n.text?.toString(), n.contentDescription?.toString())
+                .map { it.trim() }.filter { Regex("^[0-9]{1,2}:[0-9]{2}$").matches(it) }.distinct().toMutableList()
+            val controls = ArrayList<android.view.accessibility.AccessibilityNodeInfo>()
+            if (n.isCheckable) controls.add(n)
+            var childBound = false
+            for (i in 0 until n.childCount) {
+                val before = matches.size
+                val (ts, cs) = scan(n.getChild(i)); times.addAll(ts); controls.addAll(cs)
+                if (matches.size > before) childBound = true
             }
-        }.firstOrNull()
-
-        val before = switch?.isChecked
-        val clicked = when {
-            switch == null -> UiAutomator.click(timeNode)
-            before == false -> true      // already off
-            else -> UiAutomator.click(switch)
+            if (!childBound && times.size == 1 && times.single() in setOf(target, "${hour}:${minute}") && controls.size == 1) matches.add(controls.single())
+            return times to controls
         }
-        Thread.sleep(1000)
-        val after = switch?.isChecked
-        val nextAfter = IntentActions.nextAlarm(ctx)
-
-        return when {
-            switch != null && before == false -> ToolResult.ok(
-                "alarm_close", "${hour}点${minute}分的闹钟已经是关着的", verified = true
-            )
-            clicked && after == false -> ToolResult.ok(
-                "alarm_close", "${hour}点${minute}分的闹钟已经关闭", verified = true,
-                detail = "switch checked → false, next=${nextAfter?.triggerTime}"
-            )
-            clicked -> ToolResult.error(
-                "alarm_close", "点了开关，但闹钟状态没变", "switch=$before→$after"
-            )
-            else -> ToolResult.error("alarm_close", "点不动这个开关", "click failed")
-        }
+        scan(UiAutomator.root())
+        if (!complete || matches.size != 1) return ToolResult(ToolStatus.BLOCKED, "alarm_close",
+            "无法唯一定位这个闹钟的开关，请确认具体对象", "switch candidates=${matches.size}", false)
+        val switch = matches.single()
+        if (!switch.isChecked) return ToolResult.ok("alarm_close", "${hour}点${minute}分的闹钟已经是关着的", verified = true)
+        val clicked = switch.isClickable && switch.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        // No business-state re-read yet: a successful click is not successful cancellation.
+        return if (clicked) ToolResult(ToolStatus.SUCCESS, "alarm_close",
+            "已请求关闭${hour}点${minute}分的闹钟，但无法确认最终状态", "bound switch clicked; no fresh state read-back", false)
+        else ToolResult.error("alarm_close", "点不动这个开关", "node click failed")
     }
 
     fun deleteAlarm(ctx: Context, hour: Int, minute: Int): ToolResult {

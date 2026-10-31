@@ -1,101 +1,55 @@
-# 阶段 6 · 第 1 步：语义执行闸门（阶段报告）
+# 阶段 6 · 第 1 步：语义执行闸门（审查修复报告）
 
-对应 Issue：#3　分支：`feat/semantic-gate`　日期：2026-10-31
-性质：**源码 + JVM 单元测试**。本阶段**未部署到手机**，下面标 `未实机` 的一律没有真机结论。
+Issue #3 / PR #4；分支 `feat/semantic-gate`；2026-10-31。
+性质：源码分析 + 本机 Gradle JVM 回归，未实机。阶段 1 仍待审查/设备验收，不代表整个 Issue 完成。
 
----
+## 已修复的审查问题
 
-## 1. 审计：原来的"闸门"为什么等于没有
+1. ALARM 能力表补上 CANCEL。回归经过真实 `SemanticParser → CapabilityGuard → SemanticRunner → IntentGate → ClockControl`，8 点闹钟不存在时进入查询并拒绝，不会调用创建。
+2. 所有已解析参数在 ToolCall 缺失时拒绝，不再 `?: continue`。取消五分钟的 seconds=300 一直传至 `ClockControl.cancelTimer(ctx, seconds)`；即使规划丢失参数也从原话复核时长。撤销路径同样保留记忆时长，记忆缺失就拒绝。
+3. 取消计时器移除全局 `clickText("取消")` 和记忆失败后选第一个的兜底。只允许在非全屏根节点的最小子树中把明确的初始/总时长与唯一取消按钮绑定；所有可见取消按钮都必须可解释，目标时长匹配唯一。零匹配、重复时长、另一张卡片时长未知、树缺失/截断、全局时长文字无法绑定等均拒绝/追问。点击仅用绑定节点的 ACTION_CLICK，不用父节点或坐标兜底。
+4. 闹钟关闭同样拒绝重复时间，只绑定同一最小子树中的唯一时间与唯一开关；不再点时间节点打开编辑器，不再跨祖先拿第一个开关。
+5. 一般 APP / APP_FEATURE 不再以包名非空作为身份证明。闸门从原话重取应用名/功能，用独立安装清单中的 label/alias/完整包名精确匹配；必须唯一且与实际启动包一致。谷歌/三星商店保留明确别名映射。错误解析“微信→QQ”、缺少安装清单、同名候选、规划与调用一起把微信改成QQ或把扫一扫改成付款码，均拒绝。
+6. 补上原话动作/目标与规划动作/目标的独立比较，避免规划与调用同时把 CANCEL 改成 CREATE 后互相比对仍放行。闹钟原话时间优先于规划 targetIdentity，不能把取消八点改为七点。
 
-| 位置 | 发现 | 判定 |
-|---|---|---|
-| `SemanticRunner.dispatch()` | `CapabilityGuard.assertNotInverted(t.action, t.action)` —— 同一个值传两次 | **同值比较，恒为 true**，任何输入都放行 |
-| `CapabilityGuard.check()` | 只校验 (action,target) 是否在能力表、必填参数是否存在 | 从不与**原始话语**、也从不与**工具实际入参**比较 |
-| `SemanticRunner.dispatch()` | `t.params["seconds"]?.toIntOrNull() ?: 300` | 解析失败时静默建一个 5 分钟倒计时；`minute ?: 0` 同理 |
-| `AppNavigator.open()` | 解析与启动在同一个函数内完成 | 闸门拿不到"准备打开哪个包"，无法做身份校验 |
-| `LocalCommandRouter` | **全仓无任何调用方**（只有 VoiceActivity 的 KDoc 提到） | 离线路径实际是 `SemanticRunner`；但该文件内 `关闭wifi` → `WifiControl.enable()`，`取消` 关键词会吞掉「取消五分钟倒计时」并回「已取消」 |
-| `SemanticParser` | 无动词时 CALL/CAMERA/SETTINGS_PAGE/MAPS/WEB 被猜成 `QUERY` | 拨号、开相机、开设置页被声明成"只读"，与"查询不得改状态"直接冲突 |
+## 真实验证边界（纠正旧文案）
 
-## 2. 实现
+- IntentGate 比较的是原话、结构化规划、实际调用描述，以及安装清单/对象定位证据。
+- `SemanticTask.expectedState` 仅是描述性元数据。没有通用终态评估器，没有执行后验证 expectedState；不能声称“四方验证”或业务终态已验收。CapabilityGuard 仅对 QUERY 的 `mutate:` 元数据有特殊拒绝规则。
+- 本次计时器/闹钟 mutation 的点击成功返回 `verified=false`，明确“已请求，但无法确认最终状态”；不把计时器总数减少或旧开关引用当成功。已关闭闹钟仅依据当前唯一绑定开关状态报告。
+- 计时器 UI 适配只使用明确 `初始时长` / `总时长` 文字证据。这是 JVM 合成无障碍树 fixture 的契约，不是采集自三星时钟的真实 UI；真实设备若无此证据将拒绝，不能声称三星取消功能已可用。剩余时间、裸“5分钟”或记忆时长不是对象身份证明。
+- APP 身份核对的信任来源是 AppRegistry 安装清单及本地别名；不是密码学证明。模糊子串结果即使 resolver 给出一个包，也不能作为精确身份通过闸门，可能比旧行为多追问。
+- 原先补回设备能力层的 `577e926` 实际新增 10 个 Kotlin 文件，不是 13 个（另有 .gitignore）。以 `git diff-tree --no-commit-id --name-only -r 577e926` 为依据。
+- 在线 ClosePaw ToolRouter 尚未接入同一闸门，属阶段 2；`LocalCommandRouter` / `KwsEngine` 仍无调用方。AppNavigator 的既有 feature UI-change 检查不是业务终态验证，阶段 3 尚未完成。
 
-### 2.1 新增 `voice/semantics/IntentGate.kt`（纯 Kotlin，可 JVM 测试）
+## 测试与证据
 
-在**最终工具调用边界**比较四个**不同**来源：
+在 `src/closepaw`，先加载仓库根目录 `env.sh`，再执行：
 
-1. 用户原话 `utterance`
-2. 解析结果 `SemanticTask`（requested）
-3. **即将真实传入的入参** `ToolCall`（含默认值、已解析出的具体包名）
-4. 期望的终态 `expectedState`
+    ./gradlew :app:testDebugUnitTest --tests '*IntentGateTest' --tests '*SemanticExecutionTest' --tests '*TimerObjectExecutionTest' --console=plain
 
-规则（任一不满足即拒绝，且**拒绝发生在调用能力之前**）：
+结果：38 tests / 0 failed / 0 skipped。IntentGateTest 23，SemanticExecutionTest 9，TimerObjectExecutionTest 6。生产 parser/能力表/runner/gate/clock/app resolver 实际运行；Android Context、无障碍树、安装清单与系统执行边界用 MockK，不模拟整个执行器来宣称集成通过。
 
-| # | 规则 | 拦的失败 |
-|---|---|---|
-| 1 | destructive（CANCEL/CLOSE/DELETE/DISABLE）不得变成 CREATE/ENABLE | 取消变创建 |
-| 2 | QUERY 不得携带 mutation | 查询改状态 |
-| 3 | action 必须一致（仅允许开关类 CLOSE→DISABLE / OPEN→ENABLE） | 动作漂移 |
-| 4 | target 必须一致 | 目标漂移 |
-| 5 | 身份一致：apps 必须给出具体 package；闹钟必须 `alarm:H:M`；话语里点名的商店（谷歌/三星）必须对上 | 谷歌商店→三星商店 |
-| 6 | 解析出的每个参数必须原样保留 | 五分钟→5 秒 |
-| 7 | 话语中自带的时间/百分比必须与入参相等；**话语没说时长就不许造一个** | `?: 300` 类默认值 |
-| 8 | 带条件（"如果…"）的 mutation 必须二次确认 | 条件被忽略 |
-| 9 | 歧义、多候选、未解析目标 → 提问，禁止取第一个候选、禁止坐标兜底 | 盲选 |
+回归覆盖：取消不存在闹钟、重复闹钟、五分钟参数缺失/漂移、原话取消被规划反转、多个计时器中只点击指定卡片、重复/不存在/未知时长对象拒绝、全局文字不可绑定、一般应用错包/同名/无证据、真实 resolver 正向启动、二级功能控件缺失不报成功、undo 时长保留。保留已有反向/查询/时长/商店/条件等强断言；旧“取消可丢参数”的允许断言改为拒绝，并增加完整参数正向通过断言。
 
-### 2.2 接线
+TDD：每个修复切片先观察对应行为断言失败，再修改生产代码转绿。初次测试代码 Log.w 重载类型编译错误经明确 String 类型修正，该编译错误不作为 RED 证据。有效 RED 日志：
 
-- `SemanticRunner`：删除同值自比较；每个分支构造 `ToolCall`（**用真实入参**）→ `guarded()` → 通过才执行；`seconds`/`percent` 缺失改为提问而不是默认值。
-- `AppNavigator`：拆出 `openResolved()` / `openFeatureResolved()`，让闸门在启动前就能比较具体包名；`open()`/`openFeature()` 保留原签名（行为不变）。
-- `SemanticParser`：无动词时 CALL/CAMERA/SETTINGS_PAGE/MAPS/WEB → `OPEN`；VOLUME 带百分比 → `SET`。
-- `LocalCommandRouter`：`关闭wifi` 改调 `WifiControl.disable()`；「取消」不再吞掉倒计时/闹钟类指令；torch/wifi 两条 mutation 走同一个 `IntentGate`。
-- `ToolStatus`：新增 `BLOCKED`（拒绝执行），不再借用 `DEVICE_UNAVAILABLE` 表达"被闸门挡下"。
+- `logs/pr4-alarm-red.txt`：取消路径能力表不可达。
+- `logs/pr4-timer-red.txt` / `pr4-timer-object-red.txt`：丢时长、全局取消/多对象。
+- `logs/pr4-app-red.txt`：微信错误解析为 QQ 仍启动。
+- `logs/pr4-alarm-duplicate-red.txt`：同时间多个闹钟盲选。
+- `logs/pr4-raw-intent-red.txt`：规划和工具一起反转原意。
+- `logs/pr4-undo-red.txt`：undo 丢时长。
+- `logs/pr4-unbound-red.txt` / `pr4-global-scope-red.txt`：未绑定对象/全屏容器兜底。
+- `logs/pr4-alarm-identity-red.txt`：规划身份伪造闹钟时间。
 
-## 3. 测试清单与结果
+全量命令：`./gradlew :app:testDebugUnitTest --console=plain`。最终结果：2128 tests / 6 failed / 8 skipped；不是全量通过。完整本机输出在 `logs/pr4-final-full.txt`。已知失败为 AgentSkillCatalogTest 1 项、MemoryStoreTest 5 项；未弱化或跳过。隔离 worktree 在修复前 head `4d1e78d58e9767974144c8d442fce8fbe012cdd7` 复跑这两个类：55 tests / 6 failed，失败名称集合与本轮全量完全一致。隔离构建缺少已忽略的 launcher PNG 与 bridge raw，复制主工作区既有真实构建资源后复跑，未改基线 Kotlin 源码。基线日志 `logs/pr4-baseline.txt`。
 
-`app/src/test/kotlin/ai/closepaw/voice/semantics/IntentGateTest.kt` —— 20 个用例，
-Gradle：`:app:testDebugUnitTest --tests "*IntentGateTest"` → **20 passed / 0 failed（0.07 s）**。
+日志和 XML 留在本机，不提交个人设备数据。XML 路径：`src/closepaw/app/build/test-results/testDebugUnitTest/`。仍有 Android isChecked 弃用、JVM instrumentation 和 Gradle configuration cache 警告，不称“无警告通过”。没有 Actions 独立验收结论。
 
-| 验收项（来自 Issue #3） | 用例 | 结果 |
-|---|---|---|
-| 取消不存在的 8 点闹钟不得创建 | `cancelling a non-existent 8 o'clock alarm never creates one` | PASS（inversion） |
-| 取消计时器不得建计时器 | `cancelling a timer never creates a timer` | PASS |
-| 关闭/暂停/恢复不得建 | `closing and resuming a timer never create one` | PASS |
-| 查询不得修改 | `a query may never mutate` | PASS |
-| 五分钟不能误成五秒 | `five minutes is never five seconds` | PASS |
-| 未说时长不得默认 300 秒 | `a timer without any stated duration is refused` | PASS（invented） |
-| 闹钟时分必须与话语一致 | `alarm hour must match the utterance` | PASS |
-| 两个商店不可混淆 | `google play and galaxy store are not interchangeable` / `samsung store request must not land on google play` | PASS |
-| 未解析应用不得猜 | `an unresolved app identity is refused, never guessed` | PASS |
-| 二级页面不得降级为只启动首页 | `in-app feature request may not degrade to a plain launch` | PASS |
-| 动作/目标漂移 | `action drift is refused` / `target drift is refused` | PASS |
-| 开关类 CLOSE→DISABLE 是唯一允许的重写 | `switch close-to-disable normalisation is the only accepted rewrite` | PASS |
-| 歧义 → 提问 | `ambiguity is a question, not an execution` | PASS |
-| 多候选 → 不取第一个 | `multiple candidates are never resolved to the first one` | PASS |
-| 条件 mutation → 需确认 | `conditional mutation needs confirmation` | PASS |
-| 音量百分比一致 | `volume percent must match the utterance` | PASS |
-| 回归：闸门不是自我比较 | `the gate is not a self-comparison regression`（action/target/param/identity 单字段漂移逐条必须被拦） | PASS |
+## 协作与剩余事项
 
-全量单测：`:app:testDebugUnitTest` → **2110 tests, 6 failed, 8 skipped**。
-6 个失败经 `git stash` 在干净 main 上复跑**同样失败**（55 tests / 6 failed），与本次改动无关：
+写入前以 O_CREAT|O_EXCL 取得 `.git/semantic-gate-writer.lock`，整个修复/测试/提交/评论周期只保留一个写者；cron 已改为同锁契约，锁存在退出、不抢锁，结束释放自己的锁。未覆盖他人未提交修改，未修改 AGENTS（写入审批超时，保留原文件）。
 
-- `AgentSkillCatalogTest.entry filePath points to SKILL md` —— Windows 路径分隔符（`\` vs `/`）
-- `MemoryStoreTest` 5 条 —— markdown 分节插入顺序在 Windows/CRLF 下不一致
-
-## 4. 未做 / 风险
-
-- **未实机验证**：本步只到 JVM 单测。真机验收（阶段 1 的实机部分）需要重新构建 debug APK 并跑
-  Issue 里的 6 个场景，本轮按"测试先于实机部署"的要求**没有**部署。
-- **行为变化（可能影响已验收路径）**：
-  1. 计时器/闹钟解析不到时长改为**提问**，不再默认 300 秒 / 0 分；
-  2. 带"如果…"的 mutation 现在会先确认；
-  3. 说话未点名商店却说"打开商店"时仍按 `AppNavigator.preferred` 的偏好（三星商店），闸门只在
-     话语**点名**时强制身份；
-  4. `LocalCommandRouter` 的 `关闭wifi` 不再误调 enable（该文件当前无调用方，属预防性修复）。
-- **仍未覆盖**：Thread 时序以外的多任务依赖、在线 LLM 路径（ClosePaw `ToolRouter`）尚未接这道闸门
-  —— 那属于第 2 步（ToolSpec 适配）的工作，闸门届时在 `ToolRouter` 前复用同一 `IntentGate`。
-- **未接线的死代码**：`KwsEngine`、`LocalCommandRouter` 仍无调用方，本步只加固未接线，未删除。
-
-## 5. 下一步（待批准后继续）
-
-1. 阶段 1 实机回归：构建 debug APK → 跑 6 个验收场景（**需要用户授权装包/操作手机**）。
-2. 阶段 2：把 `IntentActions`/`ClockControl`/`LocalCapabilities`/`SystemPanelAutomator` 包成
-   ClosePaw `ToolSpec`，并在 `ToolRouter` 前复用 `IntentGate`（届时在线路径也受同一契约约束）。
+没有 assembleDebug、安装 APK 或操作手机；没有 push main、force push、合并 PR。JVM 测试相关 Gradle 资源任务不等于产出可安装 APK。
+阶段 1 设备回归仍需另行授权；阶段 2 ToolSpec 和阶段 3 业务状态验证均未在本次冒称完成。已有 DELETE 闹钟实现只是关闭并说明，不是真正删除，仍是已知能力限制。

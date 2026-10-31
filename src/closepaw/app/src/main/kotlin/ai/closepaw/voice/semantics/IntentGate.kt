@@ -7,14 +7,14 @@ import ai.closepaw.voice.tools.ChineseTime
  *
  * The bug this exists to kill: the previous "safety net" compared a task against itself
  * (`assertNotInverted(t.action, t.action)`), which is a no-op — it produced "pass" for every
- * input, including a cancel that ends up creating something. This gate instead compares four
+ * input, including a cancel that ends up creating something. This gate instead compares three
  * *different* things:
  *
  *  1. what the user said            → [utterance]
  *  2. what the planner decided     → [SemanticTask] (`requested`)
  *  3. what the tool boundary is about to call → [ToolCall] (`call`), built from the **effective
  *     arguments** (defaults applied), not from the task
- *  4. what the device state should be afterwards → `requested.expectedState`
+ * `expectedState` is descriptive metadata only; this gate does NOT verify post-execution state.
  *
  * It is deliberately pure Kotlin (no Android imports) so the whole rule set is unit-testable on
  * the JVM, and it runs *before* the capability is invoked: a failed check never executes.
@@ -32,6 +32,8 @@ import ai.closepaw.voice.tools.ChineseTime
  */
 object IntentGate {
 
+    data class AppIdentity(val packageName: String, val label: String, val aliases: List<String> = emptyList())
+
     /** What the tool boundary is actually about to do, with the arguments it will really pass. */
     data class ToolCall(
         val action: Action,
@@ -40,6 +42,8 @@ object IntentGate {
         /** Concrete identity: package name for apps, "alarm:H:M" for alarms, etc. */
         val identity: String? = null,
         val label: String = "",
+        /** Independent installed-app inventory, not a claim copied from the chosen result. */
+        val apps: List<AppIdentity> = emptyList(),
     )
 
     data class Decision(val allowed: Boolean, val reason: String = "", val ask: String? = null) {
@@ -102,6 +106,9 @@ object IntentGate {
         }
 
         // 5) Identity: the concrete object must be the one the user named.
+        requested.targetIdentity?.let { identity ->
+            if (identity != call.identity) return Decision.block("planned identity drift", "目标对象和规划对不上，我没有执行")
+        }
         expectedIdentity(requested, said)?.let { expected ->
             if (call.identity != expected) {
                 return Decision.block(
@@ -110,16 +117,33 @@ object IntentGate {
                 )
             }
         }
-        if (call.identity == null &&
-            (requested.target == Target.APP || requested.target == Target.APP_FEATURE) &&
-            requested.action != Action.QUERY
-        ) {
-            return Decision.block("unresolved app identity", "没确认是哪个应用，先不开")
+        if (requested.target in setOf(Target.APP, Target.APP_FEATURE) && requested.action != Action.QUERY) {
+            if (call.identity.isNullOrBlank()) return Decision.block("unresolved app identity", "没确认是哪个应用，先不开")
+            val original = SemanticParser.parse(said).singleOrNull()
+                ?: return Decision.block("app utterance ambiguous", "要打开哪个应用？")
+            val name = original.params["name"]
+                ?: return Decision.block("app name missing from utterance", "要打开哪个应用？")
+            if (name != requested.params["name"] || original.params["feature"] != requested.params["feature"]) {
+                return Decision.block("app name/feature drift from utterance", "应用或功能和原话对不上，我没有执行")
+            }
+            fun norm(s: String) = s.lowercase().replace(" ", "")
+            val q = norm(name)
+            val pinned = storeHints.firstOrNull { (keys, _) -> keys.any { norm(it) == q } }?.second
+            val exact = call.apps.filter { a ->
+                if (pinned != null) a.packageName == pinned
+                else norm(a.label) == q || a.aliases.any { norm(it) == q } || norm(a.packageName) == q
+            }
+            // Partial names are deliberately not proof; a unique exact name/alias/package is required.
+            if (exact.size != 1 || exact.single().packageName != call.identity) {
+                return Decision.block("app identity not proven: name=$name matches=${exact.size} package=${call.identity}",
+                    "无法唯一核对你指定的应用，请确认应用名称")
+            }
         }
 
         // 6) Parameters must survive verbatim (this is where 5 min → 5 s used to slip through).
         for ((k, v) in requested.params) {
-            val actual = call.params[k] ?: continue
+            val actual = call.params[k] ?: return Decision.block(
+                "missing call parameter: $k", "工具丢失了参数（$k），我没有执行")
             if (actual != v) {
                 return Decision.block(
                     "param drift: $k expected $v, call $actual",
@@ -155,6 +179,13 @@ object IntentGate {
             )
         }
 
+        // A planner and tool agreeing with each other is not evidence they agree with the user.
+        val original = SemanticParser.parse(said).singleOrNull()
+            ?: return Decision.block("original intent ambiguous", "请一次明确一个操作")
+        if (original.target != requested.target || !sameAction(original.action, requested.action, original.target)) {
+            return Decision.block("original intent drift: ${original.action}/${original.target} vs ${requested.action}/${requested.target}",
+                "规划和你原话的动作或对象对不上，我没有执行")
+        }
         return Decision.OK
     }
 
@@ -169,7 +200,6 @@ object IntentGate {
 
     /** The identity the utterance itself implies, when it pins one. Null = the planner decides. */
     private fun expectedIdentity(requested: SemanticTask, said: String): String? {
-        requested.targetIdentity?.let { return it }
         if (requested.target == Target.APP || requested.target == Target.APP_FEATURE) {
             val q = said.lowercase().replace(" ", "")
             storeHints.firstOrNull { (keys, _) -> keys.any { q.contains(it.replace(" ", "")) } }
@@ -179,7 +209,7 @@ object IntentGate {
             val named = ChineseTime.clockTime(said) ?: clockFromParams(requested.params)
             if (named != null) return "alarm:${named.first}:${named.second}"
         }
-        return null
+        return requested.targetIdentity
     }
 
     private fun clockFromParams(p: Map<String, String>): Pair<Int, Int>? {
@@ -193,12 +223,12 @@ object IntentGate {
      * returns (key, null) when the utterance states no value for a unit that must be explicit.
      */
     private fun paramsFromUtterance(requested: SemanticTask, said: String): Pair<String, String?>? = when {
-        requested.target == Target.TIMER && requested.action == Action.CREATE -> {
+        requested.target == Target.TIMER && (requested.action == Action.CREATE || ChineseTime.durationSeconds(said) != null) -> {
             val secs = ChineseTime.durationSeconds(said)
             // No duration in the utterance → we refuse to guess one.
             "seconds" to secs?.toString()
         }
-        requested.target == Target.ALARM && requested.action == Action.CREATE -> {
+        requested.target == Target.ALARM && requested.action != Action.QUERY -> {
             val t = ChineseTime.clockTime(said) ?: return "hour" to null
             // Compare the hour; minute is checked through identity ("alarm:H:M").
             "hour" to t.first.toString()

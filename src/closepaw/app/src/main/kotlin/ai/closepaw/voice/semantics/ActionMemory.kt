@@ -39,7 +39,11 @@ object ActionMemory {
     fun undo(ctx: Context): ToolResult {
         val e = last ?: return ToolResult.unavailable("undo", "刚才没有可以撤销的操作", "no memory")
         val r = when {
-            e.action == Action.CREATE && e.target == Target.TIMER -> ClockControl.cancelTimer(ctx)
+            e.action == Action.CREATE && e.target == Target.TIMER -> {
+                val seconds = e.params["seconds"]?.toIntOrNull()
+                if (seconds == null) ToolResult.unavailable("undo", "记不住刚才倒计时的时长，不能确定撤销对象", "missing duration")
+                else ClockControl.cancelTimer(ctx, seconds)
+            }
             e.action == Action.CREATE && e.target == Target.ALARM -> {
                 val h = e.params["hour"]?.toIntOrNull()
                 val m = e.params["minute"]?.toIntOrNull()

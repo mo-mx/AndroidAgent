@@ -98,8 +98,13 @@ object SemanticRunner {
                     ClockControl.createTimer(ctx, secs)
                 }
             }
-            Action.CANCEL, Action.CLOSE, Action.DELETE ->
-                guarded(t, IntentGate.ToolCall(t.action, Target.TIMER)) { ClockControl.cancelTimer(ctx) }
+            Action.CANCEL, Action.CLOSE, Action.DELETE -> {
+                val seconds = t.params["seconds"]?.toIntOrNull()
+                val args = seconds?.let { mapOf("seconds" to "$it") } ?: emptyMap()
+                guarded(t, IntentGate.ToolCall(t.action, Target.TIMER, args)) {
+                    ClockControl.cancelTimer(ctx, seconds)
+                }
+            }
             Action.PAUSE, Action.RESUME -> unsupported(t)
             else -> guarded(t, IntentGate.ToolCall(Action.QUERY, Target.TIMER)) {
                 ClockControl.queryTimers(ctx)
@@ -141,7 +146,7 @@ object SemanticRunner {
                 val app = res.app
                     ?: return ToolResult.unavailable("app", "没有找到这个应用", res.why)
                 guarded(t, IntentGate.ToolCall(Action.OPEN, Target.APP,
-                    mapOf("name" to name), app.packageName, app.label)) {
+                    mapOf("name" to name), app.packageName, app.label, appEvidence(ctx))) {
                     AppNavigator.openResolved(ctx, app, res.why)
                 }
             }
@@ -158,7 +163,7 @@ object SemanticRunner {
             res.ambiguity?.let { return ToolResult(ToolStatus.BLOCKED, "app_feature", it, res.why, false) }
             val app = res.app ?: return ToolResult.unavailable("app_feature", "没有找到「$name」", res.why)
             guarded(t, IntentGate.ToolCall(Action.OPEN, Target.APP_FEATURE,
-                mapOf("name" to name, "feature" to feature), app.packageName, app.label)) {
+                mapOf("name" to name, "feature" to feature), app.packageName, app.label, appEvidence(ctx))) {
                 AppNavigator.openFeatureResolved(ctx, app, feature, res.why)
             }
         }
@@ -257,6 +262,10 @@ object SemanticRunner {
             ActionMemory.undo(ctx)
         }
         Target.UNKNOWN -> ask(t, t.ambiguity ?: "没听明白，能再说一次吗")
+    }
+
+    private fun appEvidence(ctx: Context) = ai.closepaw.voice.tools.AppRegistry.apps(ctx).map {
+        IntentGate.AppIdentity(it.packageName, it.label, it.aliases)
     }
 
     private fun escalate(

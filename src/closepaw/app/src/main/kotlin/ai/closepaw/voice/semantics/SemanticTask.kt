@@ -44,7 +44,7 @@ object CapabilityGuard {
 
     private val allowed: Map<Target, Set<Action>> = mapOf(
         Target.TIMER to setOf(Action.CREATE, Action.CANCEL, Action.CLOSE, Action.QUERY, Action.PAUSE, Action.RESUME, Action.DELETE),
-        Target.ALARM to setOf(Action.CREATE, Action.CLOSE, Action.DELETE, Action.QUERY, Action.ENABLE, Action.DISABLE),
+        Target.ALARM to setOf(Action.CREATE, Action.CANCEL, Action.CLOSE, Action.DELETE, Action.QUERY, Action.ENABLE, Action.DISABLE),
         Target.APP to setOf(Action.OPEN, Action.CLOSE, Action.QUERY),
         Target.APP_FEATURE to setOf(Action.OPEN),
         Target.TORCH to setOf(Action.ENABLE, Action.DISABLE, Action.SET, Action.QUERY),

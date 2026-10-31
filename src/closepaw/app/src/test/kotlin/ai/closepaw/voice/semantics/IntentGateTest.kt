@@ -12,6 +12,34 @@ import org.junit.Test
  */
 class IntentGateTest {
 
+    @Test fun `alarm cancellation cannot forge original clock time with planner identity`() {
+        val raw = "取消八点的闹钟"
+        val t = task(raw).copy(params = mapOf("hour" to "7", "minute" to "0"), targetIdentity = "alarm:7:0")
+        refuse(raw, t, call(Action.CANCEL, Target.ALARM, t.params, "alarm:7:0"))
+    }
+
+    @Test fun `general app needs independent unique installed identity evidence`() {
+        val raw = "打开微信"
+        val t = task(raw)
+        val good = call(Action.OPEN, Target.APP, mapOf("name" to "微信"), "com.tencent.mm")
+        allow(raw, t, good)
+        refuse(raw, t, good.copy(identity = "com.tencent.mobileqq"))
+        refuse(raw, t, good.copy(apps = emptyList()))
+        refuse(raw, t, good.copy(apps = good.apps + IntentGate.AppIdentity("work.wechat", "微信")))
+        refuse(raw, t.copy(params = mapOf("name" to "QQ")), good.copy(params = mapOf("name" to "QQ"), identity = "com.tencent.mobileqq"))
+    }
+
+    @Test fun `feature app identity and feature argument must both survive`() {
+        val raw = "打开微信扫一扫"
+        val t = task(raw)
+        val good = call(Action.OPEN, Target.APP_FEATURE, t.params, "com.tencent.mm")
+        allow(raw, t, good)
+        refuse(raw, t, good.copy(identity = "com.tencent.mobileqq"))
+        refuse(raw, t, good.copy(params = mapOf("name" to "微信")))
+        refuse(raw, t.copy(params = mapOf("name" to "微信", "feature" to "付款码")),
+            good.copy(params = mapOf("name" to "微信", "feature" to "付款码")))
+    }
+
     private fun task(utterance: String): SemanticTask = SemanticParser.parse(utterance).first()
 
     private fun call(
@@ -19,7 +47,12 @@ class IntentGateTest {
         target: Target,
         params: Map<String, String> = emptyMap(),
         identity: String? = null,
-    ) = IntentGate.ToolCall(action, target, params, identity)
+    ) = IntentGate.ToolCall(action, target, params, identity, apps = listOf(
+        IntentGate.AppIdentity("com.tencent.mm", "微信"),
+        IntentGate.AppIdentity("com.tencent.mobileqq", "QQ"),
+        IntentGate.AppIdentity("com.android.vending", "Google Play", listOf("谷歌商店")),
+        IntentGate.AppIdentity("com.sec.android.app.samsungapps", "Galaxy Store", listOf("三星商店")),
+    ))
 
     private fun allow(utterance: String, t: SemanticTask, c: IntentGate.ToolCall) {
         val d = IntentGate.check(utterance, t, c)
@@ -56,7 +89,8 @@ class IntentGateTest {
 
         refuse(u, t, call(Action.CREATE, Target.TIMER, mapOf("seconds" to "300")))
         // ...and the honest path is allowed.
-        allow(u, t, call(Action.CANCEL, Target.TIMER))
+        refuse(u, t, call(Action.CANCEL, Target.TIMER))
+        allow(u, t, call(Action.CANCEL, Target.TIMER, mapOf("seconds" to "300")))
     }
 
     @Test
@@ -254,7 +288,7 @@ class IntentGateTest {
     fun `the gate is not a self-comparison regression`() {
         // The bug this replaces: `assertNotInverted(t.action, t.action)` compared a value with
         // itself, so it passed for every input. Each single-field drift below must be caught,
-        // which is only possible because the gate compares four *different* sources.
+        // which is only possible because the gate compares independent intent and actual-call inputs.
         val u = "设一个五分钟的倒计时"
         val t = task(u)
 
