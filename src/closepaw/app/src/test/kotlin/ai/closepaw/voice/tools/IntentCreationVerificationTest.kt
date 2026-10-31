@@ -31,10 +31,22 @@ class IntentCreationVerificationTest {
         // Round 26: the timer tab is reached through the exact navigation control only; the loose
         // `clickText` matcher is no longer part of this path.
         every { UiAutomator.clickClockNavTab("定时器") } returns true
+        // Round 27: countdown wording only counts when the same read proves the clock package and
+        // the selected timer tab, so the fixture supplies page identity with its texts.
         // Existing unrelated timer remains unchanged after OEM ignores the new request.
-        every { UiAutomator.screenTexts(any()) } returns listOf("1 个定时器正在运行", "剩余 09:58", "10 分钟 0 秒")
+        every { UiAutomator.readScreen(any()) } returns clockRead(
+            listOf("1 个定时器正在运行", "剩余 09:58", "10 分钟 0 秒")
+        )
     }
     @After fun cleanup() = unmockkAll()
+
+    private fun clockRead(texts: List<String>) = UiAutomator.ScreenRead(
+        texts = texts,
+        nodesVisited = texts.size,
+        rootPackage = "com.sec.android.app.clockpackage",
+        serviceAvailable = true,
+        selectedTabs = mapOf("定时器" to true),
+    )
 
     @Test fun `existing same time alarm cannot verify an ignored creation`() {
         val time = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 8); set(java.util.Calendar.MINUTE, 0) }.timeInMillis
@@ -67,7 +79,7 @@ class IntentCreationVerificationTest {
 
     @Test fun `timer diagnostics never log private screen text`() {
         val secret = "PRIVATE_TIMER_LABEL_8d291"
-        every { UiAutomator.screenTexts(any()) } returns listOf(secret, "剩余 09:58")
+        every { UiAutomator.readScreen(any()) } returns clockRead(listOf(secret, "剩余 09:58"))
         IntentActions.setTimer(ctx, 300)
         verify(exactly = 0) { Log.i(any(), match { it.contains(secret) }) }
     }

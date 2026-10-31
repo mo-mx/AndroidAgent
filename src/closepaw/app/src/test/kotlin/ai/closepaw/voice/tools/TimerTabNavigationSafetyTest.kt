@@ -52,11 +52,27 @@ class TimerTabNavigationSafetyTest {
 
     @After fun cleanup() = unmockkAll()
 
+    /**
+     * Round 27: this path now reads the tree instead of loose text, and only treats countdown
+     * wording as evidence when the same read proves the clock package and the selected timer tab.
+     */
+    private fun read(
+        texts: List<String>,
+        rootPackage: String? = clockPkg,
+        timerSelected: Boolean? = true,
+    ) = UiAutomator.ScreenRead(
+        texts = texts,
+        nodesVisited = texts.size,
+        rootPackage = rootPackage,
+        serviceAvailable = true,
+        selectedTabs = mapOf("定时器" to timerSelected),
+    )
+
     /** No verified nav control (a hint card with the same text is not one): zero clicks of any kind. */
     @Test fun `missing nav control performs no generic or coordinate click`() {
         every { UiAutomator.clickClockNavTab("定时器") } returns null
         // Even a page that *looks* like a running countdown must not be read as this creation.
-        every { UiAutomator.screenTexts(any()) } returns listOf("1 个定时器正在运行", "剩余 04:58")
+        every { UiAutomator.readScreen(any()) } returns read(listOf("1 个定时器正在运行", "剩余 04:58"))
 
         val r = IntentActions.setTimer(ctx, 300)
 
@@ -72,7 +88,7 @@ class TimerTabNavigationSafetyTest {
     /** Control exists but the click was refused: still zero fallbacks, still no evidence claim. */
     @Test fun `refused nav click performs no generic click and claims no countdown`() {
         every { UiAutomator.clickClockNavTab("定时器") } returns false
-        every { UiAutomator.screenTexts(any()) } returns listOf("10 分钟 0 秒")
+        every { UiAutomator.readScreen(any()) } returns read(listOf("10 分钟 0 秒"))
 
         val r = IntentActions.setTimer(ctx, 300)
 
@@ -86,7 +102,7 @@ class TimerTabNavigationSafetyTest {
     /** Control group: the exact tab is clicked once, and it is the only click in the whole path. */
     @Test fun `exact nav tab is the only click and diagnostics name it`() {
         every { UiAutomator.clickClockNavTab("定时器") } returns true
-        every { UiAutomator.screenTexts(any()) } returns listOf("1 个定时器正在运行", "剩余 09:58")
+        every { UiAutomator.readScreen(any()) } returns read(listOf("1 个定时器正在运行", "剩余 09:58"))
 
         val r = IntentActions.setTimer(ctx, 300)
 
@@ -103,7 +119,7 @@ class TimerTabNavigationSafetyTest {
     /** Reached tab but no countdown wording: the honest sentence says so instead of inferring success. */
     @Test fun `reached tab without countdown wording never implies success`() {
         every { UiAutomator.clickClockNavTab("定时器") } returns true
-        every { UiAutomator.screenTexts(any()) } returns listOf("定时器", "添加定时器")
+        every { UiAutomator.readScreen(any()) } returns read(listOf("定时器", "添加定时器"))
 
         val r = IntentActions.setTimer(ctx, 300)
 

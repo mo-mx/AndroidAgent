@@ -86,32 +86,47 @@ object IntentActions {
             }
             Thread.sleep(700)
         }
-        val texts = if (clockForeground) UiAutomator.screenTexts(80) else emptyList()
-        // Only wording that means "a countdown is running" counts as evidence, and only when the
-        // timer tab was actually the page we read.
-        val countdownShown = tab == "clicked" && texts.any {
-            it.contains("定时器正在运行") || it.contains("剩余") || it.contains("倒计时") ||
-                Regex("""\d+\s*分钟\s*\d+\s*秒""").containsMatchIn(it)
-        }
+        // Review `6547564219` P2: a delivered ACTION_CLICK proves the gesture, never the page.
+        // Between the tap and the read our own voice window can take the foreground (observed on
+        // device in earlier rounds), and a clock left on the alarm tab is not the timer page. So the
+        // read must prove its own identity — clock package *and* the timer tab selected in the very
+        // same tree — before any countdown wording is allowed to mean anything.
+        val read = if (clockForeground) UiAutomator.readScreen(80) else null
+        val pageOk = tab == "clicked" && read?.rootPackage == UiAutomator.CLOCK_PKG &&
+            read?.selectedTabs?.get("定时器") == true
+        // Review `6547564219` P2: `contains("定时器正在运行")` also matched "0 个定时器正在运行",
+        // so the empty state was reported as a running countdown. The count is parsed instead.
+        val countdown: Boolean? = if (!pageOk) null else read?.texts?.any { countdownWording(it) } ?: false
         val mins = seconds / 60
         val human = if (seconds % 60 == 0) "${mins}分钟" else "${seconds}秒"
-        Log.i(TAG, "timer verify: fg=$fg clockFg=$clockForeground tab=$tab countdown=$countdownShown textCount=${texts.size}")
+        Log.i(
+            TAG,
+            "timer verify: fg=$fg clockFg=$clockForeground tab=$tab page=${if (pageOk) "timer-selected" else "unconfirmed"}" +
+                " countdown=${countdown ?: "unknown"} textCount=${read?.texts?.size ?: 0}"
+        )
 
+        val pageDetail = if (pageOk) "page=timer-selected" else "page=unconfirmed"
+        val countdownDetail = when (countdown) {
+            true -> "countdown-ui=true"
+            false -> "countdown-ui=false"
+            null -> "countdown-ui=unknown"
+        }
         return when {
-            clockForeground && countdownShown -> ToolResult.sentWithoutProof(
+            pageOk && countdown == true -> ToolResult.sentWithoutProof(
                 "timer",
                 "${human}的倒计时请求已经发送，但无法确认新倒计时是否开始，请在时钟里核对",
-                "clockFg=true tab=$tab countdown-ui=true; no newly created object identity"
+                "clockFg=true tab=$tab $pageDetail $countdownDetail; no newly created object identity"
             )
-            clockForeground && tab == "clicked" -> ToolResult.sentWithoutProof(
+            pageOk -> ToolResult.sentWithoutProof(
                 "timer",
                 "${human}的倒计时请求已经交给时钟应用，但我在时钟界面里没看到倒计时",
-                "clockFg=true tab=$tab countdown-ui=false, countdown text not found"
+                "clockFg=true tab=$tab $pageDetail $countdownDetail, countdown text not found"
             )
             clockForeground -> ToolResult.sentWithoutProof(
                 "timer",
                 "${human}的倒计时请求已经发送，但无法确认是否真的开始，请在时钟里看一下",
-                "clockFg=true tab=$tab; timer tab not reached, screen text not treated as proof"
+                "clockFg=true tab=$tab $pageDetail $countdownDetail; " +
+                    "read not proven to be the selected timer page"
             )
             else -> ToolResult.sentWithoutProof(
                 "timer",
@@ -119,6 +134,24 @@ object IntentActions {
                 "fg=$fg clockFg=false"
             )
         }
+    }
+
+    /** Digits in front of the running-timers sentence; the sentence alone also matches "0 个". */
+    private val RUNNING_TIMERS = Regex("""(\d+)\s*个\s*定时器正在运行""")
+
+    /** A duration readout such as "4 分钟 58 秒". */
+    private val DURATION = Regex("""\d+\s*分钟\s*\d+\s*秒""")
+
+    /**
+     * True only when this line says a countdown is *running*, never when it says there are none.
+     * A bare "定时器正在运行" without a count is still running evidence; an explicit `0 个` is the
+     * empty state and must be reported as `countdown-ui=false`.
+     */
+    private fun countdownWording(text: String): Boolean {
+        val count = RUNNING_TIMERS.find(text)
+        if (count != null) return (count.groupValues[1].toIntOrNull() ?: 0) > 0
+        if (text.contains("定时器正在运行")) return true
+        return text.contains("剩余") || text.contains("倒计时") || DURATION.containsMatchIn(text)
     }
 
     // ── alarms ──

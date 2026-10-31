@@ -74,11 +74,13 @@ object TerminalState {
      * Applies the verdict to the result the assistant is about to speak.
      *
      * CONTRADICTED becomes EXECUTION_ERROR with a sentence that says the state did not change; the
-     * original detail is kept so the trace still shows what was observed. A CONFIRMED claim with no
-     * evidence behind it (an `Action.OPEN` that only saw screen text change) is hedged instead:
-     * the request really was made, so the status stays SUCCESS, but the sentence may not say the
-     * page was reached and `verified` drops to null. Everything else is returned untouched, which
-     * makes the function idempotent.
+     * original detail is kept so the trace still shows what was observed. An UNPROVEN claim that
+     * still says `verified = true` is hedged: the request really was delivered, so the status stays
+     * SUCCESS, but neither the flag nor the sentence may report a completed job — and this applies
+     * to every action that promises a state, not only [Action.OPEN]. (`Action.OPEN` predated this
+     * rule and keeps its page-specific wording.) Everything else is returned untouched, which makes
+     * the function idempotent: after one pass the flag is null and the verdict can no longer be a
+     * claim of success.
      */
     fun enforce(task: SemanticTask, result: ToolResult): ToolResult =
         when (verdict(task, result)) {
@@ -90,13 +92,21 @@ object TerminalState {
                 false,
                 result.observed,
             )
-            Verdict.UNPROVEN -> if (task.action == Action.OPEN && result.verified == true) {
-                val feature = task.params["feature"]?.takeIf { it.isNotBlank() } ?: "那个功能"
-                result.copy(
-                    speak = "点了$feature，但没能确认页面已经打开，请你看一眼",
-                    verified = null,
-                    detail = result.detail + "; postcondition=unproven(no page identity)",
-                )
+            Verdict.UNPROVEN -> if (result.verified == true) {
+                if (task.action == Action.OPEN) {
+                    val feature = task.params["feature"]?.takeIf { it.isNotBlank() } ?: "那个功能"
+                    result.copy(
+                        speak = "点了$feature，但没能确认页面已经打开，请你看一眼",
+                        verified = null,
+                        detail = result.detail + "; postcondition=unproven(no page identity)",
+                    )
+                } else {
+                    result.copy(
+                        speak = "请求已经发出，但没能确认结果，请你看一眼",
+                        verified = null,
+                        detail = result.detail + "; postcondition=unproven(no object evidence)",
+                    )
+                }
             } else {
                 result
             }
