@@ -99,6 +99,8 @@ class ClockForeignWindowTest {
         val hint = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
         val tab = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
         val root = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { root.packageName } returns clockPkg
+        every { tab.packageName } returns clockPkg
         every { hint.text } returns "对关联闹钟进行分组"
         every { tab.text } returns "闹钟"
         every { root.childCount } returns 2

@@ -42,6 +42,7 @@ object ClockControl {
      */
     private fun clickClockTab(tab: String): Boolean? = runCatching {
         val root = UiAutomator.root() ?: return@runCatching null
+        if (root.packageName?.toString() != CLOCK_PKG) return@runCatching false
         val target = tab.trim()
         val queue = ArrayDeque<android.view.accessibility.AccessibilityNodeInfo>()
         queue.add(root)
@@ -52,7 +53,10 @@ object ClockControl {
                 runCatching { n.text?.toString() }.getOrNull(),
                 runCatching { n.contentDescription?.toString() }.getOrNull(),
             ).map { it.trim() }
-            if (labels.any { it == target }) return@runCatching UiAutomator.click(n)
+            if (labels.any { it == target }) {
+                if (n.packageName?.toString() != CLOCK_PKG) return@runCatching false
+                return@runCatching UiAutomator.click(n)
+            }
             for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
                 runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
             }

@@ -1,5 +1,14 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第⑰轮局部修复：审查 6543364579（源码分析 + JVM，未实机）
+
+clickClockTab 在遍历前检查 root 包名、点击前检查目标节点包名，非时钟包或包名缺失安全拒绝；初始/查询恢复/绑定恢复共用该入口。新增私有导航入口的 root跨包与node跨包零点击回归（反射调用真实方法，Android边界MockK）；有效 RED 1 test / 1 failed，修后两种组合均通过。该测试不是完整查询/绑定集成负向矩阵。
+
+定向 --offline --rerun-tasks：131 tests / 0 failed / 0 errors / 0 skipped，exit=0。全量2221 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿；AgentSkillCatalogTest 1、MemoryStoreTest 5，本轮未重跑旧SHA。初次定向131/3 failed为旧fixture未提供包名，仅补root/node包名后原断言全保留。日志logs/pr4-review17-{red,targeted,full}.txt及JSON本机保留。
+
+仅完成包名门禁切片：通用click的父级/坐标回退仍待移除，精确标签仍缺导航控件身份、selectedState同名非导航节点拒绝仍待修；审查未关闭，仍可离线推进。源码/JVM不等于实机，历史设备矩阵不变；新一轮实机需用户重新授权。本轮未构建安装APK、未操作手机、未调用付费API、未delegate、不合并、不push main、不动Issue6。需要复审。
+
+
 ## 第⑯轮局部修复：审查 6543146968（源码 + JVM，未实机）
 
 移除 selectedState 的包含匹配回退；仅提示卡且父 selected=true 时返回 null。旧兼容用例收紧为拒绝，新增提示卡父选中回归。有效 RED：9 tests / 2 failed / 0 errors；最终定向130 tests / 0 failed / 0 errors / 0 skipped；全量2220 tests / 6 failed / 0 errors / 8 skipped，不是全绿。全部 --offline --rerun-tasks；日志 logs/pr4-review16-{red,targeted,full}.txt，失败名称 JSON 留本机。失败仍为 AgentSkillCatalogTest 1项、MemoryStoreTest 5项，本轮未重跑旧SHA。

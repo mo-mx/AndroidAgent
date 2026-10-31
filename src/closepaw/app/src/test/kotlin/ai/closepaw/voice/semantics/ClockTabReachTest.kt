@@ -34,6 +34,25 @@ class ClockTabReachTest {
 
     @After fun cleanup() = unmockkAll()
 
+    @Test fun `foreign root or foreign exact node never receives navigation click`() {
+        val method = ClockControl::class.java.getDeclaredMethod("clickClockTab", String::class.java)
+        method.isAccessible = true
+        for ((rootPkg, nodePkg) in listOf("ai.closepaw" to "ai.closepaw", clockPkg to "other.app")) {
+            val root = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+            val tab = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+            every { root.packageName } returns rootPkg
+            every { root.childCount } returns 1
+            every { root.getChild(0) } returns tab
+            every { tab.packageName } returns nodePkg
+            every { tab.text } returns "闹钟"
+            every { UiAutomator.root() } returns root
+            every { UiAutomator.click(tab) } returns true
+            assertThat(method.invoke(ClockControl, "闹钟")).isNotEqualTo(true)
+            verify(exactly = 0) { UiAutomator.click(tab) }
+            verify(exactly = 0) { tab.performAction(any()) }
+        }
+    }
+
     @Test fun `missing exact tab with only alarm hint card performs zero clicks`() {
         val card = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
         every { card.text } returns "对关联闹钟进行分组"
@@ -56,6 +75,8 @@ class ClockTabReachTest {
         val tab = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
         every { root.childCount } returns 1
         every { root.getChild(0) } returns tab
+        every { root.packageName } returns clockPkg
+        every { tab.packageName } returns clockPkg
         every { tab.text } returns "闹钟"
         every { UiAutomator.root() } returns root
         every { UiAutomator.click(tab) } returns false
@@ -103,6 +124,7 @@ class ClockTabReachTest {
 
     @Test fun `a delivered click on a tab that reports not selected is not a reached tab`() {
         val nav = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { nav.packageName } returns clockPkg
         every { nav.text } returns "闹钟"
         every { UiAutomator.root() } returns nav
         every { UiAutomator.click(nav) } returns true
