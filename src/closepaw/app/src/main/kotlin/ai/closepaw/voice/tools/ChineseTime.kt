@@ -56,11 +56,15 @@ object ChineseTime {
             total += if (v == "半") 1800 else (number(v) ?: return null) * 3600
             matched = true
         }
+        // Minutes are converted to seconds at the point they are added. The old code added the raw
+        // minute count into `total` and then multiplied the *whole* accumulator by 60, so any
+        // utterance that named both hours and minutes came out 60× too long ("一小时十分钟" →
+        // 216600 s). The gate could not catch it: it compares the utterance against this same
+        // parser's output, so both sides agreed on the wrong number.
         val min = Regex("(半|\\d+|[零〇一二两三四五六七八九十百]+)(个)?(分钟|分)").find(t)
         if (min != null) {
             val v = min.groupValues[1]
-            total += if (v == "半") 30 else (number(v) ?: return null)
-            total *= 60
+            total += (if (v == "半") 30 else (number(v) ?: return null)) * 60
             matched = true
         }
         val sec = Regex("(\\d+|[零〇一二两三四五六七八九十百]+)秒").find(t)

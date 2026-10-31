@@ -1,5 +1,32 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㉝轮：语音时长到工具参数之间的一处 60 倍错误（源码 + JVM，未实机）
+
+本轮无新审查（最新 review `6549082221` 已由第㉜轮回复 `6549362112` 处理，其后 PR 无新评论），按「无新审查则推进可离线项」处理遗留清单里的 **「五分钟真实工具参数」**。它不是设备项才有的问题——先补端到端参数断言时，发现解析层就有一个能直接算错的形状。
+
+1. **发现的缺陷（真实存在，非风格问题）**：`ChineseTime.durationSeconds` 先由小时段把 `total` 置为整秒，再由分钟段把**分钟数**加进同一个累加器，然后把**整个累加器** `* 60`。于是任何「小时+分钟」的说法都被放大 60 倍：`一小时十分钟` → `(3600+10)*60 = 216600 s`（要求 4200 s），`1小时30分` → `217800 s`。只有小时、只有分钟、只有秒的说法都正确，所以既有测试没有一条命中。
+2. **闸门为什么没拦住（这是本轮最该记住的一条）**：`IntentGate` 用 `ChineseTime.durationSeconds(said)` 和工具参数比对，**两侧都来自同一个解析器**，所以两边一起错、比对通过。参数正确性没有被独立验证过——这正是「解析 300 秒」曾被当成「工具参数 300 秒」的同类风险。
+3. **改法（最小）**：分钟段改成 `total += 分钟数 * 60`，不再缩放整个累加器。行为影响面：`IntentPlanner` 与 `SemanticParser`/`IntentGate` 共用该函数，含小时的时长现在按和计算。
+4. **新测试（TDD 先写）**：
+   - `ChineseTimeDurationTest`（4 条）：分钟/秒/半小时为控制组；`一小时十分钟=4200`、`1小时30分=5400`、`两小时十五分钟=8100`、`一小时45分30秒=6330` 为本轮契约；`六十分钟=3600`（防止把「分钟」当独立项重复计）；无时长返回 null。
+   - `TimerCreateArgumentTest`（3 条，真实 parser→能力表→闸门→Runner，只 mock `ClockControl`）：`开始五分钟倒计时` → `createTimer(ctx, 300)` 恰好一次且**不是** 5 / 3000；`设置一小时十分钟的倒计时` → `createTimer(ctx, 4200)` 且不是 216600；`设一个倒计时`（无时长）→ 追问「多久」且零工具调用。
+5. **净效果（如实）**：第 2 条测试在修复前**真实拿到 216600**——不是假设出来的风险，是 MockK 记录的入参。第 1 条（五分钟=300）修复前后都通过，属回归锁，不冒充 RED。
+
+TDD 与真实数据（全部 `--offline --rerun-tasks`，仓库根先 `source env.sh`）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 先写两组测试、生产代码未改 | **RED 7 tests / 2 failed / 0 errors**；失败为 `ChineseTimeDurationTest.hours plus minutes…`（expected 4200 / was 216600）与 `TimerCreateArgumentTest.hours plus minutes…`（`createTimer` 实收 216600），其余 5 条为控制组 | `logs/pr4-round33-red.txt` |
+| 实现后同组 | **GREEN 7 / 7**，exit=0 | `logs/pr4-round33-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **255 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㉜轮 248，+7 为本轮新测试） | `logs/pr4-round33-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2345 tests / 6 failed / 0 errors / 8 skipped**，Gradle exit=1，**不是全绿**；失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（本轮未改、未跳过） | `logs/pr4-round33-full.txt`、`logs/pr4-round33-full2.txt` |
+
+边界与遗留（如实）：
+- **仍是 JVM 契约，不是实机**：这些只证明「说法→工具入参」这一跳正确。三星时钟是否接受 4200 s、创建后能否核对，全部**未验证**；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测，实机需用户**重新授权**。
+- 顺带看到一个**未改**的语义问题（属建议，不是本轮任务）：`一个半小时` 现在解析成 1800 s（半小时），而口语含义是 5400 s。改它需要决定「一个半」「两个半」这类说法的处理规则，本轮没有擅自改，也未把当前值写进测试当成正确值。
+- 本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未并入 Issue #6、未改受保护规则、未 push main、未合并 PR。
+- 遗留不变：`closeAlarm` 缺全列表枚举/稳定身份仍 `BLOCKED`；查询结果截断未当作不完整；计时器唯一绑定；创建 undo 安全拒绝；在线 `ToolRouter` 同门禁（阶段 2）。
+
 ## 第㉜轮：撤回创建/取消里最后一处「同类证据」冒充对象结论（源码 + JVM，未实机）
 
 处理新复审（HEAD `54039d1`，2 条：1 P1 + 1 P2；https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6549082221 ）。核心一句话：**一次视口读取不是枚举，相同时长不是同一个对象**。上一轮把「视口」当成了列表全貌，本轮把两处判定一起撤回到 `UNPROVEN`。
