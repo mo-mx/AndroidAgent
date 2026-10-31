@@ -1,5 +1,13 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第⑲轮局部修复：第十八轮审查（导航栏容器边界 + 容器不可点；源码 + JVM，未实机）
+
+`UiAutomator.navControl` 不再把窗口根/正文容器当导航栏：从 control 父节点起爬，`isNavBar` 要求非窗口根、peer 标签深度极差 ≤1、容器子树 ≤40 节点、≥2 个不同 peer 标签；缺证据返回 null。`clickTabControl` 先判 `cur === container` 即拒绝，容器永不点击；`selectedState` 只读容器之前的祖先，容器自身 `isSelected` 不作证据。新 `ClockNavBarBoundaryTest` 6 项，旧实现有效 RED 6 tests / 5 failed（断言失败），修后 6/0，其中「真实 tab 条仍可点击选中」为控制组、修前已过。旧 fixture 补「窗口根在 tab 条之上」结构，断言未删弱。
+
+定向 semantics.* + tools.*：144 tests / 0 failed / 0 errors / 0 skipped，exit=0。全量 2234 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿；失败仍是 AgentSkillCatalogTest 1 项、MemoryStoreTest 5 项，未改未跳过，本轮未重跑旧 SHA 基线。日志 logs/pr4-review19-{red1,green1,targeted,targeted2,full}.txt 只留本机。
+
+仍可离线推进：真实三星 tab 条布局下的层级假设（本条启发式仍非已证明的导航身份）、查询/绑定端 selectedState 联动负向矩阵、对象身份适配、阶段2 在线 ToolRouter 同门禁。实机（selected 暴露、抢焦点恢复、计时器唯一绑定）需用户重新授权。未构建安装 APK、未操作手机、未调用付费 API、未 delegate、不改受保护规则、不 push main、不合并。需要复审。
+
 ## 第⑰轮局部修复：审查 6543364579（源码分析 + JVM，未实机）
 
 clickClockTab 在遍历前检查 root 包名、点击前检查目标节点包名，非时钟包或包名缺失安全拒绝；初始/查询恢复/绑定恢复共用该入口。新增私有导航入口的 root跨包与node跨包零点击回归（反射调用真实方法，Android边界MockK）；有效 RED 1 test / 1 failed，修后两种组合均通过。该测试不是完整查询/绑定集成负向矩阵。

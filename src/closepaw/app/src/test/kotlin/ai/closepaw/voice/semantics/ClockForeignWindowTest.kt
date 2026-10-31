@@ -116,8 +116,14 @@ class ClockForeignWindowTest {
         // The tab is a real nav control (bar = 闹钟 + 定时器) and the phone accepts the click.
         every { tab.isClickable } returns true
         every { tab.performAction(any()) } returns true
+        // Round 19: the bar is not the window root; wrap it in the window the reader would see.
+        val win = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { win.packageName } returns clockPkg
+        every { win.childCount } returns 1
+        every { win.getChild(0) } returns root
+        every { root.parent } returns win
         // Initial navigation has no root; only recovery sees the hint before the real tab.
-        every { UiAutomator.root() } returnsMany listOf(null, root)
+        every { UiAutomator.root() } returnsMany listOf(null, win)
         every { UiAutomator.tabSelected("闹钟") } returns true
         every { UiAutomator.readScreen(any()) } returnsMany listOf(
             UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true), rootPackage = ownPkg, serviceAvailable = true),

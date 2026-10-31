@@ -30,7 +30,7 @@ class UiAutomatorReadTest {
         val timer = node("定时器")
         every { alarm.isSelected } returns true
         every { timer.isSelected } returns false
-        val r = UiAutomator.readTree(node("", alarm, timer, node("8:00")), 60, true)
+        val r = UiAutomator.readTree(node("", node("", alarm, timer), node("8:00")), 60, true)
         assertThat(r.selectedTabs["闹钟"]).isTrue()
         assertThat(r.selectedTabs["定时器"]).isFalse()
         assertThat(r.texts).contains("8:00")

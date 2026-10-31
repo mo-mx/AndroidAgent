@@ -1,5 +1,21 @@
 # 阶段 6 · 第 1 步：语义执行闸门（审查修复报告）
 
+## 第⑲轮：审查第十八轮（导航栏容器边界 + 容器本身不可点；离线源码 + JVM，未实机）
+
+针对第十八轮审查（`chatgpt-review SHA:56fd90b`）的两条 P2：
+
+1. **导航栏识别无边界**：旧 `UiAutomator.navControl` 从精确标签向上爬，只要某祖先子树里出现两个时钟 tab 标签就认定为导航栏——页面正文同时有 `闹钟` 标题和 `定时器` 行时，**整个窗口根**也满足，于是 `clickTabControl` 可能点到正文或整页。现在 `navControl` 从 control 的**父节点**开始爬，并用 `isNavBar` 做有界判定：(a) 窗口根不是导航栏；(b) 各 peer 标签在容器内的深度极差 ≤1（真实 tab 条同层）；(c) 容器子树节点数 ≤40（吞下正文的容器不是 tab 条）；(d) 至少两个不同 peer 标签。仍是启发式，但缺证据返回 `null`（不可确认），不猜。
+2. **容器本身可被点击**：旧 `clickTabControl` 在 `cur === container` 的那一轮**先**试 `ACTION_CLICK` 再返回 false，实际允许点整个导航条。现在进入循环先判容器即拒绝，容器永不作为点击目标。
+3. 附带收紧：`selectedState` 只读 control → container **之前**的祖先，导航条自身的 `isSelected` 不再算 tab 选中证据。
+
+TDD：先写 `ClockNavBarBoundaryTest`（6 项）在旧实现上跑出有效 RED `6 tests / 5 failed`（`logs/pr4-review19-red1.txt`，Truth 断言失败，非编译错误），再改生产代码转绿 `6 / 0`（`logs/pr4-review19-green1.txt`）。其中「真实 tab 条仍可解析并选中」是控制组，修复前即通过，不宣称它曾 RED。
+
+旧 fixture 补真实结构（只补证据，不删弱断言）：`TabSelectedStateTest`、`UiAutomatorReadTest`、`ClockTabReachTest`、`ClockForeignWindowTest`、`ClockWindowGateTest`、`ClockAlarmPageEvidenceTest` 的合成树都加了「窗口根在 tab 条之上」的一层——真实 `rootInActiveWindow` 是窗口，不是 tab 条本身。中间态曾出现定向 144 / 12 failed（`logs/pr4-review19-targeted.txt`），全部是旧 fixture 把 tab 条本身当窗口根，补上窗口层后收敛，断言本身未删。
+
+最终：定向（semantics.* + tools.*）**144 tests / 0 failed / 0 errors / 0 skipped**，exit=0（`logs/pr4-review19-targeted2.txt`）；全量 **2234 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**。失败仍是 `AgentSkillCatalogTest` 1 项、`MemoryStoreTest` 5 项，未改、未跳过；本轮未重跑旧 SHA 基线。
+
+边界：全部为 JVM 合成无障碍树契约，不是三星真实 UI。真实三星时钟的 tab 条层级、是否暴露 `isSelected`、抢焦点恢复后同树证据仍需用户重新授权的实机验证；设备矩阵不变（历史 4 通过 / 0 失败 / 3 未测）。未构建或安装 APK、未操作手机、未调用付费 API、未 delegate、未并入 Issue #6、不合并、不 push main。
+
 ## 第⑱轮：审查 6543364579（导航控件身份 + 取消手势点击；离线源码 + JVM，未实机）
 
 需要复审；审查未关闭。定时任务本轮唯一写者，O_CREAT|O_EXCL 取锁，结束仅删自有锁。

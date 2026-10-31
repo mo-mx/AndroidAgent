@@ -29,15 +29,23 @@ class TabSelectedStateTest {
     }
 
     private fun rootWith(vararg children: AccessibilityNodeInfo): AccessibilityNodeInfo {
-        val r = mockk<AccessibilityNodeInfo>(relaxed = true)
-        every { r.text } returns null
-        every { r.contentDescription } returns null
-        every { r.isSelected } returns false
-        every { r.parent } returns null
-        every { r.childCount } returns children.size
-        children.forEachIndexed { i, c -> every { r.getChild(i) } returns c }
-        children.forEach { c -> every { c.parent } returns r }
-        return r
+        val bar = mockk<AccessibilityNodeInfo>(relaxed = true)
+        every { bar.text } returns null
+        every { bar.contentDescription } returns null
+        every { bar.isSelected } returns false
+        every { bar.childCount } returns children.size
+        children.forEachIndexed { i, c -> every { bar.getChild(i) } returns c }
+        children.forEach { c -> every { c.parent } returns bar }
+        // Round 19: a tab bar is never the window root, so the fixture exposes the window above it.
+        val win = mockk<AccessibilityNodeInfo>(relaxed = true)
+        every { win.text } returns null
+        every { win.contentDescription } returns null
+        every { win.isSelected } returns false
+        every { win.parent } returns null
+        every { win.childCount } returns 1
+        every { win.getChild(0) } returns bar
+        every { bar.parent } returns win
+        return win
     }
 
     /** A node that only wraps [child] and carries the selection flag, as a clickable tab item does. */

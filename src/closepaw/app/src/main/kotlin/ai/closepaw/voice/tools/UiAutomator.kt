@@ -91,29 +91,84 @@ object UiAutomator {
         val wanted = peers.map { it.trim() }.filter { it.isNotEmpty() }.toSet()
         if (wanted.size < 2) return null
         val control = findFirst(r) { exactLabel(it, target) } ?: return null
-        var cur: AccessibilityNodeInfo? = control
+        var cur: AccessibilityNodeInfo? = runCatching { control.parent }.getOrNull()
         var hops = 0
         while (cur != null && hops++ < NAV_MAX_HOPS) {
-            if (labelsIn(cur, wanted).size >= 2) return NavControl(control, cur)
+            if (isNavBar(cur, r, wanted)) return NavControl(control, cur)
             cur = runCatching { cur!!.parent }.getOrNull()
         }
         return null
     }
 
     /**
+     * Structure-only test for "this ancestor is a navigation bar".
+     *
+     * Review round 18: the previous rule was "climb until an ancestor holds two clock tab labels",
+     * which the page root always satisfies once the body carries a `闹钟` header and a `定时器` row.
+     * The rule is now bounded and fails closed:
+     *  - the window root is never a bar — a page body always shows tab labels somewhere;
+     *  - the peer labels must sit at the same depth (±1), as tabs in one strip do;
+     *  - the bar must be small; an ancestor that swallowed the page content is not a bar;
+     *  - at least two distinct peer labels must be present.
+     *
+     * This is still a heuristic — absence of a bar returns null, never a guess.
+     */
+    private fun isNavBar(
+        node: AccessibilityNodeInfo,
+        root: AccessibilityNodeInfo,
+        wanted: Set<String>,
+    ): Boolean {
+        if (node === root) return false
+        val depths = labelDepths(node, wanted)
+        if (depths.size < 2) return false
+        val spread = depths.values.max() - depths.values.min()
+        if (spread > NAV_MAX_LABEL_SPREAD) return false
+        var count = 0
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(node)
+        while (queue.isNotEmpty() && count <= NAV_MAX_BAR_NODES) {
+            val n = queue.removeFirst()
+            count++
+            for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
+                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
+            }
+        }
+        return count <= NAV_MAX_BAR_NODES
+    }
+
+    /** Depth of the first exact-label node for each peer label inside [node]'s subtree. */
+    private fun labelDepths(node: AccessibilityNodeInfo, wanted: Set<String>): Map<String, Int> {
+        val found = HashMap<String, Int>()
+        val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
+        queue.add(node to 0)
+        var guard = 0
+        while (queue.isNotEmpty() && guard++ < MAX_NODES) {
+            val (n, depth) = queue.removeFirst()
+            for (label in wanted) if (label !in found && exactLabel(n, label)) found[label] = depth
+            for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
+                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it to depth + 1) }
+            }
+        }
+        return found
+    }
+
+    /**
      * Click a tab control with ACTION_CLICK only, on the control or on a clickable ancestor that is
      * still inside its navigation container. No generic parent climb past the nav bar and no
      * coordinate gesture: `UiAutomator.click`/`tap` are deliberately not reachable from here.
+     *
+     * Review round 18: the bar container itself is never a click target — clicking it would land on
+     * the whole strip (or the page, if the heuristic ever mis-identified it) instead of one tab.
      */
     internal fun clickTabControl(nav: NavControl): Boolean {
         var cur: AccessibilityNodeInfo? = nav.control
         var hops = 0
         while (cur != null && hops++ < NAV_MAX_HOPS) {
             val node = cur
+            if (node === nav.container) return false
             if (runCatching { node.isClickable }.getOrDefault(false) &&
                 runCatching { node.performAction(AccessibilityNodeInfo.ACTION_CLICK) }.getOrDefault(false)
             ) return true
-            if (node === nav.container) return false
             cur = runCatching { node.parent }.getOrNull()
         }
         return false
@@ -125,22 +180,10 @@ object UiAutomator {
             runCatching { n.contentDescription?.toString() }.getOrNull(),
         ).any { it.trim() == target }
 
-    /** Distinct tab labels present in [node]'s subtree, intersected with [wanted]. */
-    private fun labelsIn(node: AccessibilityNodeInfo, wanted: Set<String>): Set<String> {
-        val found = HashSet<String>()
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(node)
-        var guard = 0
-        while (queue.isNotEmpty() && guard++ < MAX_NODES) {
-            val n = queue.removeFirst()
-            for (label in wanted) if (exactLabel(n, label)) found.add(label)
-            for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
-                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
-            }
-        }
-        return found
-    }
-
+    /**
+     * Selection evidence must come from the tab control or its ancestors *inside* the bar — never
+     * from the bar container itself (round 18: a selected container is not a selected tab).
+     */
     internal fun selectedState(
         r: AccessibilityNodeInfo?,
         text: String,
@@ -149,14 +192,13 @@ object UiAutomator {
         if (r == null) return null
         val target = text.trim()
         if (target.isEmpty()) return null
-        // Selection evidence must belong to an identified navigation control.
         val nav = navControl(r, target, peers) ?: return null
         var cur: AccessibilityNodeInfo? = nav.control
         var hops = 0
         while (cur != null && hops++ < NAV_MAX_HOPS) {
             val node = cur
-            if (runCatching { node.isSelected }.getOrDefault(false)) return true
             if (node === nav.container) break
+            if (runCatching { node.isSelected }.getOrDefault(false)) return true
             cur = runCatching { node.parent }.getOrNull()
         }
         // No node in the tree advertises selection at all → the platform does not expose it here.
@@ -288,6 +330,15 @@ object UiAutomator {
 
     /** Bounded climb from a label to its navigation bar; deeper than any real tab structure. */
     private const val NAV_MAX_HOPS = 5
+
+    /**
+     * A navigation bar is small. An ancestor that reaches this many nodes has swallowed page content
+     * and is not a tab strip (review round 18: the page root satisfied the old two-label rule).
+     */
+    private const val NAV_MAX_BAR_NODES = 40
+
+    /** Peer tab labels in one strip sit at the same depth; allow one level of icon-label nesting. */
+    private const val NAV_MAX_LABEL_SPREAD = 1
 
     /**
      * The clock's bottom-navigation labels. Two or more of them under one ancestor is the structural

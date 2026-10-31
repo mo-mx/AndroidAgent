@@ -87,7 +87,13 @@ class ClockTabReachTest {
         // The tab is a real nav control (bar = 闹钟 + 定时器) but the phone refuses the click.
         every { tab.isClickable } returns true
         every { tab.performAction(any()) } returns false
-        every { UiAutomator.root() } returns root
+        // Round 19: the bar is not the window root; the window sits above it.
+        val win = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { win.packageName } returns clockPkg
+        every { win.childCount } returns 1
+        every { win.getChild(0) } returns root
+        every { root.parent } returns win
+        every { UiAutomator.root() } returns win
         // This represents the old contains-match hitting the hint card instead.
         every { UiAutomator.clickText("闹钟") } returns true
         every { UiAutomator.tabSelected("闹钟") } returns null
@@ -151,7 +157,13 @@ class ClockTabReachTest {
         every { peer.packageName } returns clockPkg
         every { peer.text } returns "定时器"
         every { peer.parent } returns bar
-        every { UiAutomator.root() } returns bar
+        // Round 19: the bar is not the window root; the window sits above it.
+        val win = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { win.packageName } returns clockPkg
+        every { win.childCount } returns 1
+        every { win.getChild(0) } returns bar
+        every { bar.parent } returns win
+        every { UiAutomator.root() } returns win
         every { UiAutomator.clickText("闹钟") } returns true
         every { UiAutomator.tabSelected("闹钟") } returns false
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(

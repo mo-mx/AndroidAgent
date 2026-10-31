@@ -252,7 +252,8 @@ class ClockWindowGateTest {
         val tree = node("", clockPkg, hint, tab, node("定时器"))
         every { tab.isClickable } returns true
         every { tab.performAction(any()) } returns true
-        every { UiAutomator.root() } returns tree
+        // Round 19: the bar is not the window root; the window sits above it.
+        every { UiAutomator.root() } returns node("", clockPkg, tree)
         every { UiAutomator.clickText("闹钟") } returns false
         every { UiAutomator.waitForText("闹钟", any()) } returns true
         every { UiAutomator.tabSelected("闹钟") } returns true

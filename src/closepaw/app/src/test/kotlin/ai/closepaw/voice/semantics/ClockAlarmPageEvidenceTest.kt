@@ -100,7 +100,8 @@ class ClockAlarmPageEvidenceTest {
         every { tab.isClickable } returns true
         every { tab.performAction(any()) } returns true
         val nav = node("", clockPkg, tab, node("定时器"))
-        every { UiAutomator.root() } returns nav
+        // Round 19: a tab bar is never the window root, so the fixture needs a window above it.
+        every { UiAutomator.root() } returns node("", clockPkg, nav)
         every { UiAutomator.tabSelected("闹钟") } returns null
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("8:00", "9:00"), nodesVisited = 40, rootPackage = clockPkg,
@@ -147,7 +148,8 @@ class ClockAlarmPageEvidenceTest {
         every { tab.isClickable } returns true
         every { tab.performAction(any()) } returns true
         val nav = node("", clockPkg, tab, node("定时器"))
-        every { UiAutomator.root() } returns nav
+        // Round 19: a tab bar is never the window root, so the fixture needs a window above it.
+        every { UiAutomator.root() } returns node("", clockPkg, nav)
         every { UiAutomator.tabSelected("闹钟") } returns null
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
             texts = listOf("暂无闹钟"), nodesVisited = 12, rootPackage = clockPkg,
