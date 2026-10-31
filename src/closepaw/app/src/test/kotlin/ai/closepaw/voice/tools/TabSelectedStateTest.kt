@@ -10,8 +10,13 @@ import com.google.common.truth.Truth.assertThat
  * Selection state of a tab is the only in-tree evidence that the *target page* was reached:
  * a visible label only proves the nav control exists. `null` means "not exposed by this tree" and
  * must stay distinct from `false` ("present and explicitly not selected").
+ *
+ * Review `6543364579` item 3: selection is only read from a node that is a tab *inside a navigation
+ * bar* (two or more distinct clock tab labels under one ancestor), so every fixture here carries the
+ * real parent chain and a peer tab label. The assertions are unchanged.
  */
 class TabSelectedStateTest {
+    private val peer = "定时器"
 
     private fun node(text: String?, desc: String? = null, selected: Boolean = false): AccessibilityNodeInfo {
         val n = mockk<AccessibilityNodeInfo>(relaxed = true)
@@ -31,42 +36,52 @@ class TabSelectedStateTest {
         every { r.parent } returns null
         every { r.childCount } returns children.size
         children.forEachIndexed { i, c -> every { r.getChild(i) } returns c }
+        children.forEach { c -> every { c.parent } returns r }
         return r
+    }
+
+    /** A node that only wraps [child] and carries the selection flag, as a clickable tab item does. */
+    private fun wrapper(selected: Boolean, vararg children: AccessibilityNodeInfo): AccessibilityNodeInfo {
+        val w = mockk<AccessibilityNodeInfo>(relaxed = true)
+        every { w.text } returns null
+        every { w.contentDescription } returns null
+        every { w.isSelected } returns selected
+        every { w.childCount } returns children.size
+        children.forEachIndexed { i, c -> every { w.getChild(i) } returns c }
+        children.forEach { c -> every { c.parent } returns w }
+        return w
     }
 
     @Test fun `selected tab is reported as selected`() {
         val tab = node("闹钟", selected = true)
-        assertThat(UiAutomator.selectedState(rootWith(tab), "闹钟")).isTrue()
+        assertThat(UiAutomator.selectedState(rootWith(tab, node(peer)), "闹钟")).isTrue()
     }
 
     @Test fun `tab that exists but is not selected while another tab is selected reports false`() {
         val alarms = node("闹钟", selected = false)
-        val timer = node("定时器", selected = true)
+        val timer = node(peer, selected = true)
         assertThat(UiAutomator.selectedState(rootWith(alarms, timer), "闹钟")).isFalse()
     }
 
     @Test fun `tree without any selection state is unknown, not false`() {
         val alarms = node("闹钟", selected = false)
-        assertThat(UiAutomator.selectedState(rootWith(alarms), "闹钟")).isNull()
+        assertThat(UiAutomator.selectedState(rootWith(alarms, node(peer, selected = false)), "闹钟")).isNull()
     }
 
     @Test fun `absent tab is unknown`() {
-        val timer = node("定时器", selected = true)
+        val timer = node(peer, selected = true)
         assertThat(UiAutomator.selectedState(rootWith(timer), "闹钟")).isNull()
     }
 
     @Test fun `content description labels are matched too`() {
         val tab = node(null, desc = "闹钟", selected = true)
-        assertThat(UiAutomator.selectedState(rootWith(tab), "闹钟")).isTrue()
+        assertThat(UiAutomator.selectedState(rootWith(tab, node(peer)), "闹钟")).isTrue()
     }
 
     @Test fun `selection carried by a clickable ancestor still counts`() {
-        val parent = mockk<AccessibilityNodeInfo>(relaxed = true)
         val tab = node("闹钟", selected = false)
-        every { tab.parent } returns parent
-        every { parent.isSelected } returns true
-        every { parent.parent } returns null
-        assertThat(UiAutomator.selectedState(rootWith(tab), "闹钟")).isTrue()
+        val item = wrapper(selected = true, tab)
+        assertThat(UiAutomator.selectedState(rootWith(item, node(peer)), "闹钟")).isTrue()
     }
 
     @Test fun `a label that merely contains the tab name does not decide the selection`() {
@@ -76,12 +91,12 @@ class TabSelectedStateTest {
         val hint = node("对关联闹钟进行分组")
         val tab = node(null, desc = "闹钟", selected = true)
         val page = node("第 1 页，共 2 页", selected = true)
-        assertThat(UiAutomator.selectedState(rootWith(hint, page, tab), "闹钟")).isTrue()
+        assertThat(UiAutomator.selectedState(rootWith(hint, page, tab, node(peer)), "闹钟")).isTrue()
     }
 
     @Test fun `containing label cannot establish tab selection without exact tab`() {
         val tab = node("闹钟 已开启", selected = true)
-        assertThat(UiAutomator.selectedState(rootWith(tab), "闹钟")).isNull()
+        assertThat(UiAutomator.selectedState(rootWith(tab, node(peer)), "闹钟")).isNull()
     }
 
     @Test fun `hint card with selected parent cannot establish tab selection`() {

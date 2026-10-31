@@ -20,6 +20,8 @@ class UiAutomatorReadTest {
         every { n.packageName } returns "com.sec.android.app.clockpackage"
         every { n.childCount } returns children.size
         children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
+        // Tab identity is proven by a navigation bar, so the fixture must expose the real parents.
+        children.forEach { c -> every { c.parent } returns n }
         return n
     }
 

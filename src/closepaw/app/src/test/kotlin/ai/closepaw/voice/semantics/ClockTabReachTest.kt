@@ -73,13 +73,21 @@ class ClockTabReachTest {
     @Test fun `failed exact tab never falls back to a hint card`() {
         val root = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
         val tab = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
-        every { root.childCount } returns 1
+        val peer = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { root.childCount } returns 2
         every { root.getChild(0) } returns tab
+        every { root.getChild(1) } returns peer
         every { root.packageName } returns clockPkg
         every { tab.packageName } returns clockPkg
+        every { peer.packageName } returns clockPkg
         every { tab.text } returns "闹钟"
+        every { peer.text } returns "定时器"
+        every { tab.parent } returns root
+        every { peer.parent } returns root
+        // The tab is a real nav control (bar = 闹钟 + 定时器) but the phone refuses the click.
+        every { tab.isClickable } returns true
+        every { tab.performAction(any()) } returns false
         every { UiAutomator.root() } returns root
-        every { UiAutomator.click(tab) } returns false
         // This represents the old contains-match hitting the hint card instead.
         every { UiAutomator.clickText("闹钟") } returns true
         every { UiAutomator.tabSelected("闹钟") } returns null
@@ -90,7 +98,10 @@ class ClockTabReachTest {
         assertThat(r.verified).isFalse()
         assertThat(r.detail).contains("tab=click-failed-label-only")
         verify(exactly = 0) { UiAutomator.clickText("闹钟") }
-        verify(exactly = 1) { UiAutomator.click(tab) }
+        // Clicking is ACTION_CLICK on the tab only; the generic click/gesture path is unreachable.
+        verify(exactly = 1) { tab.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) }
+        verify(exactly = 0) { UiAutomator.click(any()) }
+        verify(exactly = 0) { UiAutomator.tap(any(), any()) }
     }
 
     @Test fun `click failure with only the tab label visible is not a reached tab`() {
@@ -123,11 +134,24 @@ class ClockTabReachTest {
     }
 
     @Test fun `a delivered click on a tab that reports not selected is not a reached tab`() {
+        val bar = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
         val nav = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        val peer = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { bar.packageName } returns clockPkg
+        every { bar.childCount } returns 2
+        every { bar.getChild(0) } returns nav
+        every { bar.getChild(1) } returns peer
         every { nav.packageName } returns clockPkg
         every { nav.text } returns "闹钟"
-        every { UiAutomator.root() } returns nav
-        every { UiAutomator.click(nav) } returns true
+        // The tab is a real nav control inside the bar, the click is delivered, yet the phone
+        // reports the tab as not selected — the read must not count as the alarm page.
+        every { nav.isClickable } returns true
+        every { nav.performAction(any()) } returns true
+        every { nav.parent } returns bar
+        every { peer.packageName } returns clockPkg
+        every { peer.text } returns "定时器"
+        every { peer.parent } returns bar
+        every { UiAutomator.root() } returns bar
         every { UiAutomator.clickText("闹钟") } returns true
         every { UiAutomator.tabSelected("闹钟") } returns false
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
@@ -138,6 +162,9 @@ class ClockTabReachTest {
         assertThat(r.verified).isFalse()
         assertThat(r.speak).contains("无法读取闹钟列表")
         assertThat(r.detail).contains("tab=clicked-not-selected")
+        verify(exactly = 1) { nav.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) }
+        verify(exactly = 0) { UiAutomator.click(any()) }
+        verify(exactly = 0) { UiAutomator.tap(any(), any()) }
     }
 
     @Test fun `an already selected tab counts as reached without a click`() {

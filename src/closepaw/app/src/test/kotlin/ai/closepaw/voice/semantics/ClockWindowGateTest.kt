@@ -45,6 +45,7 @@ class ClockWindowGateTest {
         every { n.isChecked } returns false
         every { n.childCount } returns children.size
         children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
+        children.forEach { c -> every { c.parent } returns n }
         every { UiAutomator.selectedState(n, any()) } returns true
         return n
     }
@@ -247,9 +248,11 @@ class ClockWindowGateTest {
         val hint = node("对关联闹钟进行分组")
         val tab = node("", clockPkg)
         every { tab.contentDescription } returns "闹钟"
-        val tree = node("", clockPkg, hint, tab)
+        // Tab identity requires a navigation bar: a peer tab label must sit next to it.
+        val tree = node("", clockPkg, hint, tab, node("定时器"))
+        every { tab.isClickable } returns true
+        every { tab.performAction(any()) } returns true
         every { UiAutomator.root() } returns tree
-        every { UiAutomator.click(tab) } returns true
         every { UiAutomator.clickText("闹钟") } returns false
         every { UiAutomator.waitForText("闹钟", any()) } returns true
         every { UiAutomator.tabSelected("闹钟") } returns true
@@ -260,8 +263,10 @@ class ClockWindowGateTest {
         val r = ClockControl.queryAlarms(ctx)
 
         assertThat(r.verified).isTrue()
-        verify(exactly = 1) { UiAutomator.click(tab) }
-        verify(exactly = 0) { UiAutomator.click(hint) }
+        verify(exactly = 1) { tab.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) }
+        verify(exactly = 0) { hint.performAction(any()) }
+        verify(exactly = 0) { UiAutomator.click(any()) }
+        verify(exactly = 0) { UiAutomator.tap(any(), any()) }
         assertThat(r.detail).contains("tab=clicked")
     }
 }

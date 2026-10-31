@@ -34,34 +34,25 @@ object ClockControl {
     internal data class TabReach(val reached: Boolean, val reason: String, val selected: Boolean? = null)
 
     /**
-     * Click only an exact-label control; missing controls never permit a containing-text click.
+     * Click only an exact-label *navigation* control; missing controls never permit a containing-text
+     * click.
      *
      * Device evidence (2026-10-31, build 54e4b77): `clickText("闹钟")` matched the alarm tab's hint
      * card (`对关联闹钟进行分组`) first, so the tap landed on a card while the read still came from
      * the clock package — the page looked readable but was not the tab. No loose matcher fallback.
+     *
+     * Review `6543364579`: the label must additionally be a tab *inside a navigation bar* (two or
+     * more distinct clock tab labels under one ancestor), and the click is ACTION_CLICK only —
+     * never `UiAutomator.click` (clickable-parent climb + coordinate gesture). `null` = no verified
+     * tab control, `false` = the control exists but refused.
      */
     private fun clickClockTab(tab: String): Boolean? = runCatching {
         val root = UiAutomator.root() ?: return@runCatching null
         if (root.packageName?.toString() != CLOCK_PKG) return@runCatching false
-        val target = tab.trim()
-        val queue = ArrayDeque<android.view.accessibility.AccessibilityNodeInfo>()
-        queue.add(root)
-        var guard = 0
-        while (queue.isNotEmpty() && guard++ < UiAutomator.MAX_NODES) {
-            val n = queue.removeFirst()
-            val labels = listOfNotNull(
-                runCatching { n.text?.toString() }.getOrNull(),
-                runCatching { n.contentDescription?.toString() }.getOrNull(),
-            ).map { it.trim() }
-            if (labels.any { it == target }) {
-                if (n.packageName?.toString() != CLOCK_PKG) return@runCatching false
-                return@runCatching UiAutomator.click(n)
-            }
-            for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
-                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
-            }
-        }
-        null
+        val nav = UiAutomator.navControl(root, tab, UiAutomator.CLOCK_TABS) ?: return@runCatching null
+        if (nav.control.packageName?.toString() != CLOCK_PKG) return@runCatching false
+        if (nav.container.packageName?.toString() != CLOCK_PKG) return@runCatching false
+        UiAutomator.clickTabControl(nav)
     }.getOrNull()
 
     private fun openClockTab(ctx: Context, tab: String): TabReach {

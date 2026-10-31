@@ -63,39 +63,114 @@ object UiAutomator {
      * selection state and this tab is not the selected one; `null` = the tab is absent or this tree
      * exposes no selection state at all, so "reached" cannot be decided from it.
      */
-    fun tabSelected(text: String): Boolean? = selectedState(root(), text)
+    /** Tab labels the caller considers navigation peers; a tab is only identified among these. */
+    fun tabSelected(text: String, peers: List<String> = CLOCK_TABS): Boolean? =
+        selectedState(root(), text, peers)
 
-    internal fun selectedState(r: AccessibilityNodeInfo?, text: String): Boolean? {
+    /**
+     * The exact-label navigation control for [tab] together with the container that proves it is a tab.
+     *
+     * A same-package node that merely reads "闹钟" (a section header, a settings row, a hint card) is
+     * not navigation identity. The control counts only when one of its ancestors shows at least two
+     * distinct tab [peers] in its own subtree — i.e. a navigation bar — so both the click target and
+     * the selection evidence stay on a real tab.
+     */
+    internal data class NavControl(
+        val control: AccessibilityNodeInfo,
+        val container: AccessibilityNodeInfo,
+    )
+
+    internal fun navControl(
+        r: AccessibilityNodeInfo?,
+        tab: String,
+        peers: List<String> = CLOCK_TABS,
+    ): NavControl? {
         if (r == null) return null
-        val target = text.trim().lowercase()
+        val target = tab.trim()
         if (target.isEmpty()) return null
-        var exact: AccessibilityNodeInfo? = null
+        val wanted = peers.map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        if (wanted.size < 2) return null
+        val control = findFirst(r) { exactLabel(it, target) } ?: return null
+        var cur: AccessibilityNodeInfo? = control
+        var hops = 0
+        while (cur != null && hops++ < NAV_MAX_HOPS) {
+            if (labelsIn(cur, wanted).size >= 2) return NavControl(control, cur)
+            cur = runCatching { cur!!.parent }.getOrNull()
+        }
+        return null
+    }
+
+    /**
+     * Click a tab control with ACTION_CLICK only, on the control or on a clickable ancestor that is
+     * still inside its navigation container. No generic parent climb past the nav bar and no
+     * coordinate gesture: `UiAutomator.click`/`tap` are deliberately not reachable from here.
+     */
+    internal fun clickTabControl(nav: NavControl): Boolean {
+        var cur: AccessibilityNodeInfo? = nav.control
+        var hops = 0
+        while (cur != null && hops++ < NAV_MAX_HOPS) {
+            val node = cur
+            if (runCatching { node.isClickable }.getOrDefault(false) &&
+                runCatching { node.performAction(AccessibilityNodeInfo.ACTION_CLICK) }.getOrDefault(false)
+            ) return true
+            if (node === nav.container) return false
+            cur = runCatching { node.parent }.getOrNull()
+        }
+        return false
+    }
+
+    private fun exactLabel(n: AccessibilityNodeInfo, target: String): Boolean =
+        listOfNotNull(
+            runCatching { n.text?.toString() }.getOrNull(),
+            runCatching { n.contentDescription?.toString() }.getOrNull(),
+        ).any { it.trim() == target }
+
+    /** Distinct tab labels present in [node]'s subtree, intersected with [wanted]. */
+    private fun labelsIn(node: AccessibilityNodeInfo, wanted: Set<String>): Set<String> {
+        val found = HashSet<String>()
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(node)
+        var guard = 0
+        while (queue.isNotEmpty() && guard++ < MAX_NODES) {
+            val n = queue.removeFirst()
+            for (label in wanted) if (exactLabel(n, label)) found.add(label)
+            for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
+                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
+            }
+        }
+        return found
+    }
+
+    internal fun selectedState(
+        r: AccessibilityNodeInfo?,
+        text: String,
+        peers: List<String> = CLOCK_TABS,
+    ): Boolean? {
+        if (r == null) return null
+        val target = text.trim()
+        if (target.isEmpty()) return null
+        // Selection evidence must belong to an identified navigation control.
+        val nav = navControl(r, target, peers) ?: return null
+        var cur: AccessibilityNodeInfo? = nav.control
+        var hops = 0
+        while (cur != null && hops++ < NAV_MAX_HOPS) {
+            val node = cur
+            if (runCatching { node.isSelected }.getOrDefault(false)) return true
+            if (node === nav.container) break
+            cur = runCatching { node.parent }.getOrNull()
+        }
+        // No node in the tree advertises selection at all → the platform does not expose it here.
         var anySelected = false
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(r)
         var guard = 0
         while (queue.isNotEmpty() && guard++ < MAX_NODES) {
             val n = queue.removeFirst()
-            if (runCatching { n.isSelected }.getOrDefault(false)) anySelected = true
-            if (exact == null) {
-                val labels = listOfNotNull(runCatching { n.text?.toString() }.getOrNull(),
-                    runCatching { n.contentDescription?.toString() }.getOrNull())
-                    .map { it.trim().lowercase() }
-                // Containing labels may be hint cards, never navigation identity evidence.
-                if (labels.any { it == target }) exact = n
-            }
+            if (runCatching { n.isSelected }.getOrDefault(false)) { anySelected = true; break }
             for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
                 runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
             }
         }
-        val node = exact ?: return null
-        var cur: AccessibilityNodeInfo? = node
-        var hops = 0
-        while (cur != null && hops++ < 4) {
-            if (runCatching { cur!!.isSelected }.getOrDefault(false)) return true
-            cur = runCatching { cur!!.parent }.getOrNull()
-        }
-        // No node in the tree advertises selection at all → the platform does not expose it here.
         if (!anySelected) return null
         return false
     }
@@ -211,6 +286,15 @@ object UiAutomator {
 
     const val MAX_NODES = 600
 
+    /** Bounded climb from a label to its navigation bar; deeper than any real tab structure. */
+    private const val NAV_MAX_HOPS = 5
+
+    /**
+     * The clock's bottom-navigation labels. Two or more of them under one ancestor is the structural
+     * evidence that identifies a navigation bar, so a lone same-package "闹钟" is never a tab.
+     */
+    val CLOCK_TABS: List<String> = listOf("闹钟", "定时器", "世界时钟", "秒表")
+
     fun readScreen(limit: Int = 60): ScreenRead = readTree(root(), limit, available())
 
     /**
@@ -241,6 +325,6 @@ object UiAutomator {
         }
         val pkg = runCatching { r.packageName?.toString() }.getOrNull()
         return ScreenRead(out, visited, queue.isNotEmpty(), dropped, pkg, serviceAvailable, checkables,
-            listOf("闹钟", "定时器").associateWith { selectedState(r, it) })
+            CLOCK_TABS.associateWith { selectedState(r, it, CLOCK_TABS) })
     }
 }

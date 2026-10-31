@@ -45,6 +45,7 @@ class ClockAlarmPageEvidenceTest {
         every { n.isChecked } returns false
         every { n.childCount } returns children.size
         children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
+        children.forEach { c -> every { c.parent } returns n }
         every { UiAutomator.selectedState(n, any()) } returns true
         return n
     }
@@ -95,7 +96,10 @@ class ClockAlarmPageEvidenceTest {
     }
 
     @Test fun `fresh selected alarm read is independent of navigation selection`() {
-        val nav = node("闹钟")
+        val tab = node("闹钟")
+        every { tab.isClickable } returns true
+        every { tab.performAction(any()) } returns true
+        val nav = node("", clockPkg, tab, node("定时器"))
         every { UiAutomator.root() } returns nav
         every { UiAutomator.tabSelected("闹钟") } returns null
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
@@ -139,7 +143,10 @@ class ClockAlarmPageEvidenceTest {
     }
 
     @Test fun `explicit empty marker still proves an empty alarm list`() {
-        val nav = node("闹钟")
+        val tab = node("闹钟")
+        every { tab.isClickable } returns true
+        every { tab.performAction(any()) } returns true
+        val nav = node("", clockPkg, tab, node("定时器"))
         every { UiAutomator.root() } returns nav
         every { UiAutomator.tabSelected("闹钟") } returns null
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),

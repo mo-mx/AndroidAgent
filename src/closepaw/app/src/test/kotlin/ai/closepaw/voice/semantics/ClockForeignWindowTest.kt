@@ -98,17 +98,26 @@ class ClockForeignWindowTest {
         every { AppRegistry.launch(any(), any()) } returns ToolResult.ok("app", "opened", verified = true)
         val hint = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
         val tab = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        val peer = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
         val root = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
         every { root.packageName } returns clockPkg
         every { tab.packageName } returns clockPkg
+        every { peer.packageName } returns clockPkg
         every { hint.text } returns "对关联闹钟进行分组"
         every { tab.text } returns "闹钟"
-        every { root.childCount } returns 2
+        every { peer.text } returns "定时器"
+        every { root.childCount } returns 3
         every { root.getChild(0) } returns hint
         every { root.getChild(1) } returns tab
+        every { root.getChild(2) } returns peer
+        every { tab.parent } returns root
+        every { peer.parent } returns root
+        every { hint.parent } returns root
+        // The tab is a real nav control (bar = 闹钟 + 定时器) and the phone accepts the click.
+        every { tab.isClickable } returns true
+        every { tab.performAction(any()) } returns true
         // Initial navigation has no root; only recovery sees the hint before the real tab.
         every { UiAutomator.root() } returnsMany listOf(null, root)
-        every { UiAutomator.click(tab) } returns true
         every { UiAutomator.tabSelected("闹钟") } returns true
         every { UiAutomator.readScreen(any()) } returnsMany listOf(
             UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true), rootPackage = ownPkg, serviceAvailable = true),
@@ -116,8 +125,10 @@ class ClockForeignWindowTest {
                 serviceAvailable = true, checkableCount = 1))
         val r = ClockControl.queryAlarms(ctx)
         assertThat(r.verified).isTrue()
-        verify(exactly = 1) { UiAutomator.click(tab) }
-        verify(exactly = 0) { UiAutomator.click(hint) }
+        verify(exactly = 1) { tab.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) }
+        verify(exactly = 0) { hint.performAction(any()) }
+        verify(exactly = 0) { UiAutomator.click(any()) }
+        verify(exactly = 0) { UiAutomator.tap(any(), any()) }
         // Missing initial root never permits a containing-text fallback.
         verify(exactly = 0) { UiAutomator.clickText("闹钟") }
     }

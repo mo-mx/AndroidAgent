@@ -1,5 +1,22 @@
 # 阶段 6 · 第 1 步：语义执行闸门（审查修复报告）
 
+## 第⑱轮：审查 6543364579（导航控件身份 + 取消手势点击；离线源码 + JVM，未实机）
+
+需要复审；审查未关闭。定时任务本轮唯一写者，O_CREAT|O_EXCL 取锁，结束仅删自有锁。
+
+处理该审查第 2、3 条（第 1 条包名门禁已在第⑰轮完成）：
+
+1. **导航点击不再走通用 click**：`ClockControl.clickClockTab` 原先调用 `UiAutomator.click(n)`，而该通用 helper 会向上找可点击父节点、最后用屏幕坐标 `tap()` 兜底。现在改用新增的 `UiAutomator.clickTabControl`：只对 tab 控件或**仍在其导航容器内**的可点击祖先做 `ACTION_CLICK`，永不进入父级无限上溯或坐标手势。
+2. **选中证据限定到导航控件/容器**：`UiAutomator.selectedState` 现在要求精确标签节点属于一个可识别的导航栏（同一祖先子树内出现 ≥2 个不同时钟 tab 标签：闹钟/定时器/世界时钟/秒表，向上最多 5 层），并从该控件向上读到容器为止；否则返回 `null`（不可确认）。同包但非导航的同名节点（分区标题、设置行、提示卡）不再能当页面身份。`ScreenRead.selectedTabs` 同步改为按四个 tab 标签计算。
+
+TDD：先写 `ClockTabControlIdentityTest`（7 项）在旧实现上跑出有效 RED `6 tests / 5 failed`（`logs/pr4-review18-red1.txt`，断言失败，非编译错误），再改生产代码转绿。其中"同包非导航精确标签不作为 tab"与"无导航容器时 selectedState 为 null"是行为 RED；新增的第 7 项 `readTree 不把非导航标签当闹钟页` 是在修复后补的防回归（其生产路径与已 RED 的 selectedState 用例相同），不宣称它本身曾 RED。
+
+收紧后必须同步补 fixture 证据（不改断言、不跳过）：`TabSelectedStateTest`、`UiAutomatorReadTest`、`ClockTabReachTest`、`ClockForeignWindowTest`、`ClockWindowGateTest`、`ClockAlarmPageEvidenceTest` 的合成树补上父链与第二个 tab 标签；原先 `verify { UiAutomator.click(tab) }` 的正向断言收紧为 `tab.performAction(ACTION_CLICK)` = 1 且 `UiAutomator.click/tap` = 0。
+
+最终：定向（semantics.* + tools.*）137 tests / 0 failed / 0 errors / 0 skipped，exit=0（`logs/pr4-review18-targeted.txt`）；全量 **2228 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**。失败仍为 AgentSkillCatalogTest 1 项、MemoryStoreTest 5 项，未改、未跳过；本轮未重跑旧 SHA 基线。
+
+边界：全部为 JVM 合成无障碍树契约，不是三星真实 UI；导航栏"≥2 个 tab 标签同容器"是结构假设，三星是否暴露 `isSelected`、抢焦点恢复、真实布局与计时器唯一对象绑定仍需用户重新授权的实机验证。设备矩阵不变（历史 4 通过 / 0 失败 / 3 未测）。未构建或安装 APK、未操作手机、未调用付费 API、未 delegate、未并入 Issue #6、不合并、不 push main。
+
 ## 第⑮轮：审查 6542779543（针对 d543cd3；离线源码 + JVM）
 
 需要复审，尚无独立 reviewer 批准。定时任务由用户暂停，本轮唯一写者；进入时 O_CREAT|O_EXCL 原子创建 .git/semantic-gate-writer.lock（owner/pid/started），完成时仅删除自有锁并检查不存在。
