@@ -79,8 +79,15 @@ class TabSelectedStateTest {
         assertThat(UiAutomator.selectedState(rootWith(hint, page, tab), "闹钟")).isTrue()
     }
 
-    @Test fun `containing label still works when no exact label exists`() {
+    @Test fun `containing label cannot establish tab selection without exact tab`() {
         val tab = node("闹钟 已开启", selected = true)
-        assertThat(UiAutomator.selectedState(rootWith(tab), "闹钟")).isTrue()
+        assertThat(UiAutomator.selectedState(rootWith(tab), "闹钟")).isNull()
+    }
+
+    @Test fun `hint card with selected parent cannot establish tab selection`() {
+        val hint = node("对关联闹钟进行分组")
+        val parent = node(null, selected = true)
+        every { hint.parent } returns parent
+        assertThat(UiAutomator.selectedState(rootWith(hint, parent), "闹钟")).isNull()
     }
 }

@@ -1,5 +1,12 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第⑯轮局部修复：审查 6543146968（源码 + JVM，未实机）
+
+移除 selectedState 的包含匹配回退；仅提示卡且父 selected=true 时返回 null。旧兼容用例收紧为拒绝，新增提示卡父选中回归。有效 RED：9 tests / 2 failed / 0 errors；最终定向130 tests / 0 failed / 0 errors / 0 skipped；全量2220 tests / 6 failed / 0 errors / 8 skipped，不是全绿。全部 --offline --rerun-tasks；日志 logs/pr4-review16-{red,targeted,full}.txt，失败名称 JSON 留本机。失败仍为 AgentSkillCatalogTest 1项、MemoryStoreTest 5项，本轮未重跑旧SHA。
+
+仅完成模糊选中证据切片，不代表审查关闭：精确标签仍缺导航容器身份，外来窗口导航点击、通用父节点/坐标回退仍待离线修复；查询/绑定端真实 selectedState 联动负向矩阵尚未补齐。仍有离线任务，不是只能等待实机。未构建安装APK、未操作手机、未调用付费API、不合并、不push main、不动Issue6。新实机需用户重新授权。需要复审。
+
+
 ## 第⑮轮：审查 6542779543（针对 d543cd3；离线源码 + JVM）
 
 需要复审，尚无独立 reviewer 批准。定时任务由用户暂停，本轮唯一写者；进入时 O_CREAT|O_EXCL 原子创建 .git/semantic-gate-writer.lock（owner/pid/started），完成时仅删除自有锁并检查不存在。

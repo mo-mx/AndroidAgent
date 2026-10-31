@@ -70,7 +70,6 @@ object UiAutomator {
         val target = text.trim().lowercase()
         if (target.isEmpty()) return null
         var exact: AccessibilityNodeInfo? = null
-        var loose: AccessibilityNodeInfo? = null
         var anySelected = false
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(r)
@@ -82,18 +81,14 @@ object UiAutomator {
                 val labels = listOfNotNull(runCatching { n.text?.toString() }.getOrNull(),
                     runCatching { n.contentDescription?.toString() }.getOrNull())
                     .map { it.trim().lowercase() }
-                // An exact label is the tab itself. A *containing* label is often something else —
-                // device evidence (2026-10-31): the alarm tab's hint card reads 对关联闹钟进行分组,
-                // which contains 闹钟 and used to be mistaken for the tab, reporting a selected tab
-                // as "not selected". Exact wins; containment stays only as a fallback.
+                // Containing labels may be hint cards, never navigation identity evidence.
                 if (labels.any { it == target }) exact = n
-                else if (loose == null && labels.any { it.contains(target) }) loose = n
             }
             for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
                 runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
             }
         }
-        val node = exact ?: loose ?: return null
+        val node = exact ?: return null
         var cur: AccessibilityNodeInfo? = node
         var hops = 0
         while (cur != null && hops++ < 4) {
