@@ -260,3 +260,30 @@
 - `isNavBar` 仍是启发式（窗口根/规模/深度/滚动/点击单元/候选歧义），不是已证明的导航身份。
 - 真机：本 SHA 未构建、未安装、未实测；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测。
 - `closeAlarm` 仍因缺全列表枚举/业务对象身份 BLOCKED，是安全拒绝，不是功能完成。
+
+## 第㉒轮语义闸门回归：选中态在查询/绑定入口的联动矩阵（2026-10-31，JVM 合成无障碍树，未实机）
+
+依据 PR #4 复审 `6544694121` 第 3 条（`selectedState` 收窄到 tab 条后是否在出口处放宽准入）。本轮不改选中判定本身，只把判定结果在三个出口的行为钉成回归，并拆开 `null`/`false` 的诊断。
+
+### TDD（真实执行，`--offline --rerun-tasks`）
+
+| 阶段 | 结果 | 证据 |
+|---|---|---|
+| 新 `ClockSelectionEntryMatrixTest` 在上一 head `2cda031` 上 | **RED 3 / 11 failed** | `selectedState` 期望 null 实得 false（正文选中卡片被整窗扫描当证据）；`cancelTimer` 绑定门 `why=` 期望 `binding-tab-unreported`/`binding-tab-not-selected`，实得同一 `binding-tab-unproven` |
+| 修后同组 | **11 / 11 通过** | 8 条为既有契约的定点回归（这些在改动前已成立，不计入 RED） |
+| 定向 `voice.semantics.*` + `voice.tools.*` | **167 tests / 0 failed / 0 errors / 0 skipped** | BUILD SUCCESSFUL |
+| 全量 `:app:testDebugUnitTest` | **2257 tests / 6 failed / 0 errors / 8 skipped**，exit=1 | 不是全绿：`AgentSkillCatalogTest > entry filePath points to SKILL md` + `MemoryStoreTest` 5 项，与前几轮同类，未改未跳过；日志 `logs/cron-full-r21b.txt`（本地） |
+
+### 矩阵（每格都是实际断言的用例）
+
+| 出口 | 栏内无任何选中上报（null） | 栏内另一 tab 选中（false） | 本 tab 选中（true，控制组） |
+|---|---|---|---|
+| `readTree.selectedTabs` | `null`（正文 `isSelected` 不作证据） | `false` | `true` |
+| `queryTimers` / `queryAlarms` / `closeAlarm` | `DEVICE_UNAVAILABLE`，`verified != true`，零点击 | 拒绝（导航期即 `clock not reachable`），零点击 | 放行（`count=2` / 正常查询） |
+| `cancelTimer` 绑定门 `verifiedClockWindow` | `DEVICE_UNAVAILABLE`，`why=binding-tab-unreported`，取消节点 ACTION_CLICK = 0 | 导航期拒绝；若绑定期窗口变化后为 `false`，则 `why=binding-tab-not-selected`，ACTION_CLICK = 0 | 唯一卡片绑定成功，`verified=false`（无业务回读） |
+
+### 边界
+
+- 全部为 JVM 合成树契约，不是三星真实 UI；`isNavBar` 仍是启发式，真实选中态是否被 One UI 暴露给无障碍**未验证**。
+- 真机：本 SHA 未构建、未安装、未实测；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测，实机需用户**重新授权**。
+- `closeAlarm` 仍因缺全列表枚举/业务对象身份 BLOCKED，是安全拒绝，不是功能完成。

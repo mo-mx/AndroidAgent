@@ -1,5 +1,16 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㉒轮局部修复：选中态判定在查询/绑定入口的联动矩阵（源码 + JVM，未实机）
+
+第㉑轮把 `selectedState` 收窄到「只在识别出的 tab 条内判选中」后，留下的是**这条改动在出口处是否放宽准入**的疑问（复审 `6544694121` 第 3 条）。本轮把它按入口逐条钉住，并修掉一处诊断混淆：
+
+1. **新回归 `ClockSelectionEntryMatrixTest`(11)**，覆盖 `readTree.selectedTabs` → `onTargetPage`（`queryTimers`/`queryAlarms`/`closeAlarm`）→ 绑定门 `verifiedClockWindow`（`cancelTimer`）三处出口的双向矩阵：`null`（栏内没有任何选中上报）在每一处都**拒绝**且零点击；`false`（栏内另有 tab 选中）同样拒绝；`true` 仍放行（控制组，防止「全靠拒绝通过」）。同时钉住：正文卡片 `isSelected=true` 在栏内无上报时读数必须是 `null` 而不是 `false`。
+2. **诊断区分（代码改动）**：`verifiedClockWindow` 里 `null`/`false` 原本都落到同一个 `binding-tab-unproven`，且其后 `when(selected)` 分支与两个调用方的 `window.selected == false` 检查已不可达。现改为 `binding-tab-unreported` / `binding-tab-not-selected` 两值，并把 `why=<reason>` 加进 `cancelTimer` / `closeAlarm` 的 `detail`（仍不含任何屏幕文本）。安全行为未变：两者都拒绝、都不点击。
+
+TDD：新测试对上一 head `2cda031` **RED 3 / 11 failed**（`selectedState` 期望 null 实得 false；两处 `why=` 期望 unreported/not-selected 实得 `binding-tab-unproven`），修后 11/11 绿。定向 `voice.semantics.*`+`voice.tools.*` **167 tests / 0 failed / 0 errors / 0 skipped**；全量 **2257 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与前轮同类，未改未跳过）。全部 `--offline --rerun-tasks`，日志 `logs/cron-full-r21b.txt` 只留本机。
+
+仍未完成（可离线）：`expectedState` 通用终态校验、在线 ToolRouter 同门禁（阶段 2）、对象身份适配；小型正文双标签卡片的区分与三星真实选中态暴露仍需用户**重新授权**的实机采集。未构建/安装 APK、未操作手机、未调用付费 API、未 push main、不合并。
+
 ## 第㉑轮局部修复：第十九轮审查（源码 + JVM，未实机）
 
 按 PR #4 定时复审 `6544694121` / `6544641476`（第⑲轮，针对 `3b7cc66`）的头部 P2 修两处，第三处如实未做：

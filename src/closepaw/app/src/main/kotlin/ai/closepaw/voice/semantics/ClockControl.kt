@@ -172,15 +172,14 @@ object ClockControl {
         // Only the binding tree can establish its own tab identity, on every attempt.
         val treeSelected = runCatching { UiAutomator.selectedState(root, tab) }.getOrNull()
         if (treeSelected != true) {
-            return ClockWindow(null, treeSelected, attempt, "binding-tab-unproven")
+            // Both of these refuse, but they are different facts about the same window: the strip
+            // exposed no selection state at all (`null`) versus another tab is the selected one
+            // (`false`). Collapsing them into one reason made "cannot confirm" and "wrong page"
+            // indistinguishable in the result detail.
+            val why = if (treeSelected == false) "binding-tab-not-selected" else "binding-tab-unreported"
+            return ClockWindow(null, treeSelected, attempt, why)
         }
-        val selected = treeSelected
-        val reason = when (selected) {
-            true -> "window-clock-tab-selected"
-            false -> "window-clock-tab-not-selected"
-            null -> "window-clock-tab-unreported"
-        }
-        return ClockWindow(root, selected, attempt, reason)
+        return ClockWindow(root, treeSelected, attempt, "window-clock-tab-selected")
     }
 
     /**
@@ -259,7 +258,7 @@ object ClockControl {
         val window = verifiedClockWindow(ctx, "定时器")
         if (!window.confirmable) {
             return ToolResult.unavailable("timer_cancel", "无法确认当前是时钟窗口，取消不了倒计时",
-                "window=not-clock attempts=${window.attempts}")
+                "window=not-clock attempts=${window.attempts} why=${window.reason}")
         }
         if (window.selected == false) {
             return ToolResult.unavailable("timer_cancel", "时钟没有停在定时器页面，取消不了倒计时",
@@ -423,7 +422,7 @@ object ClockControl {
         val window = verifiedClockWindow(ctx, "闹钟")
         if (!window.confirmable) {
             return ToolResult.unavailable("alarm_close", "无法确认当前是时钟窗口，没有执行操作",
-                "window=not-clock attempts=${window.attempts}")
+                "window=not-clock attempts=${window.attempts} why=${window.reason}")
         }
         if (window.selected == false) {
             return ToolResult.unavailable("alarm_close", "时钟没有停在闹钟页面，没有执行操作",
