@@ -202,6 +202,7 @@ class ClockWindowGateTest {
 
         assertThat(r.verified).isTrue()
         verify(exactly = 1) { UiAutomator.click(tab) }
-        assertThat(r.detail).contains("tab=selected")
+        verify(exactly = 0) { UiAutomator.click(hint) }
+        assertThat(r.detail).contains("tab=clicked")
     }
 }

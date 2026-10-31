@@ -111,7 +111,10 @@ class ClockAlarmPageEvidenceTest {
         every { toggle.isClickable } returns true
         every { toggle.performAction(any()) } returns true
         val clockRoot = node("", clockPkg, node("", clockPkg, node("8:00"), toggle))
-        every { UiAutomator.root() } returnsMany listOf(node("ClosePaw", "ai.closepaw"), clockRoot)
+        // First read: the tab click lookup. Second: the window gate. Both see our own window; the
+        // gate then reopens the clock and re-selects the tab, and the third read is the clock.
+        every { UiAutomator.root() } returnsMany listOf(
+            node("ClosePaw", "ai.closepaw"), node("ClosePaw", "ai.closepaw"), clockRoot)
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
             texts = listOf("8:00"), nodesVisited = 30, rootPackage = clockPkg,
             serviceAvailable = true, checkableCount = 1)
@@ -131,7 +134,8 @@ class ClockAlarmPageEvidenceTest {
         every { cancel.performAction(any()) } returns true
         val clockRoot = node("", clockPkg,
             node("", clockPkg, node("初始时长：5分钟"), cancel))
-        every { UiAutomator.root() } returnsMany listOf(node("ClosePaw", "ai.closepaw"), clockRoot)
+        every { UiAutomator.root() } returnsMany listOf(
+            node("ClosePaw", "ai.closepaw"), node("ClosePaw", "ai.closepaw"), clockRoot)
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
             texts = listOf("5 分钟", "取消"), nodesVisited = 30, rootPackage = clockPkg, serviceAvailable = true)
 
