@@ -46,14 +46,8 @@ object ClockControl {
      * never `UiAutomator.click` (clickable-parent climb + coordinate gesture). `null` = no verified
      * tab control, `false` = the control exists but refused.
      */
-    private fun clickClockTab(tab: String): Boolean? = runCatching {
-        val root = UiAutomator.root() ?: return@runCatching null
-        if (root.packageName?.toString() != CLOCK_PKG) return@runCatching false
-        val nav = UiAutomator.navControl(root, tab, UiAutomator.CLOCK_TABS) ?: return@runCatching null
-        if (nav.control.packageName?.toString() != CLOCK_PKG) return@runCatching false
-        if (nav.container.packageName?.toString() != CLOCK_PKG) return@runCatching false
-        UiAutomator.clickTabControl(nav)
-    }.getOrNull()
+    private fun clickClockTab(tab: String): Boolean? =
+        runCatching { UiAutomator.clickClockNavTab(tab) }.getOrNull()
 
     private fun openClockTab(ctx: Context, tab: String): TabReach {
         val fg = UiAutomator.foregroundPackage()

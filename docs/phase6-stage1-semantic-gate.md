@@ -352,6 +352,40 @@ TDD：每个修复切片先观察对应行为断言失败，再修改生产代�
 没有 assembleDebug、安装 APK 或操作手机；没有 push main、force push、合并 PR。JVM 测试相关 Gradle 资源任务不等于产出可安装 APK。
 阶段 1 设备回归仍需另行授权；阶段 2 ToolSpec 和阶段 3 业务状态验证均未在本次冒称完成。已有 DELETE 闹钟实现只是关闭并说明，不是真正删除，仍是已知能力限制。
 
+## 第㉗轮：计时器创建验证路径改用精确 tab 导航（2026-11-01，离线源码 + JVM，未实机）
+
+对应复审 `6546660320` P2 第 3 条——上一轮在文末明确列为「未做」的那一条。
+
+### 问题
+
+`IntentActions.setTimer` 发出 `ACTION_SET_TIMER` 后，用 `UiAutomator.clickText("定时器")` 切到定时器页。`clickText` 是**包含匹配**（`findNode`），而 `click` 会向上找可点祖先（最多 4 跳），最后退化成坐标 `tap`。这条路径绕开了 `ClockControl.clickClockTab` 已有的全部约束（精确标签、时钟窗口归属、必须是导航栏内控件、禁止坐标兜底），因此可能点到「定时器设置」这类内容行或提示卡，而读回的文本仍来自时钟包 → 把无关页面当成这次创建的证据。
+
+### 改动
+
+- `tools/UiAutomator.kt`：新增 `CLOCK_PKG` 与 `clickClockNavTab(tab)`：前台 root 必须是时钟包 → `navControl` 找到**精确标签**所在的导航栏控件 → 控件与容器都属时钟包 → 只走 `clickTabControl`（ACTION_CLICK，绝不 `click`/`tap`）。返回 `null` = 无已证实控件，`false` = 控件存在但拒绝点击。
+- `semantics/ClockControl.kt`：`clickClockTab` 改为委托 `UiAutomator.clickClockNavTab`（行为不变，外层 `runCatching` 把 UI 层异常收敛为「无已证实控件」，fail closed），删除重复实现，保证只有一份 tab 点击语义。
+- `tools/IntentActions.kt`：`setTimer` 的切 tab 改走 `clickClockNavTab`，并把到达结果记为 `tab=clicked|refused|no-verified-tab-control|not-attempted`；只有 `tab=clicked` 时，屏幕上的「定时器正在运行 / 剩余 / 倒计时 / N 分钟 N 秒」才被当作证据。未到达时屏幕文本一律不作证据，detail 写明 `timer tab not reached`。
+- 生产代码中 `UiAutomator.clickText` 现已**无任何调用方**（只剩旧测试引用它）；本轮不删，留待与那些夹具一起清理，避免顺手改动无关测试。
+
+### TDD 与实跑数字（`--offline --rerun-tasks`）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TimerTabNavigationSafetyTest`(4) 在旧实现上 | **RED 4 / 4 failed**：两条是 `clickText(定时器)`「应当 0 次却被调用」的 MockK 断言失败（栈显示 `IntentActions.setTimer:74`），一条缺 `tab=` 诊断，一条缺 `countdown-ui=false`；**均为断言失败，非编译错误** |
+| 修后同组 | **4 / 4 通过** |
+| 定向 `voice.tools.*` + `voice.semantics.*` | **206 tests / 0 failed / 0 errors / 0 skipped**，exit=0 |
+| 全量 `:app:testDebugUnitTest` | **2296 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿** |
+
+全量 6 条失败仍是既知两类（`AgentSkillCatalogTest > entry filePath points to SKILL md` 1、`MemoryStoreTest` 5），本轮未改、未跳过；基线为 2292 / 6 / 8，多出的 4 条即本轮测试。日志 `logs/pr4-r26-*.txt` 只留本机。
+
+**夹具说明（不算弱化断言）**：旧 `IntentCreationVerificationTest` 原先 stub `clickText("定时器")=true`，改为 stub `clickClockNavTab("定时器")=true`——补的是新路径的证据，断言一条未删。新测试里 `["定时器", "0 个定时器正在运行"]` 曾被自己的证据规则判为「有倒计时」，按真实语义换成空态页 `添加定时器`。
+
+### 边界（如实）
+
+- 全部为 JVM 合成无障碍树。三星时钟真实 tab 条是否满足 `navControl` 的「≥2 个同深度标签 + 容器 ≤40 节点 + 不在滚动容器内」**未验证**。不满足时结果是 `tab=no-verified-tab-control`，退化为「已发送但无法确认」——不误点、不假成功，但切页可能失效。
+- 未构建、未安装、未实测；设备矩阵仍 4 通过 / 0 失败 / 3 未测，实机需用户**重新授权**。
+- 未完成：业务状态回读（创建/取消后的对象存在性与计数，需实机）、在线 `ToolRouter` 同门禁（阶段 2）、正文双标签卡片身份（需实机采集脱敏 UI 树）、`closeAlarm` 仍为安全拒绝。
+
 ## 第㉖轮：`expectedState` 参与判定、`OPEN` 纳入闸门（2026-11-01，离线源码 + JVM）
 
 对应复审 `6546660320`（P1 + P2 第 2 条）。上一轮 PR 评论误判「最新已审 SHA = `2212ed6`」，漏掉这条，本轮补做并如实更正。

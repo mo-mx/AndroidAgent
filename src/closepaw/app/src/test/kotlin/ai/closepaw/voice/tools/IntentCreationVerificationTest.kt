@@ -28,7 +28,9 @@ class IntentCreationVerificationTest {
         every { anyConstructed<Intent>().addFlags(any()) } answers { self as Intent }
         mockkObject(UiAutomator)
         every { UiAutomator.foregroundPackage() } returns "com.sec.android.app.clockpackage"
-        every { UiAutomator.clickText("定时器") } returns true
+        // Round 26: the timer tab is reached through the exact navigation control only; the loose
+        // `clickText` matcher is no longer part of this path.
+        every { UiAutomator.clickClockNavTab("定时器") } returns true
         // Existing unrelated timer remains unchanged after OEM ignores the new request.
         every { UiAutomator.screenTexts(any()) } returns listOf("1 个定时器正在运行", "剩余 09:58", "10 分钟 0 秒")
     }

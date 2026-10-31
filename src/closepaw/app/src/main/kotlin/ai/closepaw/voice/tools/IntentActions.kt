@@ -70,32 +70,48 @@ object IntentActions {
         }
         // Open the timer tab, otherwise the clock lands on alarms and any "7:30" text would be
         // mistaken for a countdown (this produced a false positive in testing).
+        //
+        // Review `6546660320` P2: this used to be `UiAutomator.clickText("定时器")` — a
+        // containing-text match whose click climbs to a clickable parent and finally taps
+        // coordinates, so a content row ("定时器设置") or a hint card could be tapped while the read
+        // still came from the clock package. The tab bar is now reachable only through the exact
+        // navigation control; when that control is missing or refuses, nothing is clicked and no
+        // page on screen is read as this creation's evidence.
+        var tab = "not-attempted"
         if (clockForeground) {
-            UiAutomator.clickText("定时器")
+            tab = when (UiAutomator.clickClockNavTab("定时器")) {
+                true -> "clicked"
+                false -> "refused"
+                null -> "no-verified-tab-control"
+            }
             Thread.sleep(700)
         }
         val texts = if (clockForeground) UiAutomator.screenTexts(80) else emptyList()
-        // Only wording that means "a countdown is running" counts as evidence.
-        // Samsung's timer tab says "N 个定时器正在运行" and "5 分钟 0 秒钟"; other builds use
-        // "剩余 04:58". Accept only those shapes — a bare "7:30" is an alarm, not a countdown.
-        val countdownShown = texts.any {
+        // Only wording that means "a countdown is running" counts as evidence, and only when the
+        // timer tab was actually the page we read.
+        val countdownShown = tab == "clicked" && texts.any {
             it.contains("定时器正在运行") || it.contains("剩余") || it.contains("倒计时") ||
                 Regex("""\d+\s*分钟\s*\d+\s*秒""").containsMatchIn(it)
         }
         val mins = seconds / 60
         val human = if (seconds % 60 == 0) "${mins}分钟" else "${seconds}秒"
-        Log.i(TAG, "timer verify: fg=$fg clockFg=$clockForeground countdown=$countdownShown textCount=${texts.size}")
+        Log.i(TAG, "timer verify: fg=$fg clockFg=$clockForeground tab=$tab countdown=$countdownShown textCount=${texts.size}")
 
         return when {
             clockForeground && countdownShown -> ToolResult.sentWithoutProof(
                 "timer",
                 "${human}的倒计时请求已经发送，但无法确认新倒计时是否开始，请在时钟里核对",
-                "clockFg=true countdown-ui=true; no newly created object identity"
+                "clockFg=true tab=$tab countdown-ui=true; no newly created object identity"
+            )
+            clockForeground && tab == "clicked" -> ToolResult.sentWithoutProof(
+                "timer",
+                "${human}的倒计时请求已经交给时钟应用，但我在时钟界面里没看到倒计时",
+                "clockFg=true tab=$tab countdown-ui=false, countdown text not found"
             )
             clockForeground -> ToolResult.sentWithoutProof(
                 "timer",
-                "${human}的倒计时请求已经交给时钟应用，但我在时钟界面里没看到倒计时",
-                "clockFg=true, countdown text not found"
+                "${human}的倒计时请求已经发送，但无法确认是否真的开始，请在时钟里看一下",
+                "clockFg=true tab=$tab; timer tab not reached, screen text not treated as proof"
             )
             else -> ToolResult.sentWithoutProof(
                 "timer",

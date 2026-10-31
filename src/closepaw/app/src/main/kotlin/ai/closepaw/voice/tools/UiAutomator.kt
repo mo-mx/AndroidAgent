@@ -511,6 +511,31 @@ object UiAutomator {
      */
     val CLOCK_TABS: List<String> = listOf("闹钟", "定时器", "世界时钟", "秒表")
 
+    /** Package that owns the clock UI we are allowed to interpret as a business page. */
+    const val CLOCK_PKG: String = "com.sec.android.app.clockpackage"
+
+    /**
+     * The only entry point allowed to touch the clock's tab bar.
+     *
+     * Review `6546660320` P2: the timer-creation read path reached the timer tab with
+     * `clickText("定时器")`, a *containing-text* match whose [click] climbs to a clickable parent and
+     * finally taps coordinates. That could land on a content row (`定时器设置`) or a hint card while
+     * the read still came from the clock package. This is the strict version, shared by every caller:
+     * the label must be an exact tab inside a navigation bar, the tab control and its container must
+     * both belong to the clock, and the only action delivered is ACTION_CLICK on the control (or a
+     * clickable ancestor still inside that bar) — never a coordinate gesture.
+     *
+     * `null` = no verified tab control, `false` = a control exists but the click was refused.
+     */
+    internal fun clickClockNavTab(tab: String): Boolean? = runCatching {
+        val r = root() ?: return@runCatching null
+        if (r.packageName?.toString() != CLOCK_PKG) return@runCatching false
+        val nav = navControl(r, tab, CLOCK_TABS) ?: return@runCatching null
+        if (nav.control.packageName?.toString() != CLOCK_PKG) return@runCatching false
+        if (nav.container.packageName?.toString() != CLOCK_PKG) return@runCatching false
+        clickTabControl(nav)
+    }.getOrNull()
+
     fun readScreen(limit: Int = 60): ScreenRead = readTree(root(), limit, available())
 
     /**
