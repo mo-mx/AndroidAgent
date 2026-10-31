@@ -134,6 +134,8 @@ class ClockAlarmPageEvidenceTest {
             texts = listOf("8:00"), nodesVisited = 30, rootPackage = clockPkg,
             serviceAvailable = true, checkableCount = 1)
 
+        // Positive recovery now requires evidence from the recovered binding tree itself.
+        every { UiAutomator.selectedState(clockRoot, "闹钟") } returns true
         val r = ClockControl.closeAlarm(ctx, 8, 0)
 
         assertThat(r.status).isEqualTo(ToolStatus.BLOCKED)
@@ -155,6 +157,7 @@ class ClockAlarmPageEvidenceTest {
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
             texts = listOf("5 分钟", "取消"), nodesVisited = 30, rootPackage = clockPkg, serviceAvailable = true)
 
+        every { UiAutomator.selectedState(clockRoot, "定时器") } returns true
         val r = ClockControl.cancelTimer(ctx, 300)
 
         assertThat(r.ok).isTrue()

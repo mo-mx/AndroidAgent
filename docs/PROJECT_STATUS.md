@@ -1,5 +1,14 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第⑬轮局部更新（源码分析 + JVM；未实机）
+
+处理新复审 `6541929671` 的绑定恢复切片：`verifiedClockWindow` 在发生窗口恢复后，只使用最终绑定树的 selected，null 不再回退窗口切换前的 true，而是安全拒绝。新增真实 cancelTimer 调用回归：旧 selected=true、外来窗口抢焦点、恢复树 selected=null，断言 DEVICE_UNAVAILABLE / verified=false / 取消节点点击0次。正向恢复 fixture 显式提供同树 selected=true，保留既有调用/点击断言，不弱化断言。
+
+TDD 有效 RED：12 tests / 1 failed；最终定向（`*Clock*Test`、TimerObjectExecutionTest、IntentGateTest、SemanticExecutionTest，`--rerun-tasks`）85 tests / 0 failed / 0 errors / 0 skipped。全量2201 tests / 6 failed / 0 errors / 8 skipped，Gradle exit=1，不是全绿；失败AgentSkillCatalogTest 1项、MemoryStoreTest 5项，未重跑旧SHA基线。首次定向85项有2项旧恢复fixture缺少新同树证据而失败，补证据后重跑全绿。日志 `logs/pr4-review13-{red,targeted,full}.txt`、汇总JSON本地保留。
+
+**仅局部修复，复审未关闭**：查询恢复仍使用旧 reach.selected；未发生恢复的绑定仍保留旧 selected 回退；初始模糊 tab 点击兜底仍待移除；查询/绑定恢复 false、点击失败及 closeAlarm 独立负向矩阵仍待补。仍有离线工作，不是只能等待实机。未构建安装APK、未操作手机、未调用付费API、未动Issue #6、不合并、不push main。新实机需重新授权。需要复审。
+
+
 ## 第⑫轮更新（源码分析 + JVM；未实机）
 
 继续处理复审 `6541088857` P1：关闭闹钟不再以 `isScrollable=false` 或完整遍历已加载树证明全局唯一。当前适配器没有完整列表枚举及业务对象身份，故即使唯一可见开关也返回 BLOCKED / verified=false，不点击、不声称目标已关闭；删除复用该安全拒绝。关闭能力当前不可用，不是对象身份能力已实现。

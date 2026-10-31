@@ -64,6 +64,25 @@ class ClockWindowGateTest {
 
     @After fun cleanup() = unmockkAll()
 
+    @Test fun `timer recovery cannot reuse old selected true when new tree selection is unknown`() {
+        val cancel = node("取消")
+        every { cancel.isClickable } returns true
+        every { cancel.performAction(any()) } returns true
+        val recovered = node("", clockPkg, node("", clockPkg, cancel, node("初始时长：5分钟")))
+        val foreign = node("", ownPkg)
+        // First root is initial navigation; second is the binding boundary after focus theft.
+        every { UiAutomator.root() } returnsMany listOf(foreign, foreign, recovered, recovered)
+        every { UiAutomator.selectedState(recovered, "定时器") } returns null
+        mockkObject(AppRegistry)
+        every { AppRegistry.find(ctx, any()) } returns null
+
+        val r = ClockControl.cancelTimer(ctx, 300)
+
+        assertThat(r.status).isEqualTo(ToolStatus.DEVICE_UNAVAILABLE)
+        assertThat(r.verified).isFalse()
+        verify(exactly = 0) { cancel.performAction(any()) }
+    }
+
     @Test fun `timer cancel never binds from a tree that is not the clock window`() {
         every { UiAutomator.clickText("定时器") } returns true
         every { UiAutomator.tabSelected("定时器") } returns true

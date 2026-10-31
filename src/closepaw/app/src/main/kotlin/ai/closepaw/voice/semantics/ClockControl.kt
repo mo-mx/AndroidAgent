@@ -175,9 +175,14 @@ object ClockControl {
             attempt++
         }
         if (root == null) return ClockWindow(null, null, attempt, "window-not-clock")
-        // Selection is asked of the *bound* tree; if that tree does not expose it, the arrival
-        // observation from openClockTab is the only honest answer left.
-        val selected = runCatching { UiAutomator.selectedState(root, tab) }.getOrNull() ?: reach.selected
+        // A recovered window cannot inherit selection evidence from before focus was lost.
+        val treeSelected = runCatching { UiAutomator.selectedState(root, tab) }.getOrNull()
+        if (attempt > 1 && treeSelected == null) {
+            return ClockWindow(null, null, attempt, "recovered-tab-unproven")
+        }
+        // Initial-window evidence is retained for now; query and initial navigation need a separate
+        // same-tree contract. This recovery-only gate does not claim those review items are closed.
+        val selected = if (attempt > 1) treeSelected else treeSelected ?: reach.selected
         val reason = when (selected) {
             true -> "window-clock-tab-selected"
             false -> "window-clock-tab-not-selected"
