@@ -1,7 +1,58 @@
 # 阶段 6 · 第 1 步：语义执行闸门（审查修复报告）
 
 Issue #3 / PR #4；分支 `feat/semantic-gate`；2026-10-31。
-性质：源码分析 + 本机 Gradle JVM 回归，未实机。阶段 1 仍待审查/设备验收，不代表整个 Issue 完成。
+性质：源码分析 + 本机 Gradle JVM 回归 + 第五轮真机复测。阶段 1 仍待审查/设备验收，不代表整个 Issue 完成。
+
+## 第五轮：P1 根因定位 + 修复复测（实机验证）
+
+依据 PR #4 复审 `6539505148`。第四轮只做了可观测性；本轮采集真机证据后定位并修复。
+
+- **根因（实机验证）**：不是开错页、不是服务/权限、不是等待不足。`am start` 时钟后 0.3–6 s 活动窗口稳定为 `title=时钟 type=TYPE_APPLICATION focused=true active=true`，`dumpsys accessibility` 全程 `Bound services: id=ai.closepaw/.app.AgentService`、`retrieveInteractiveWindows=true`、`canRetrieveWindowContent=true`。失败发生在**读屏那一刻根节点属于 `ai.closepaw` 自己的 VoiceActivity 窗口**（`rootPkg=ai.closepaw nodes=3`），而同一时刻 dump 的时钟页有 44–67 个文本节点。全屏不透明 `VoiceActivity`（`#F2101014`, `singleTask`）中途抢焦点；旧代码点完 tab 固定 `sleep(500)` 后直接读且不校验包名。
+- **次因（实机验证）**：本机（Clock 12.5.60.27）定时器空态是创建选择器（`小时/分钟/秒` + `开始` + 预设定时器），运行态是卡片（`30 分钟` + `29 分钟 xx 秒钟` + `取消`/`暂停`）。旧 `runningTimerCount` 只认「N 个定时器正在运行」「添加定时器」，在**可读页面**上必然 -1，并谎报“打不开定时器页面”。
+- **修复**：`UiAutomator.readTree` 真实计算 `nodesTruncated/textsTruncated`；`ClockControl.readClockScreen(ctx, tab, limit)` 校验 `rootPackage == com.sec.android.app.clockpackage`，不符则最多 3 次“重开时钟 + 重选 tab + 重读”；`readable` 增加包名校验；`timerCountFrom` 增加“卡片计数/选择器空态”，未识别保持 -1。安全语义未放宽：外来窗口的文本永远不计为列表证据。
+- **TDD**：`UiAutomatorReadTest`(4) / `ClockForeignWindowTest`(5) / `TimerCountShapeTest`(6) 先失败后通过；定向 43/43 通过（`logs/round5-test-all-clock.txt`）。
+- **设备复测**：APK SHA256 `45e74c036d78c6c0c33f36f22e13d24812ad4a9c13c1c8a206a9202db60a2333`，`install -r` 后无障碍仍 Bound。ALARM QUERY `verified=true readable=true visible=[…6 项…]`（2 次独立运行）；TIMER QUERY 有 1 个运行→`count=1`、清理后→0，均 `verified=true`。本轮自建并清理的测试对象：30 分钟倒计时（`dumpsys alarm` 可见 `timer.playsound`，取消后 `Pending alarm batches` 无 clockpackage 项）。
+- **仍未修**：`cancelTimer` 只认「初始时长/总时长」，本机卡片无该标签 → BLOCKED（失败闭合、不误点）；多卡片计数布局未实机验证。
+
+## 第四轮：PR 复审 P1/P2（可观测性 + 文档，未实机）——已被第五轮取代
+
+依据 PR #4 复审评论 `IC_kwDOVdfNwc8AAAABhcjt_A`（2026-10-31T05:21:21Z）：
+P1 要求先定位时钟 UI 读取失败（前台包、服务根节点、窗口来源、点击后状态的最小必要只读证据）；
+P2 要求设备验收文档区分历史轮次与最新结论。Issue #6 的会话上下文与多级导航不在本 PR 扩项。
+
+**本轮边界**：不猜根因、不改匹配规则、不改等待策略、不动 tab 文案、不实机、不装包。
+只做两件事：P2 文档订正；把"读不到"与"确实没有"在源码层分开报告（诊断），使下一次设备只读运行能给出可归因证据。
+
+### 源码分析（`源码分析`，未实机）
+
+设备记录为 ALARM `verified=false readable=false visible=[]`、TIMER `DEVICE_UNAVAILABLE`。
+下列位置都会让"没读到"和"页面确实没有"落进同一个结论，属候选解释，**均未验证、不作为根因宣称**：
+
+1. `ClockControl.kt` 旧 `openClockTab` 返回 `clickText(tab) || waitForText(tab, 800)`：只要标签仍在屏幕上就算"已到达"，即使点击失败或根本没切页。
+2. 旧 `queryTimers` 完全忽略 `openClockTab` 的返回值，把任何读不到统一写成 `ui unavailable`，无法区分"没切到定时器页"与"页面对了但没内容"。
+3. `UiAutomator.screenTexts` 旧实现同时受 600 节点与 `limit` 文本两个上限约束，命中即静默返回短列表；调用方拿到的空列表既可能是"树被截断"也可能是"页面真没有"。列表行位于树较深层，BFS 先扫浅层。
+4. 闹钟行识别用 `^[0-9]{1,2}:[0-9]{2}$`（`queryAlarms` / `closeAlarm`）：若真实行文本带"上午/下午"或与 contentDescription 合并，即使读到行也不会被当作时间。
+5. `root()` 取 `rootInActiveWindow`，且前台包只在点击前读一次；若读到的是别的窗口（弹窗、编辑页、多窗口），内容属于别的界面。
+6. 固定 `Thread.sleep(500/700)`，没有条件等待；冷启动或切页慢时可能读得太早。
+
+### 本轮改动（诊断，不改变"什么算读到"）
+
+- 新增 `UiAutomator.readScreen(limit): ScreenRead`（`texts / nodesVisited / nodesTruncated / textsTruncated / rootPackage / serviceAvailable`）；`screenTexts` 退化为它的投影，返回值与旧实现一致。
+- `ClockControl.openClockTab` 返回 `TabReach(reached, reason)`，`reason ∈ {clicked, label-only, launch-not-foreground, label-not-found, app-not-found}`；`reached` 与旧布尔语义等价，运行逻辑不变。
+- `queryAlarms` / `queryTimers` / `closeAlarm` 的 `detail` 追加同一时刻的 `tab=… nodes=… nodesTruncated=… textsTruncated=… rootPkg=… a11y=…`；`queryTimers` 不再把原因写成 `ui unavailable`。
+- 未通过条件、`verified` 判定、拒绝策略一条都没放宽；没有新增"看起来通过"的分支。
+
+### TDD 记录
+
+- RED：`logs/pr4-review4-targeted-1.txt` 三处行为断言失败（timer 原因、label-only 区分、读取边界字段），随后 GREEN `logs/pr4-review4-targeted-2.txt`（51 tests / 0 failed）。
+- RED（截断检测独立一轮）：`logs/pr4-review4-trunc-red.txt` 2 项失败（文本上限、节点上限）；GREEN `logs/pr4-review4-trunc-green.txt`。
+- `AlarmQuerySafetyTest` 原"不可达 tab 不读屏"断言改为"仍读一次、仅用于报告边界，其文本不得成为列表证据"，播报与 `verified=false` 断言未动。
+
+### 仍未做 / 需要设备证据
+
+根因未定位。上述 4/5/6 三条若要定论，需要一次**用户授权的只读运行**采集：点击前后前台包、`readScreen` 的 `rootPkg`/`nodesVisited`/`nodesTruncated`、tab 节点是否存在与 `isSelected`、以及脱敏后的行文本形状（不含具体时间与名称）。本轮没有该授权，因此不改 UI 匹配与等待逻辑。
+
+以下为历史轮次记录。
 
 ## 第三轮审查修复（评论 6538790664）
 

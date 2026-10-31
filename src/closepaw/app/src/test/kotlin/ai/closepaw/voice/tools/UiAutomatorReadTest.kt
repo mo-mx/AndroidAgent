@@ -1,0 +1,57 @@
+package ai.closepaw.voice.tools
+
+import android.view.accessibility.AccessibilityNodeInfo
+import com.google.common.truth.Truth.assertThat
+import io.mockk.every
+import io.mockk.mockk
+import org.junit.Test
+
+/**
+ * The device run could not tell "the page had nothing" from "the read was cut short". The report
+ * therefore carries nodesVisited / nodesTruncated / textsTruncated, and those fields must only ever
+ * be true when the reader really stopped early. A diagnostic that always says "not truncated" is
+ * worse than no diagnostic, so the boundary is pinned here.
+ */
+class UiAutomatorReadTest {
+    private fun node(text: String = "", vararg children: AccessibilityNodeInfo): AccessibilityNodeInfo {
+        val n = mockk<AccessibilityNodeInfo>(relaxed = true)
+        every { n.text } returns text
+        every { n.contentDescription } returns null
+        every { n.packageName } returns "com.sec.android.app.clockpackage"
+        every { n.childCount } returns children.size
+        children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
+        return n
+    }
+
+    @Test fun `texts dropped past the limit are reported as truncated`() {
+        val r = UiAutomator.readTree(node("", node("a"), node("b"), node("c")), limit = 2, serviceAvailable = true)
+        assertThat(r.texts).containsExactly("a", "b")
+        assertThat(r.textsTruncated).isTrue()
+        assertThat(r.nodesTruncated).isFalse()
+    }
+
+    @Test fun `filling the limit exactly without more text is not truncation`() {
+        val r = UiAutomator.readTree(node("", node("a"), node("b")), limit = 2, serviceAvailable = true)
+        assertThat(r.texts).containsExactly("a", "b")
+        assertThat(r.textsTruncated).isFalse()
+        assertThat(r.rootPackage).isEqualTo("com.sec.android.app.clockpackage")
+    }
+
+    @Test fun `hitting the node cap with work left is reported as node truncation`() {
+        var n = node("leaf")
+        repeat(UiAutomator.MAX_NODES + 40) { n = node("", n) }
+        val r = UiAutomator.readTree(n, limit = 10_000, serviceAvailable = true)
+        assertThat(r.nodesVisited).isEqualTo(UiAutomator.MAX_NODES)
+        assertThat(r.nodesTruncated).isTrue()
+        assertThat(r.textsTruncated).isFalse()
+    }
+
+    @Test fun `a null root is an unavailable service state and never an empty page`() {
+        val r = UiAutomator.readTree(null, limit = 60, serviceAvailable = true)
+        assertThat(r.texts).isEmpty()
+        assertThat(r.nodesVisited).isEqualTo(0)
+        assertThat(r.nodesTruncated).isFalse()
+        assertThat(r.serviceAvailable).isTrue()
+        assertThat(r.rootPackage).isNull()
+    }
+}

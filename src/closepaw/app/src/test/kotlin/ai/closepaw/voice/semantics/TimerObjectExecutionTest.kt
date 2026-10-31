@@ -30,7 +30,8 @@ class TimerObjectExecutionTest {
         every { VoiceSession.isCurrent(any()) } returns true
         every { UiAutomator.foregroundPackage() } returns "com.sec.android.app.clockpackage"
         every { UiAutomator.clickText("定时器") } returns true
-        every { UiAutomator.screenTexts(any()) } returns listOf("2 个定时器正在运行")
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("2 个定时器正在运行"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         every { UiAutomator.clickText("取消") } returns true
     }
     @After fun cleanup() = unmockkAll()
@@ -70,7 +71,8 @@ class TimerObjectExecutionTest {
         every { right.isClickable } returns true
         every { right.performAction(AccessibilityNodeInfo.ACTION_CLICK) } returns true
         every { UiAutomator.clickText("闹钟") } returns true
-        every { UiAutomator.screenTexts(any()) } returns listOf("9:00", "8:00")
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("9:00", "8:00"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         every { UiAutomator.root() } returns node("", node("", node("9:00"), wrong), node("", node("8:00"), right))
         val result = ClockControl.closeAlarm(ctx, 8, 0)
         assertThat(result.ok).isTrue()

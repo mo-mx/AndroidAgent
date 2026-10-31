@@ -35,7 +35,8 @@ class ClockUndoSafetyTest {
         every { UiAutomator.foregroundPackage() } returns "com.sec.android.app.clockpackage"
         every { UiAutomator.clickText("定时器") } returns true
         // Existing unrelated timer remains unchanged after OEM ignores the new request.
-        every { UiAutomator.screenTexts(any()) } returns listOf("1 个定时器正在运行", "剩余 09:58", "10 分钟 0 秒")
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("1 个定时器正在运行", "剩余 09:58", "10 分钟 0 秒"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
     }
     @After fun cleanup() = unmockkAll()
 
@@ -55,7 +56,8 @@ class ClockUndoSafetyTest {
         every { cancel.isClickable } returns true
         every { cancel.performAction(any()) } returns true
         every { UiAutomator.root() } returns node("", node("", node("初始时长：5分钟"), cancel))
-        every { UiAutomator.screenTexts(any()) } returns listOf("1 个定时器正在运行", "初始时长：5分钟")
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("1 个定时器正在运行", "初始时长：5分钟"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         SemanticRunner.run(ctx, "设置五分钟倒计时", 1)
         val reply = SemanticRunner.run(ctx, "撤销刚才的操作", 1)
         assertThat(reply).contains("不能安全撤销")
@@ -70,7 +72,8 @@ class ClockUndoSafetyTest {
         every { ctx.getSystemService(Context.ALARM_SERVICE) } returns manager
         every { manager.nextAlarmClock } returns null
         every { UiAutomator.clickText("闹钟") } returns true
-        every { UiAutomator.screenTexts(any()) } returns listOf("8:00")
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("8:00"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         val toggle = node()
         every { toggle.isCheckable } returns true
         every { toggle.isChecked } returns true

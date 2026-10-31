@@ -22,7 +22,7 @@ class SemanticExecutionTest {
         every { VoiceSession.isCurrent(any()) } returns true
         every { UiAutomator.foregroundPackage() } returns "com.sec.android.app.clockpackage"
         every { UiAutomator.clickText("闹钟") } returns true
-        every { UiAutomator.screenTexts(any()) } returns emptyList()
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead()
     }
     @After fun cleanup() = unmockkAll()
 
@@ -54,7 +54,8 @@ class SemanticExecutionTest {
 
     @Test fun `specified timer never falls back to global first cancel`() {
         every { UiAutomator.clickText("定时器") } returns true
-        every { UiAutomator.screenTexts(any()) } returns listOf("2 个定时器正在运行", "5 分钟", "10 分钟", "取消", "取消")
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("2 个定时器正在运行", "5 分钟", "10 分钟", "取消", "取消"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         every { UiAutomator.clickText("取消") } returns true
         every { UiAutomator.root() } returns null
         val reply = SemanticRunner.run(ctx, "取消五分钟倒计时", 1)
@@ -108,7 +109,8 @@ class SemanticExecutionTest {
     }
 
     @Test fun `duplicate alarm times cannot select first row`() {
-        every { UiAutomator.screenTexts(any()) } returns listOf("8:00", "8:00")
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("8:00", "8:00"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         val reply = SemanticRunner.run(ctx, "取消八点的闹钟", 1)
         assertThat(reply).contains("无法唯一定位")
         verify(exactly = 0) { UiAutomator.click(any()) }
@@ -118,7 +120,7 @@ class SemanticExecutionTest {
     @Test fun `alarm cancel reaches lookup and absent target never creates`() {
         val reply = SemanticRunner.run(ctx, "取消八点的闹钟", 1)
         assertThat(reply).contains("没有8点0分的闹钟")
-        verify(exactly = 1) { UiAutomator.screenTexts(120) }
+        verify(exactly = 1) { UiAutomator.readScreen(120) }
         verify(exactly = 0) { IntentActions.setAlarm(any(), any(), any()) }
         verify(exactly = 0) { UiAutomator.click(any()) }
     }

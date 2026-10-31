@@ -19,7 +19,8 @@ class AlarmQuerySafetyTest {
     @After fun cleanup() = unmockkAll()
 
     @Test fun `null next alarm with disabled entries is not an empty list`() {
-        every { UiAutomator.screenTexts(any()) } returns listOf("闹钟", "8:00", "已关闭")
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("闹钟", "8:00", "已关闭"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         val r = ClockControl.queryAlarms(ctx)
         assertThat(r.speak).contains("没有下一个已启用")
         assertThat(r.speak).contains("列表仍有")
@@ -30,13 +31,14 @@ class AlarmQuerySafetyTest {
         verify(exactly = 0) { UiAutomator.click(any()) }
     }
     @Test fun `explicit empty state permits empty list report`() {
-        every { UiAutomator.screenTexts(any()) } returns listOf("闹钟", "暂无闹钟")
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("闹钟", "暂无闹钟"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
         val r = ClockControl.queryAlarms(ctx)
         assertThat(r.speak).contains("闹钟列表为空")
         assertThat(r.verified).isTrue()
     }
     @Test fun `unreadable UI cannot verify empty list`() {
-        every { UiAutomator.screenTexts(any()) } returns emptyList()
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead()
         val r = ClockControl.queryAlarms(ctx)
         assertThat(r.speak).contains("无法读取闹钟列表")
         assertThat(r.speak).doesNotContain("列表为空")
@@ -48,6 +50,10 @@ class AlarmQuerySafetyTest {
         val r = ClockControl.queryAlarms(ctx)
         assertThat(r.speak).contains("无法读取闹钟列表")
         assertThat(r.verified).isFalse()
-        verify(exactly = 0) { UiAutomator.screenTexts(any()) }
+        // The page is still read, but only to report which boundary was hit; its texts must not
+        // become list evidence. Reads are bounded by the foreign-window retry (3 attempts), and the
+        // assertions above prove the content was ignored.
+        verify(exactly = 3) { UiAutomator.readScreen(any()) }
+        assertThat(r.detail).contains("tab=label-not-found")
     }
 }

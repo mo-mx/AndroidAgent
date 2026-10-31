@@ -136,18 +136,55 @@ object UiAutomator {
     }
 
     /** All visible texts, used by diagnostics and by "read the screen" fallbacks. */
-    fun screenTexts(limit: Int = 60): List<String> {
+    fun screenTexts(limit: Int = 60): List<String> = readScreen(limit).texts
+
+    /**
+     * A bounded breadth-first read of the active window.
+     *
+     * Why this exists: "no text matched" and "the tree was cut short" are different facts, and the
+     * device run of the alarm/timer query could not tell them apart. [nodesVisited], [nodesTruncated]
+     * and [textsTruncated] are reported so a caller can say which boundary it hit instead of
+     * collapsing everything into "unreadable". This is diagnostics only: what counts as a
+     * successful read is unchanged.
+     */
+    data class ScreenRead(
+        val texts: List<String> = emptyList(),
+        val nodesVisited: Int = 0,
+        val nodesTruncated: Boolean = false,
+        val textsTruncated: Boolean = false,
+        val rootPackage: String? = null,
+        val serviceAvailable: Boolean = false,
+    )
+
+    const val MAX_NODES = 600
+
+    fun readScreen(limit: Int = 60): ScreenRead = readTree(root(), limit, available())
+
+    /**
+     * Pure tree read, separated from the service lookup so the truncation contract is testable.
+     * [nodesTruncated] is true only when the node cap stopped the walk with nodes still queued;
+     * [textsTruncated] is true only when non-blank text was actually dropped by [limit].
+     */
+    internal fun readTree(r: AccessibilityNodeInfo?, limit: Int, serviceAvailable: Boolean): ScreenRead {
+        if (r == null) return ScreenRead(serviceAvailable = serviceAvailable)
         val out = ArrayList<String>()
-        val r = root() ?: return out
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(r)
-        var guard = 0
-        while (queue.isNotEmpty() && guard++ < 600 && out.size < limit) {
+        var visited = 0
+        var dropped = false
+        fun take(s: CharSequence?) {
+            val t = s?.toString()
+            if (t.isNullOrBlank()) return
+            if (out.size < limit) out.add(t) else dropped = true
+        }
+        while (queue.isNotEmpty() && visited < MAX_NODES) {
             val n = queue.removeFirst()
-            n.text?.toString()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
-            n.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
+            visited++
+            take(n.text)
+            take(n.contentDescription)
             for (i in 0 until n.childCount) runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
         }
-        return out
+        val pkg = runCatching { r.packageName?.toString() }.getOrNull()
+        return ScreenRead(out, visited, queue.isNotEmpty(), dropped, pkg, serviceAvailable)
     }
 }

@@ -21,43 +21,112 @@ import android.util.Log
 object ClockControl {
     private const val TAG = "ClockControl"
     private const val CLOCK_PKG = "com.sec.android.app.clockpackage"
+    private const val CLOCK_READ_ATTEMPTS = 3
+    private const val CLOCK_READ_RETRY_MS = 400L
 
     // ── UI plumbing ──
-    private fun openClockTab(ctx: Context, tab: String): Boolean {
+    /**
+     * How the clock tab was reached. [reached] keeps the old true/false meaning (a tap was reported
+     * or the label is on screen); [reason] records *which* way, because the device run could not
+     * tell "we read the wrong page" apart from "we read the right page and saw nothing".
+     */
+    private data class TabReach(val reached: Boolean, val reason: String)
+
+    private fun openClockTab(ctx: Context, tab: String): TabReach {
         val fg = UiAutomator.foregroundPackage()
+        var launched = false
+        var foregroundConfirmed: Boolean? = null
         if (fg != CLOCK_PKG) {
             val clock = AppRegistry.find(ctx, "时钟") ?: AppRegistry.find(ctx, "闹钟")
             if (clock != null) {
                 AppRegistry.launch(ctx, clock)
+                launched = true
+                foregroundConfirmed = UiAutomator.waitForPackage(ctx, CLOCK_PKG, 3000)
             } else {
-                return false
+                return TabReach(false, "app-not-found")
             }
-            UiAutomator.waitForPackage(ctx, CLOCK_PKG, 3000)
         }
-        return UiAutomator.clickText(tab) || UiAutomator.waitForText(tab, 800)
+        val clicked = UiAutomator.clickText(tab)
+        val labelSeen = clicked || UiAutomator.waitForText(tab, 800)
+        val reason = when {
+            clicked -> "clicked"
+            labelSeen -> "label-only"
+            launched && foregroundConfirmed == false -> "launch-not-foreground"
+            else -> "label-not-found"
+        }
+        return TabReach(labelSeen, reason)
     }
 
+    /** Read-boundary fields shared by the clock queries; values are facts, not conclusions. */
+    private fun describe(read: UiAutomator.ScreenRead, reach: TabReach): String =
+        "tab=${reach.reason} nodes=${read.nodesVisited} nodesTruncated=${read.nodesTruncated}" +
+            " textsTruncated=${read.textsTruncated} rootPkg=${read.rootPackage} a11y=${read.serviceAvailable}"
+
+    /**
+     * Device evidence (round 5): after the timer tab was reported as reached, the read came back from
+     * `ai.closepaw`'s own voice window (3 nodes), not from the clock — a freshly created VoiceActivity
+     * window attaches mid-turn and covers the app we just opened. rootInActiveWindow can therefore move
+     * back to our own activity between the tap and the read, so a read only counts as a clock read when
+     * the root package says so. Re-reading the same occluded screen cannot recover, so each retry puts
+     * the clock back in front and re-selects [tab] before reading again.
+     */
+    private fun readClockScreen(ctx: Context, tab: String, limit: Int): UiAutomator.ScreenRead {
+        var read = UiAutomator.readScreen(limit)
+        var attempt = 1
+        while (attempt < CLOCK_READ_ATTEMPTS && read.rootPackage != CLOCK_PKG) {
+            runCatching {
+                val clock = AppRegistry.find(ctx, "时钟") ?: AppRegistry.find(ctx, "闹钟") ?: return@runCatching
+                AppRegistry.launch(ctx, clock)
+                // The clock reopens on its remembered tab; re-select the one this query is about.
+                UiAutomator.clickText(tab)
+            }
+            Thread.sleep(CLOCK_READ_RETRY_MS)
+            read = UiAutomator.readScreen(limit)
+            attempt++
+        }
+        return read
+    }
+
+    private fun onClock(read: UiAutomator.ScreenRead) = read.rootPackage == CLOCK_PKG
+
     /** Number of running timers, parsed from the timer tab header. -1 when unreadable. */
-    fun runningTimerCount(): Int {
-        val texts = UiAutomator.screenTexts(60)
+    fun runningTimerCount(): Int = timerCountFrom(UiAutomator.readScreen(60).texts)
+
+    internal fun timerCountFrom(texts: List<String>): Int {
         for (t in texts) {
             Regex("(\\d+)\\s*个定时器正在运行").find(t)?.let { return it.groupValues[1].toInt() }
             if (t.contains("添加定时器") && !t.contains("正在运行")) return 0
         }
+        val trimmed = texts.map { it.trim() }
+        val hasDuration = trimmed.any { Regex("\\d+\\s*(分钟|秒钟|小时)").containsMatchIn(it) }
+        val cancels = trimmed.count { it == "取消" }
+        val hasCardControl = trimmed.any { it == "暂停" || it == "继续" || it == "重置" }
+        if (hasDuration && hasCardControl && cancels > 0) return cancels
+        // Measured empty state on Samsung Clock 12.5.60.27: the create picker replaces the cards.
+        val picker = listOf("小时", "分钟", "秒").all { it in trimmed } && "开始" in trimmed
+        if (picker && cancels == 0) return 0
         return -1
     }
 
     fun queryTimers(ctx: Context): ToolResult {
-        openClockTab(ctx, "定时器")
+        val reach = openClockTab(ctx, "定时器")
         Thread.sleep(500)
-        val n = runningTimerCount()
+        val read = readClockScreen(ctx, "定时器", 60)
+        if (!onClock(read)) {
+            return ToolResult(
+                ToolStatus.DEVICE_UNAVAILABLE, "timer_query",
+                "没读到时钟的定时器页面，没法确认现在有没有倒计时", describe(read, reach) + " window=not-clock"
+            )
+        }
+        val n = timerCountFrom(read.texts)
         return when {
             n < 0 -> ToolResult(
                 ToolStatus.DEVICE_UNAVAILABLE, "timer_query",
-                "打不开时钟的定时器页面，没法确认现在有没有倒计时", "ui unavailable"
+                "打开了时钟的定时器页面，但这个页面上没有识别出倒计时，没法确认", describe(read, reach) + " count=unparsed"
             )
-            n == 0 -> ToolResult.ok("timer_query", "现在没有正在运行的倒计时", verified = true)
-            else -> ToolResult.ok("timer_query", "现在有${n}个倒计时在运行", verified = true, detail = "count=$n")
+            n == 0 -> ToolResult.ok("timer_query", "现在没有正在运行的倒计时", verified = true, detail = describe(read, reach))
+            else -> ToolResult.ok("timer_query", "现在有${n}个倒计时在运行", verified = true,
+                detail = "count=$n ${describe(read, reach)}")
         }
     }
 
@@ -74,7 +143,8 @@ object ClockControl {
      * exactly one cancel control. This adapter has JVM fixtures only, not device acceptance.
      */
     fun cancelTimer(ctx: Context, seconds: Int? = null): ToolResult {
-        if (!openClockTab(ctx, "定时器")) {
+        val reach = openClockTab(ctx, "定时器")
+        if (!reach.reached) {
             return ToolResult.unavailable("timer_cancel", "打不开时钟，取消不了倒计时", "clock not reachable")
         }
         Thread.sleep(600)
@@ -131,14 +201,15 @@ object ClockControl {
             java.text.SimpleDateFormat("M 月 d 日 HH 点 mm 分", java.util.Locale.CHINA)
                 .format(java.util.Date(it))
         }
-        val opened = openClockTab(ctx, "闹钟")
+        val reach = openClockTab(ctx, "闹钟")
         Thread.sleep(500)
-        val texts = if (opened) UiAutomator.screenTexts(120) else emptyList()
+        val read = readClockScreen(ctx, "闹钟", 120)
+        val texts = if (reach.reached && onClock(read)) read.texts else emptyList()
         val listed = texts.map { it.trim() }.filter { Regex("^[0-9]{1,2}:[0-9]{2}$").matches(it) }
         // A missing nextAlarm is only a system scheduling observation, not enumeration.
         // Require an explicit empty-state marker; absent/truncated UI is unknown, not empty.
         val empty = listed.isEmpty() && texts.any { it.trim() in setOf("暂无闹钟", "没有闹钟", "无闹钟") }
-        val readable = opened && (listed.isNotEmpty() || empty)
+        val readable = reach.reached && onClock(read) && (listed.isNotEmpty() || empty)
         val speech = when {
             nextText != null && listed.isNotEmpty() ->
                 "下一个闹钟是 $nextText，当前可见列表有 ${listed.size} 个时间显示（不代表完整列表）"
@@ -149,7 +220,7 @@ object ClockControl {
         }
         // Query must not mutate anything: no clicks beyond opening the tab.
         return ToolResult.ok("alarm_query", speech, verified = readable,
-            detail = "next=$nextText visible=$listed explicitEmpty=$empty readable=$readable")
+            detail = "next=$nextText visible=$listed explicitEmpty=$empty readable=$readable ${describe(read, reach)}")
     }
 
     /**
@@ -157,15 +228,17 @@ object ClockControl {
      * time, the answer is "不存在".
      */
     fun closeAlarm(ctx: Context, hour: Int, minute: Int): ToolResult {
-        if (!openClockTab(ctx, "闹钟")) {
+        val reach = openClockTab(ctx, "闹钟")
+        if (!reach.reached) {
             return ToolResult.unavailable("alarm_close", "打不开时钟，关不了闹钟", "clock not reachable")
         }
         Thread.sleep(700)
 
         val target = "$hour:" + String.format(java.util.Locale.CHINA, "%02d", minute)
-        val texts = UiAutomator.screenTexts(120)
+        val read = UiAutomator.readScreen(120)
+        val texts = read.texts
         val present = texts.any { it.trim() == target || it.trim() == "${hour}:${minute}" }
-        Log.i(TAG, "closeAlarm target=$target present=$present texts=$texts")
+        Log.i(TAG, "closeAlarm target=$target present=$present ${describe(read, reach)} texts=$texts")
         if (!present) {
             return ToolResult.unavailable(
                 "alarm_close",
