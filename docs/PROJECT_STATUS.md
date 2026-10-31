@@ -1,5 +1,31 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㉖轮：`expectedState` 真正参与判定 + `OPEN` 不再绕过闸门（源码 + JVM，未实机）
+
+针对定时复审 `6546660320`（针对 `2048f6d`，https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6546660320 ）的 P1 与 P2 第 2 条。上一轮（`b1922dc`）评论误称「最新已审 SHA 是 `2212ed6`」，漏掉了这条复审，本轮补上。
+
+1. **[P1] 终态闸门不再只信一个布尔值**：新增 `tools/ObservedState(identity, state, source)`，`ToolResult` 增加 `observed` 字段。`TerminalState.verdict` 现在的规则是：
+   - 任务声明了 `expectedState`（`timer_running:300` / `no_running_timer` / `alarm_exists:HHMM` / `on|off:TARGET` / `feature_visible`）时，**`verified=true` 本身不再算证据**；
+   - `observed == null` → `UNPROVEN`（请求已发出，但没有对象级回读）；
+   - `observed.identity` 与 `task.targetIdentity` 不符或缺一 → `UNPROVEN`（读到的是别的对象，不能升级成"完成"，也不谎报"没变化"）；
+   - 同一对象但 `observed.state` 与 `expectedState` 不符 → `CONTRADICTED`，`enforce()` 降级为 `EXECUTION_ERROR`；
+   - 声明了闸门没有判定谓词的 `expectedState` → 一律 `UNPROVEN`（拒绝默认放行）。
+   - 未声明 `expectedState` 的任务保持旧的 `verified` 三态分级（没有可比对的东西，不假装做了对象级校验）。
+2. **[P2] `OPEN` 不再豁免**：`promisesState` 纳入 `Action.OPEN`。「打开微信扫一扫」和「开始五分钟倒计时」一样是对终态的承诺。`AppNavigator.openFeatureResolved` 的「同包内新增 ≥2 条文字就算进入」改为 `verified=null` + 「点了…界面有变化，但没能确认已经进入」，`TerminalState.enforce` 再兜一层：`OPEN` + `verified=true` + 无页面身份证据 → 句子改写、`verified=null`、`detail` 追加 `postcondition=unproven(no page identity)`。
+
+TDD（全部 `--offline --rerun-tasks`）：
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TerminalExpectedStateTest`(14) 先写，`ObservedState`/`observed` 仅做类型铺垫后跑 | **RED 14 tests / 9 failed**（Truth 断言失败，非编译错误；`logs/pr4-review26-red.txt`） |
+| 实现 `TerminalState` 谓词 + `AppNavigator` 降级后同组 | **GREEN**：`TerminalExpectedStateTest` + `TerminalStateGateTest` + `SemanticExecutionTest` 定向全绿，exit=0 |
+| 定向 `voice.semantics.*` + `voice.tools.*` | **202 tests / 0 failed / 0 errors / 0 skipped**，exit=0 |
+| 全量 `:app:testDebugUnitTest` | **2292 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，本轮未改、未跳过、未重跑旧 SHA 基线） |
+
+边界（如实）：**目前没有任何生产者会填 `observed`**，所以声明了 `expectedState` 的任务在真机上一律落到 `UNPROVEN` —— `CONFIRMED` 现在只有 JVM 夹具可达。这是刻意的保守：先前那条「`verified=true` 即 CONFIRMED」的路径本来就是误报来源。真正要恢复 `CONFIRMED`，得让 `cancelTimer`/`closeAlarm`/`setTimer` 回读时给出对象身份与状态 token，属后续离线工作。本轮仍未实机、未构建安装 APK。
+
+**未做（如实）**：同一复审的 P2 第 3 条（`IntentActions.kt:58-77` 计时器创建后仍用 `fg.contains("clock")` + `UiAutomator.clickText("定时器")` 模糊点击，绕开 `ClockControl.clickClockTab` 的精确标签/窗口归属/禁坐标回退）本轮未修改，留待下一轮；它需要把 `ClockControl` 的安全 tab 导航暴露给 `tools` 层并补 MockK 零点击断言。
+
 ## 第㉔轮：`expectedState` 通用终态校验（离线源码 + JVM，未实机）
 
 第⑳轮复审（`6545877923`）与更早的复审都把「`expectedState` 通用业务终态校验」列为未完成项。本轮把它落成一个**证据分级契约**，并清掉 `verified` 的 `false`/`null` 混用：

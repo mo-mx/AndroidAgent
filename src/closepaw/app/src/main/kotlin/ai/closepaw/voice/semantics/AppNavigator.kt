@@ -153,7 +153,13 @@ object AppNavigator {
         val stillInside = fg == app.packageName
         return when {
             changed && stillInside -> ToolResult.ok(
-                "app_feature", "已经进入${app.label}的$feature", verified = true,
+                "app_feature",
+                // Text churn is not page identity: a permission sheet, a toast or an error dialog
+                // in the same package also adds two strings. The click really happened, so the
+                // status stays SUCCESS, but nothing here proves arrival — verified = null and the
+                // sentence says so instead of announcing "已经进入".
+                "点了${app.label}的$feature，界面有变化，但没能确认已经进入那个页面，请看一眼",
+                verified = null,
                 detail = "fg=$fg newTexts=${(after - before).take(4)}"
             )
             stillInside -> ToolResult(

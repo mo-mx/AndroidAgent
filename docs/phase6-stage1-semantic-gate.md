@@ -351,3 +351,29 @@ TDD：每个修复切片先观察对应行为断言失败，再修改生产代�
 
 没有 assembleDebug、安装 APK 或操作手机；没有 push main、force push、合并 PR。JVM 测试相关 Gradle 资源任务不等于产出可安装 APK。
 阶段 1 设备回归仍需另行授权；阶段 2 ToolSpec 和阶段 3 业务状态验证均未在本次冒称完成。已有 DELETE 闹钟实现只是关闭并说明，不是真正删除，仍是已知能力限制。
+
+## 第㉖轮：`expectedState` 参与判定、`OPEN` 纳入闸门（2026-11-01，离线源码 + JVM）
+
+对应复审 `6546660320`（P1 + P2 第 2 条）。上一轮 PR 评论误判「最新已审 SHA = `2212ed6`」，漏掉这条，本轮补做并如实更正。
+
+### 改动
+
+- `tools/ToolResult.kt`：新增 `ObservedState(identity, state, source)`；`ToolResult` 增加 `observed: ObservedState? = null`（尾部默认参数，既有构造点不变），`ToolResult.ok(...)` 增加同名可选参数。
+- `semantics/TerminalState.kt`：
+  - `verdict` 先判 `promisesState`（`action.mutates || action == OPEN`），再判 `declaresState`（`expectedState` 非空）。未声明终态的任务保留旧的三态分级，不假装做了对象级校验。
+  - 声明了终态时：`observed == null` → `UNPROVEN`；身份不符/缺一 → `UNPROVEN`；同一对象状态 token 不符 → `CONTRADICTED`；谓词未覆盖的 `expectedState` → `UNPROVEN`。只有「身份吻合 + 状态吻合 + `verified=true`」才是 `CONFIRMED`。
+  - `enforce` 新增 `UNPROVEN` 分支：仅当 `action == OPEN && verified == true` 时改写句子（「点了X，但没能确认页面已经打开，请你看一眼」）、`verified = null`、`detail += "; postcondition=unproven(no page identity)"`。`CONTRADICTED` 分支追加 `postcondition=contradicted` 并保留原 `observed`。幂等。
+- `semantics/AppNavigator.kt`：`openFeatureResolved` 的「同包内新增 ≥2 条文字」不再返回 `verified = true` / 「已经进入」，改为 `verified = null` + 明确的「没能确认已经进入」。屏幕文字变化不是页面身份。
+
+### 测试
+
+- `TerminalExpectedStateTest`(14)：先写、只加类型不加逻辑时 **RED 14 / 9 failed**（Truth 断言失败）；实现后 GREEN。
+- 定向 `voice.semantics.*` + `voice.tools.*`：**202 / 0 failed / 0 errors / 0 skipped**，exit=0（`--offline --rerun-tasks`）。
+- 全量 `:app:testDebugUnitTest`：**2292 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（`AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过）。
+- 日志 `logs/pr4-review26-{red,targeted,full}.txt` 只留本机，不提交。
+
+### 边界与未完成
+
+- **尚无生产者填 `observed`**：真机上声明了 `expectedState` 的任务一律 `UNPROVEN`，`CONFIRMED` 目前只有 JVM 夹具可达。这是刻意保守（旧路径本身是误报源），但意味着「已确认完成」的能力暂时为零，必须如实如此表述。
+- 未实机、未构建安装 APK、未操作手机；历史设备矩阵仍 4 通过 / 0 失败 / 3 未测。
+- 未做：复审 P2 第 3 条 `IntentActions.setTimer` 的模糊 `clickText("定时器")`（需把 `ClockControl` 的安全 tab 导航暴露给 `tools` 层）；`closeAlarm` 仍因缺全列表/业务对象身份安全拒绝；在线 `ToolRouter` 同门禁（阶段 2）未开始。

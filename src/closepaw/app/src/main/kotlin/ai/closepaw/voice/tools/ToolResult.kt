@@ -20,6 +20,24 @@ enum class ToolStatus {
     TIMEOUT,
 }
 
+/**
+ * Structured post-condition evidence: *which object* was read back, and *what state it was in*.
+ *
+ * `verified = true` alone says "a tool claims it looked". It does not say what it looked at, so a
+ * read-back of the wrong alarm, the wrong duration or an unrelated page could be graded as the
+ * promised terminal state. Evidence names the object and the observation so
+ * [ai.closepaw.voice.semantics.TerminalState] can compare it with `expectedState` instead of
+ * trusting a flag. Producers that only know "something changed on screen" leave this null.
+ */
+data class ObservedState(
+    /** Concrete identity actually read back — package name, `timer#id`, `alarm:HH:MM`, … */
+    val identity: String? = null,
+    /** Observed state token, e.g. `running:300`, `none`, `on`, `off`, `visible`. */
+    val state: String? = null,
+    /** Where the observation came from (tool/UI surface), kept for the trace only. */
+    val source: String = "",
+)
+
 data class ToolResult(
     val status: ToolStatus,
     val tool: String,
@@ -28,6 +46,8 @@ data class ToolResult(
     val detail: String = "",
     /** Verified post-condition, when the tool can check the device state. */
     val verified: Boolean? = null,
+    /** What exactly was read back. Null when the tool has no object-level evidence. */
+    val observed: ObservedState? = null,
 ) {
     val ok: Boolean get() = status == ToolStatus.SUCCESS
 
@@ -39,8 +59,14 @@ data class ToolResult(
         .put("verified", verified)
 
     companion object {
-        fun ok(tool: String, speak: String, verified: Boolean? = null, detail: String = "") =
-            ToolResult(ToolStatus.SUCCESS, tool, speak, detail, verified)
+        fun ok(
+            tool: String,
+            speak: String,
+            verified: Boolean? = null,
+            detail: String = "",
+            observed: ObservedState? = null,
+        ) = ToolResult(ToolStatus.SUCCESS, tool, speak, detail, verified, observed)
+
 
         /**
          * The request was handed to the system, but nothing could be read back.
