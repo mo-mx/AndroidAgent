@@ -59,7 +59,11 @@ asr_eval/wav/
 # ===== Screen recordings / device screenshots & raw logs =====
 *.mp4
 *.webm
+# Root-anchored only: "logs/" alone would also match the nested Gradle project's own run directory.
+# The nested project is a separate repo snapshot (src/closepaw), whose logs/ is device/test output
+# and must never be committed.
 /logs/
+/src/closepaw/logs/
 *.png
 *.jpg
 *.jpeg

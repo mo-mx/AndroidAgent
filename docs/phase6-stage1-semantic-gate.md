@@ -1,5 +1,49 @@
 # 阶段 6 · 第 1 步：语义执行闸门（审查修复报告）
 
+> 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
+
+## 第㉕轮：取消路径的点击时绑定校验（离线源码 + JVM，未实机）
+
+需要复审；审查未关闭。本轮无新审查（最新 reviewed SHA 仍为 `2212ed6`，两条意见已在第㉓轮回复），按「无新审查则推进可离线项」推进计时器对象绑定的**点击时**一半。
+
+**修的是什么**：`cancelTimer` 证明对象身份是在**扫描时**（唯一「同一最小子树里恰有一个 `初始时长/总时长` + 恰一个 `取消`」的卡片），随后点击的是扫描时握住的那个 `AccessibilityNodeInfo`。中间这几百毫秒里卡片可以被重建、tab 可以被切换、列表可以滚动，握住的包装对象描述的是已经不存在的画面。旧代码点前只核对两件事：节点包名是时钟（包装对象里的旧属性）、前台是某个时钟窗口（另一次 `root()` 读取）——两者都能在「节点已失效 / 属于另一个窗口」时通过。
+
+**改动**：新增 `ClockControl.clickTargetProblem(node, freshRoot)`，在 `ACTION_CLICK` 之前按序核对，任一不成立即拒绝（`DEVICE_UNAVAILABLE`，零点击，不落 `UiAutomator.click` 兜底）：
+
+| 顺序 | 检查 | 失败理由 |
+|---|---|---|
+| 1 | 前台 root 仍是时钟 | `window-not-clock` |
+| 2 | `node.refresh()` 返回 true（框架自带的存活测试，抛异常同样拒绝） | `node-detached` |
+| 3 | 刷新**之后**再读包名仍是时钟 | `node-owner=<pkg>` |
+| 4 | `isVisibleToUser` | `node-not-visible` |
+| 5 | `isClickable` | `node-not-clickable` |
+| 6 | `node.windowId == freshRoot.windowId` | `node-foreign-window=<a> root-window=<b>` |
+
+拒绝话术按失败事实分三类（不属于时钟窗口 / 已不在当前屏幕 / 无法确认），`detail` 带 `click-target=<reason>`。
+
+**TDD（先测试后改码）**：新增 `ClockClickTimeBindingTest`(5)。在改动前的 head `2048f6d` 上先跑出有效 RED **4 / 5 failed**（Truth 断言失败，非编译错误：`refresh()=false`、`windowId` 不一致、`isVisibleToUser=false`、`refresh()` 抛异常四种情况下旧代码仍然投递了 `ACTION_CLICK`），第 5 条「仍然附着时恰好点击一次」是控制组，改动前即通过，不宣称它曾 RED。修后 **5 / 5 通过**。
+
+**旧 fixture 只补证据、不删断言**：`ClockWindowGateTest` / `ClockAlarmPageEvidenceTest` / `ClockSelectionEntryMatrixTest` / `TimerObjectExecutionTest` 的合成节点工厂补 `refresh()=true`、`isVisibleToUser=true`（模型一个真实可见可用节点）。断言本身一条未改、未弱化；`ClockWindowGateTest > timer cancel refuses a cancel button whose node belongs to another app` 仍要求原话术「取消按钮不属于时钟窗口」。
+
+**实跑数字（`--offline --rerun-tasks`）**：
+
+| 阶段 | 结果 |
+|---|---|
+| 新测试对旧实现 | **RED 4 / 5 failed** |
+| 新测试对修后实现 | **5 / 5 通过** |
+| 定向 `voice.semantics.*` + `voice.tools.*` | **188 tests / 0 failed / 0 errors / 0 skipped**，exit=0 |
+| 全量 `:app:testDebugUnitTest` | **2278 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿** |
+
+全量 6 条失败仍是既知两类：`AgentSkillCatalogTest > entry filePath points to SKILL md` 1 条、`MemoryStoreTest` 5 条，本轮未改、未跳过，未重跑旧 SHA 基线（上一 head 数字 2273 / 6 / 8）。日志 `logs/pr4-r25-*.txt` 只留本机。
+
+**顺手补的规则**：`/src/closepaw/logs/` 加入 `.gitignore`（根锚定的 `/logs/` 只匹配仓库根，嵌套项目的运行日志此前未被覆盖，存在误提交设备/测试输出的风险）。已验证 `git check-ignore -v src/closepaw/logs/` 命中新规则。
+
+**边界（如实）**：
+- 全部为 JVM 合成无障碍树契约，不是三星真实 UI。`AccessibilityNodeInfo.refresh()` 在该 ROM 上的返回语义、`windowId` 在多次 `rootInActiveWindow` 读取间是否稳定**均未验证**——若真机的 `windowId` 在两次读取间发生变化，此守卫会比旧版更保守（拒绝，不误点）。设备矩阵维持历史 4 通过 / 0 失败 / 3 未测，本 SHA 未构建、未安装、未实测。
+- 目前仓内唯一真正执行业务点击的路径就是 `cancelTimer`（`closeAlarm` 在绑定后一律 `BLOCKED`，从不点开关；`deleteAlarm` 复用前者），所以本守卫的生产面只有这一条；导航 tab 点击走 `clickTabControl`，不在本次范围。
+- 仍未完成：业务状态回读（创建/取消后对象存在性与计数，需实机）、在线 `ToolRouter` 同门禁（阶段 2）、正文双标签卡片身份（需实机采集脱敏 UI 树）。`closeAlarm` 仍因缺全列表枚举/业务对象稳定身份 `BLOCKED`，是安全拒绝，不是功能完成。
+- 本轮唯一写者持 `O_CREAT|O_EXCL` 锁，结束仅删自有锁；未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未并入 Issue #6、不改受保护规则、不 push main、不合并。
+
 ## 第⑳轮：定时复审 `f5d877a`（节点逻辑身份 + 候选集完整性；离线源码 + JVM，未实机）
 
 需要复审；审查未关闭。定时任务本轮唯一写者（`O_CREAT|O_EXCL` 锁），结束仅删自有锁。

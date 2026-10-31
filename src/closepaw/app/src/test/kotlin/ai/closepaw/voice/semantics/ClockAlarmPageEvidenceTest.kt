@@ -44,6 +44,8 @@ class ClockAlarmPageEvidenceTest {
         every { n.isCheckable } returns false
         every { n.isChecked } returns false
         every { n.childCount } returns children.size
+        every { n.refresh() } returns true
+        every { n.isVisibleToUser } returns true
         children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
         children.forEach { c -> every { c.parent } returns n }
         every { UiAutomator.selectedState(n, any()) } returns true

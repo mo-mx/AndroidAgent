@@ -20,6 +20,8 @@ class TimerObjectExecutionTest {
         // These fixtures model the clock's own window: binding now requires the node's package.
         every { n.packageName } returns "com.sec.android.app.clockpackage"
         every { n.childCount } returns children.size
+        every { n.refresh() } returns true
+        every { n.isVisibleToUser } returns true
         children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
         every { UiAutomator.selectedState(n, any()) } returns true
         return n

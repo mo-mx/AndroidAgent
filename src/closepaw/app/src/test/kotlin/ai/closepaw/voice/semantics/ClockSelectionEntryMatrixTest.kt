@@ -60,6 +60,8 @@ class ClockSelectionEntryMatrixTest {
         every { node.childCount } returns children.size
         children.forEachIndexed { i, child -> every { node.getChild(i) } returns child }
         children.forEach { every { it.parent } returns node }
+        every { node.refresh() } returns true
+        every { node.isVisibleToUser } returns true
         nodes.add(node)
         return node
     }

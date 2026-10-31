@@ -44,6 +44,10 @@ class ClockWindowGateTest {
         every { n.isCheckable } returns false
         every { n.isChecked } returns false
         every { n.childCount } returns children.size
+        // Round 25: a click target is revalidated at click time (refresh/visible/window), so
+        // fixtures that model a live, on-screen node must say so.
+        every { n.refresh() } returns true
+        every { n.isVisibleToUser } returns true
         children.forEachIndexed { i, c -> every { n.getChild(i) } returns c }
         children.forEach { c -> every { c.parent } returns n }
         every { UiAutomator.selectedState(n, any()) } returns true

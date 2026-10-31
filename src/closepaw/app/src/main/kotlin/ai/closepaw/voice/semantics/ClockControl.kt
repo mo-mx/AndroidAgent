@@ -151,6 +151,43 @@ object ClockControl {
         node != null && runCatching { node.packageName?.toString() }.getOrNull() == CLOCK_PKG
 
     /**
+     * Every fact a click on [node] must satisfy *at the instant of the click*.
+     *
+     * Binding proves what the screen looked like when it was scanned; it says nothing about the
+     * moment the `ACTION_CLICK` is delivered. In between, the card can be re-created, the tab can
+     * change, the list can scroll — the held wrapper then describes a screen that no longer exists,
+     * and clicking it is a blind click on whatever the framework now maps that node to.
+     *
+     * Order matters:
+     *  1. `refresh()` — the framework's liveness test on this very object. False or throwing means
+     *     the node is gone (or sealed); nothing else we could read from it would be true.
+     *  2. package — read *after* the refresh, so it is the current owner, not the remembered one.
+     *  3. visibility — a node scrolled out of the viewport is still in the tree; clicking it is not
+     *     what the user asked for.
+     *  4. `windowId` — must be the same window as the freshly read root. A clock window in front is
+     *     not enough if the bound node came from another (replaced) window.
+     *
+     * Returns null when the click may proceed, otherwise the failing fact for `detail`.
+     */
+    private fun clickTargetProblem(
+        node: android.view.accessibility.AccessibilityNodeInfo?,
+        freshRoot: android.view.accessibility.AccessibilityNodeInfo?,
+    ): String? {
+        if (node == null) return "no-node"
+        if (!clockOwned(freshRoot)) return "window-not-clock"
+        val alive = runCatching { node.refresh() }.getOrDefault(false)
+        if (!alive) return "node-detached"
+        val owner = runCatching { node.packageName?.toString() }.getOrNull()
+        if (owner != CLOCK_PKG) return "node-owner=$owner"
+        if (!runCatching { node.isVisibleToUser }.getOrDefault(false)) return "node-not-visible"
+        if (!runCatching { node.isClickable }.getOrDefault(false)) return "node-not-clickable"
+        val nodeWindow = runCatching { node.windowId }.getOrDefault(-1)
+        val rootWindow = runCatching { freshRoot?.windowId }.getOrNull() ?: -1
+        if (nodeWindow != rootWindow) return "node-foreign-window=$nodeWindow root-window=$rootWindow"
+        return null
+    }
+
+    /**
      * Same recovery contract as [readClockScreen] — put the clock back in front and re-select [tab]
      * — but it hands back the window itself instead of texts, so the nodes bound later provably come
      * from the window that was verified. Retries are bounded; no coordinate fallback.
@@ -295,19 +332,23 @@ object ClockControl {
                 "无法唯一定位你说的倒计时，请在时钟中确认具体对象", "duration=$seconds candidates=${matching.size} complete=$complete", false)
         }
         val button = matching.single().first
-        // Two facts, both required and both about this very node: the clickable control belongs to
-        // the clock package, and the clock is still the window in front. Otherwise the node could be
-        // a leftover from a window that has since been replaced — refuse rather than blind-click.
-        if (button.packageName?.toString() != CLOCK_PKG) {
-            return ToolResult.unavailable("timer_cancel", "取消按钮不属于时钟窗口，没有执行取消",
-                "node owner=${button.packageName} expected=$CLOCK_PKG")
-        }
-        if (!clockOwned(UiAutomator.root())) {
-            return ToolResult.unavailable("timer_cancel", "取消前时钟窗口变了，没有执行取消",
-                "window changed before click")
+        // Facts about *this click*, checked on this very node now, not at scan time. The wrapper we
+        // bound can outlive the screen it described: the card is re-created, the tab changes, the
+        // list scrolls. `refresh()` is the framework's own liveness test, and a node that cannot be
+        // refreshed must not be acted on. Everything after it is re-read from the refreshed node.
+        val problem = clickTargetProblem(button, UiAutomator.root())
+        if (problem != null) {
+            // The refusal sentence names the fact that failed; they are different observations.
+            val speak = when {
+                problem.startsWith("node-owner") || problem == "window-not-clock" ->
+                    "取消按钮不属于时钟窗口，没有执行取消"
+                problem == "node-not-visible" -> "倒计时已经不在当前屏幕上，没有执行取消"
+                else -> "要取消的倒计时已经无法确认，没有执行取消"
+            }
+            return ToolResult.unavailable("timer_cancel", speak, "duration=$seconds click-target=$problem")
         }
         // Never use UiAutomator.click: that helper may climb parents or inject coordinates.
-        val clicked = button.isClickable && button.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        val clicked = button.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         return if (!clicked) ToolResult.error("timer_cancel", "已定位倒计时，但取消按钮不可操作", "node click failed")
         else ToolResult.sentWithoutProof("timer_cancel", "已请求取消指定倒计时，但无法确认最终状态",
             "bound duration=${matching.single().second}; ACTION_CLICK=$clicked; business state not read back")
