@@ -20,6 +20,16 @@ import java.util.concurrent.TimeUnit
 object UiAutomator {
     private const val TAG = "UiAutomator"
 
+    /** `AccessibilityWindowInfo` reports no id (`INVALID_WINDOW_ID`) for detached/unknown nodes. */
+    internal const val INVALID_WINDOW = -1
+
+    /**
+     * Node budget for the page-structure signature. Larger than a control walk on purpose (the
+     * skeleton has to cover the page), but still bounded: a walk that hits it yields `null` rather
+     * than a fingerprint of a prefix.
+     */
+    private const val PAGE_SIGNATURE_NODES = 600
+
     fun available(): Boolean = AgentService.instance != null
 
     private fun svc(): AccessibilityService? = AgentService.instance
@@ -58,7 +68,14 @@ object UiAutomator {
     /**
      * A control that was found *inside the target app's window* and can be acted on.
      */
-    data class FeatureControl(val node: AccessibilityNodeInfo, val label: String)
+    data class FeatureControl(
+        val node: AccessibilityNodeInfo,
+        val label: String,
+        /** `viewIdResourceName` of the clicked node (null/empty when the app exposes none). */
+        val viewId: String? = null,
+        /** Class name of the clicked node — the only role signal accessibility reliably exposes. */
+        val className: String? = null,
+    )
 
     /**
      * Why a feature control was not found. A bare null cannot separate "the app's window is not in
@@ -122,29 +139,117 @@ object UiAutomator {
         // Round 40 (review 6551941593): the follow-up fix preferred an *exactly* labelled node and
         // dropped every containing match — which clicked a help card whose child simply read
         // 「扫一扫」 while the real button read 「扫一扫，打开相机」. Exact text is not business
-        // identity, so both tiers stay candidates; a control whose *own* label is exactly one of the
-        // wanted names wins only when it is the only such control, and everything else is refused.
+        // identity, so both tiers stay candidates.
+        // Round 42 (review 6552469328, item 1): "exactly labelled" stayed a way to *win*, and that is
+        // the same mistake one level down — a clickable help card whose own text is 「扫一扫」 beat
+        // the real entry labelled 「扫一扫，打开相机」. Nothing in the tree says which of two matched
+        // controls is the feature: text, resource id and class carry no business meaning without
+        // per-app evidence we do not have. So a click requires the *only* clickable target; two
+        // different clickable controls answering to the name is `ambiguous`, zero clicks.
         val scan = collectFeatureCandidates(r, pkg, wanted)
         // Same rule as navigation: a candidate set cut short by the node budget is not
         // "every candidate", so uniqueness cannot be decided from it.
         if (!scan.complete) return FeatureLookup(null, "candidates-truncated")
 
         val targets = ArrayList<FeatureControl>()
-        val direct = ArrayList<FeatureControl>()
         for (n in scan.exact + scan.loose) {
             val target = clickableWithin(n, r, pkg) ?: continue
             if (targets.any { sameNode(it.node, target) }) continue
-            val control = FeatureControl(target, labelOf(n))
-            targets.add(control)
-            if (ownLabel(target) in wanted) direct.add(control)
+            targets.add(controlOf(target, labelOf(n)))
         }
         return when {
             targets.isEmpty() -> FeatureLookup(null, "label-not-clickable")
-            direct.size == 1 -> FeatureLookup(direct[0], null, r)
-            // Exactly one control answers to the name at all, exact or containing.
             targets.size == 1 -> FeatureLookup(targets[0], null, r)
             else -> FeatureLookup(null, "ambiguous(${targets.size})")
         }
+    }
+
+    /** The window id [n] was read from, or [INVALID_WINDOW] when the tree does not report one. */
+    internal fun windowOf(n: AccessibilityNodeInfo?): Int =
+        n?.let { runCatching { it.windowId }.getOrNull() } ?: INVALID_WINDOW
+
+    internal fun viewIdOf(n: AccessibilityNodeInfo): String? =
+        runCatching { n.viewIdResourceName }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+
+    internal fun classOf(n: AccessibilityNodeInfo): String? =
+        runCatching { n.className?.toString() }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+
+    internal fun controlOf(node: AccessibilityNodeInfo, label: String): FeatureControl =
+        FeatureControl(node, label, viewIdOf(node), classOf(node))
+
+    /**
+     * A structural fingerprint of the page [r] was read from: class + resource id of every node, in
+     * walk order, with all *text* left out.
+     *
+     * Text cannot be part of it (a clock, a message list and a counter all change text without the
+     * page changing), but the layout skeleton does change when the app swaps to another page of the
+     * same package. `null` = the walk hit its budget, so the fingerprint would only describe a
+     * prefix of the page and cannot be compared as if it described the page.
+     *
+     * Limits, stated plainly: this is a *structure* signature. Two pages built from the same
+     * skeleton with the same resource ids would collide, and it says nothing about which control on
+     * the page is the right one. It is evidence against a page jump, not proof of page identity.
+     */
+    internal fun pageSignature(r: AccessibilityNodeInfo?): String? {
+        if (r == null) return null
+        val sb = StringBuilder()
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(r)
+        var visited = 0
+        while (queue.isNotEmpty()) {
+            if (visited++ >= PAGE_SIGNATURE_NODES) return null
+            val n = queue.removeFirst()
+            sb.append(classOf(n) ?: "?").append('#').append(viewIdOf(n) ?: "-").append(';')
+            for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
+                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
+            }
+        }
+        return sb.toString()
+    }
+
+    /**
+     * Round 42 (review 6552469328, item 2): why the control re-resolved at the action boundary is not
+     * provably the same *business target* as the one found by the first scan, or null when it is.
+     *
+     * The package check alone (already done by [featureControlOnce]) lets a page jump inside the same
+     * app through: page B with its own unique 「扫一扫」 satisfies "same package, one candidate" while
+     * the click lands on a control the request never named. Node objects are never compared — the
+     * identity is rebuilt from signals the tree reports: window id, the target's resource id and
+     * class, and the page's structural signature. Anything unprovable is refused, not guessed.
+     */
+    internal fun clickIdentityMiss(
+        first: FeatureControl,
+        firstRoot: AccessibilityNodeInfo?,
+        fresh: FeatureControl,
+        freshRoot: AccessibilityNodeInfo?,
+    ): String? {
+        // 1) The target itself: resource id is the strongest identity an app exposes; when both
+        //    reads report one it must be the same widget.
+        val v1 = first.viewId
+        val v2 = fresh.viewId
+        if (v1 != null && v2 != null && v1 != v2) return "identity-target-changed($v1→$v2)"
+        // 2) Role: the class of the clicked node must not change. A button that became a card is a
+        //    different control even if it kept the label and the id.
+        if (first.className != null && fresh.className != null && first.className != fresh.className) {
+            return "identity-target-changed(${first.className}→${fresh.className})"
+        }
+        // 3) With no resource id on either side, label + role is all that is left; if even the role
+        //    is missing, identity is unprovable and nothing is clicked.
+        if (v1 == null && v2 == null && first.className == null) return "identity-target-unknown"
+        if (first.label.trim() != fresh.label.trim()) return "identity-target-changed(label)"
+
+        // 4) The window must be the same window.
+        val w1 = windowOf(firstRoot)
+        val w2 = windowOf(freshRoot)
+        if (w1 == INVALID_WINDOW || w2 == INVALID_WINDOW) return "identity-window-unknown"
+        if (w1 != w2) return "identity-window-changed($w1→$w2)"
+
+        // 5) And it must still be the same page: same package in a new page of the same window is
+        //    exactly the case a "unique same-named control" cannot distinguish.
+        val s1 = pageSignature(firstRoot) ?: return "identity-structure-unknown"
+        val s2 = pageSignature(freshRoot) ?: return "identity-structure-unknown"
+        if (s1 != s2) return "identity-page-changed"
+        return null
     }
 
     /**
@@ -221,17 +326,7 @@ object UiAutomator {
         return FeatureScan(exact, loose, !cut)
     }
 
-    /**
-     * The node's *own* label (text or content-description, trimmed and lowercased), not its aggregate.
-     * This is what decides whether a click target truly *is* the thing the user named: a card whose
-     * child reads 「扫一扫」 has no own label, so it can never win as an exact target.
-     */
-    private fun ownLabel(n: AccessibilityNodeInfo): String =
-        (runCatching { n.text?.toString() }.getOrNull() ?: "").trim().lowercase()
-            .ifEmpty {
-                (runCatching { n.contentDescription?.toString() }.getOrNull() ?: "").trim().lowercase()
-            }
-
+    /** Both labels of [n] joined and lowercased — the phrase a refusal reports back to the caller. */
     private fun labelOf(n: AccessibilityNodeInfo): String =
         ((runCatching { n.text?.toString() }.getOrNull() ?: "") + " " +
             (runCatching { n.contentDescription?.toString() }.getOrNull() ?: "")).lowercase()

@@ -29,6 +29,15 @@ class AppFeatureWindowIdentityTest {
     private val app = AppRegistry.App("微信", pkg, listOf("微信"))
     private val node = mockk<AccessibilityNodeInfo>(relaxed = true)
 
+    /**
+     * Round 42: the click is gated on identity, so the stubbed control has to carry the signals a
+     * real one does (resource id + class) and be bound to a window snapshot (`node`). The gate
+     * itself is exercised against real implementations in AppFeatureClickBindingTest.
+     */
+    private fun control() = UiAutomator.FeatureControl(
+        node, "扫一扫", viewId = "id/scan_entry", className = "android.widget.TextView",
+    )
+
     private fun read(
         vararg texts: String,
         rootPackage: String? = pkg,
@@ -57,12 +66,12 @@ class AppFeatureWindowIdentityTest {
         every { UiAutomator.foregroundPackage() } returns pkg
         every { UiAutomator.readScreen(any()) } returns read("微信", "通讯录", "扫一扫")
         every { UiAutomator.featureControl(any<String>(), any<List<String>>(), any<Long>()) } returns
-            UiAutomator.FeatureLookup(UiAutomator.FeatureControl(node, "扫一扫"), null)
+            UiAutomator.FeatureLookup(control(), null, node)
         // Round 40: the click now acts on a control re-resolved at the action boundary, so the
         // fresh one-shot lookup is stubbed with the same result. The re-resolution itself is
         // covered against real implementations in AppFeatureIdentityTest.
         every { UiAutomator.featureControlOnce(any<String>(), any<List<String>>()) } returns
-            UiAutomator.FeatureLookup(UiAutomator.FeatureControl(node, "扫一扫"), null)
+            UiAutomator.FeatureLookup(control(), null, node)
         every { node.performAction(any()) } returns true
     }
 

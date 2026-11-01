@@ -220,6 +220,21 @@ object AppNavigator {
             )
         }
 
+        // Round 42 (review 6552469328, item 2): a fresh node in the same package is not the same
+        // *target*. A page jump inside the app keeps the package and can still leave exactly one
+        // control with the same name, so package + count are not identity. The fresh control is
+        // bound to the first one by window id, resource id/class and the page's structural
+        // signature; when that cannot be established, nothing is clicked.
+        val identityMiss = UiAutomator.clickIdentityMiss(control, lookup.window, target, fresh.window)
+        if (identityMiss != null) {
+            return ToolResult(
+                ToolStatus.DEVICE_UNAVAILABLE, "app_feature",
+                "点之前${app.label}的界面换了，没法确认还是刚才那个$feature，没有点",
+                "app=${app.packageName} beyond-scan-identity=$identityMiss " +
+                    "scan=${control.label.trim()} fresh=${target.label.trim()} ($why)", false
+            )
+        }
+
         // Only the node the fresh lookup bound to; `UiAutomator.click` may climb parents or tap
         // coordinates, which is exactly the blind click this refuses to do.
         val clicked = target.node.performAction(AccessibilityNodeInfo.ACTION_CLICK)

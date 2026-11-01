@@ -120,7 +120,12 @@ class SemanticExecutionTest {
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
             texts = listOf("微信", "通讯录"), nodesVisited = 10,
             rootPackage = "com.tencent.mm", serviceAvailable = true)
-        every { UiAutomator.featureControl("com.tencent.mm", "扫一扫", any<Long>()) } returns
+        // Review 6552469328 (item 3): production calls the `List<String>` overload, so stubbing the
+        // `String` one injected nothing and this test went green for the wrong reason (no window at
+        // all rather than "the label is not on screen"). The labels are captured so the assertion
+        // also proves the alias set reached the real overload.
+        val seenLabels = slot<List<String>>()
+        every { UiAutomator.featureControl("com.tencent.mm", capture(seenLabels), any<Long>()) } returns
             UiAutomator.FeatureLookup(null, "not-found")
         every { UiAutomator.featureControlOnce("com.tencent.mm", any<List<String>>()) } returns
             UiAutomator.FeatureLookup(null, "not-found")
@@ -128,6 +133,8 @@ class SemanticExecutionTest {
         assertThat(reply).contains("没有找到扫一扫")
         assertThat(reply).doesNotContain("已经进入")
         verify(exactly = 1) { AppRegistry.launch(ctx, app) }
+        verify(exactly = 1) { UiAutomator.featureControl("com.tencent.mm", any<List<String>>(), any<Long>()) }
+        assertThat(seenLabels.captured).contains("扫一扫")
     }
 
     @Test fun `verified timer duration alone is not undo identity`() {

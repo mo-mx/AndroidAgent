@@ -36,12 +36,18 @@ class AppFeatureIdentityTest {
         desc: String? = null,
         clickable: Boolean = false,
         owner: String = pkg,
+        cls: String = "android.widget.LinearLayout",
+        viewId: String? = null,
+        windowId: Int = 7,
         children: List<AccessibilityNodeInfo> = emptyList(),
     ): AccessibilityNodeInfo {
         val node = mockk<AccessibilityNodeInfo>(relaxed = true)
         every { node.text } returns text
         every { node.contentDescription } returns desc
         every { node.packageName } returns owner
+        every { node.className } returns cls
+        every { node.viewIdResourceName } returns viewId
+        every { node.windowId } returns windowId
         every { node.isClickable } returns clickable
         every { node.isVisibleToUser } returns true
         every { node.isScrollable } returns false
@@ -100,17 +106,21 @@ class AppFeatureIdentityTest {
     }
 
     @Test
-    fun `an exact label still wins when the rival is only a longer text card`() {
-        val card = n("扫一扫设置", clickable = true)
-        val entry = n("扫一扫", clickable = true)
+    fun `an exact label next to a longer text card is not identity either`() {
+        // Round 42 (review 6552469328, item 1): this used to assert that the exactly labelled entry
+        // *wins* over a 「扫一扫设置」 card. Exact own text does not prove business identity, so the
+        // expectation is now the honest one: two different clickable controls, no click.
+        val card = n("扫一扫设置", clickable = true, viewId = "id/settings_row")
+        val entry = n("扫一扫", clickable = true, viewId = "id/scan_entry")
         val body = n(children = listOf(card, entry))
         every { UiAutomator.root() } returns n(children = listOf(body))
 
         val lookup = UiAutomator.featureControl(pkg, "扫一扫", 60)
 
-        assertThat(lookup.control).isNotNull()
-        assertThat(lookup.control!!.node).isSameInstanceAs(entry)
+        assertThat(lookup.control).isNull()
+        assertThat(lookup.why).startsWith("ambiguous")
         verify(exactly = 0) { card.performAction(any()) }
+        verify(exactly = 0) { entry.performAction(any()) }
     }
 
     @Test
@@ -175,10 +185,12 @@ class AppFeatureIdentityTest {
 
     @Test
     fun `the click lands on the control re-resolved at the action boundary, not the stale one`() {
-        val stale = n("扫一扫", clickable = true)
-        val first = n(children = listOf(n(children = listOf(stale))))
-        val fresh = n("扫一扫", clickable = true)
-        val second = n(children = listOf(n(children = listOf(fresh))))
+        // Round 42: the fresh node must also carry the same identity signals (resource id/class) and
+        // sit on the same page structure, otherwise the identity gate refuses it by design.
+        val stale = n("扫一扫", clickable = true, viewId = "id/scan_entry")
+        val first = n(children = listOf(n(children = listOf(stale), viewId = "id/home")))
+        val fresh = n("扫一扫", clickable = true, viewId = "id/scan_entry")
+        val second = n(children = listOf(n(children = listOf(fresh), viewId = "id/home")))
         every { UiAutomator.root() } returnsMany listOf(first, second)
 
         AppNavigator.openFeatureResolved(ctx, app, "扫一扫", "unit-test")
@@ -203,8 +215,8 @@ class AppFeatureIdentityTest {
 
     @Test
     fun `an unchanged window still clicks`() {
-        val entry = n("扫一扫", clickable = true)
-        val tree = n(children = listOf(n(children = listOf(entry))))
+        val entry = n("扫一扫", clickable = true, viewId = "id/scan_entry")
+        val tree = n(children = listOf(n(children = listOf(entry), viewId = "id/home")))
         every { UiAutomator.root() } returnsMany listOf(tree, tree)
 
         val r = AppNavigator.openFeatureResolved(ctx, app, "扫一扫", "unit-test")

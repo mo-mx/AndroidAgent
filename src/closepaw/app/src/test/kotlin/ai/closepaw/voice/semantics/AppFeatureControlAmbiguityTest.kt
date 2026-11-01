@@ -145,7 +145,10 @@ class AppFeatureControlAmbiguityTest {
     }
 
     @Test
-    fun `an exact label wins over a longer card that contains it`() {
+    fun `an exact label next to a longer card is not identity either`() {
+        // Round 42 (review 6552469328, item 1): this test used to assert that the exactly labelled
+        // entry wins over a 「扫一扫设置」 card. Two different clickable controls that both answer to
+        // the name carry no evidence of which one is the feature, so the honest outcome is a refusal.
         val card = n("扫一扫设置", clickable = true)
         val entry = n("扫一扫", clickable = true)
         val body = n(children = listOf(card, entry))
@@ -153,9 +156,10 @@ class AppFeatureControlAmbiguityTest {
 
         val lookup = UiAutomator.featureControl(pkg, "扫一扫", 60)
 
-        assertThat(lookup.control).isNotNull()
-        assertThat(lookup.control!!.node).isSameInstanceAs(entry)
+        assertThat(lookup.control).isNull()
+        assertThat(lookup.why).startsWith("ambiguous")
         verify(exactly = 0) { card.performAction(any()) }
+        verify(exactly = 0) { entry.performAction(any()) }
     }
 
     // ── the navigator must not click when the lookup refused ──────────────────────────────────
