@@ -35,14 +35,14 @@
 
 | 组件 | 状态 |
 |---|---|
-| ADB (platform-tools) | 已装：37.0.1，路径 `C:\Users\Aqua\AndroidAgent\tools\platform-tools\adb.exe` |
+| ADB (platform-tools) | 已装：37.0.1，路径 `C:\Users\<user>\AndroidAgent\tools\platform-tools\adb.exe` |
 | JDK | 已装：Temurin **17.0.20.1**，路径 `tools\jdk-17.0.20.1+1` |
 | Android SDK cmdline-tools | 已装：13114758 |
 | platforms / build-tools | 正在安装（platforms;android-36、build-tools;36.0.0） |
 | Gradle | 不单独安装，用项目自带 wrapper |
-| 环境脚本 | `C:\Users\Aqua\AndroidAgent\env.sh`（ANDROID_HOME / JAVA_HOME / PATH / ADB） |
+| 环境脚本 | `C:\Users\<user>\AndroidAgent\env.sh`（ANDROID_HOME / JAVA_HOME / PATH / ADB） |
 
-项目目录：`C:\Users\Aqua\AndroidAgent\`（tools / scripts / logs / docs / src）
+项目目录：`C:\Users\<user>\AndroidAgent\`（tools / scripts / logs / docs / src）
 ClosePaw 源码已克隆：`src\closepaw`（37 MB，Apache-2.0）
 
 ## 3. 助手与权限现状（实测）

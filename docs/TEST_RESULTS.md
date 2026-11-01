@@ -139,7 +139,7 @@ ai.closepaw.memory.MemoryStoreTest :: app entries stay inside their target secti
 
 - WSL 下用同一 fixture 起 daemon，手写请求**不带** token → `HTTP/1.1 401 Unauthorized`，`disconnect_child.pid` **不存在**；
 - 带 `Authorization: Bearer <TOKEN>` 发同一命令 → 命令真的执行（进程组被杀、锁释放，测试全绿）；
-- 因此第51轮加鉴权时漏改了这一条手写请求，而它在 Windows 上又被路径问题掩盖：命令里的 pidfile 参数是 Windows 路径 `C:\Users\...\disconnect_child.pid`，`bash -c` 吃掉反斜杠后写成一个**字面文件名** `C:UsersAquaAppDataLocalTemppid.pid`（本机 probe 直接复现：`bash -c 'sleep 30 & echo $! > C:\Users\...\win.pid'` 后目录里只有 `C:UsersAqua…win.pid`），所以断言找不到 `child_pid_file`。
+- 因此第51轮加鉴权时漏改了这一条手写请求，而它在 Windows 上又被路径问题掩盖：命令里的 pidfile 参数是 Windows 路径 `C:\Users\<user>\disconnect_child.pid`，`bash -c` 吃掉反斜杠后写成一个**字面文件名** `C:Users<user>AppDataLocalTemppid.pid`（本机 probe 直接复现：`bash -c 'sleep 30 & echo $! > C:\Users\<user>\win.pid'` 后目录里只有 `C:Users<user>…win.pid`），所以断言找不到 `child_pid_file`。
 
 修了什么：只改测试——那条手写请求补上 `Authorization: Bearer {TOKEN}`（`TOKEN` 本来就是 conftest 写进 `~/.closepaw/token` 的值），**没有改任何断言**、没有放宽鉴权、没有动生产代码。Windows 侧该条仍红，原因是上面的路径转义，属宿主语义，不修。
 

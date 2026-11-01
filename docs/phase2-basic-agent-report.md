@@ -13,7 +13,7 @@
   - 原因：官方 v0.1.0 release 的引导第 4 步只允许 OpenAI / OpenRouter 并做联网校验，百炼 Key 被拒
     （`That key was rejected`），而自定义端点「Other」只能进设置后改 → 死循环，无法完成引导。
   - debug 版接受 adb Intent 参数（release 版全部 no-op），可无 UI 完成全部配置。源码路径：
-    `C:\Users\Aqua\AndroidAgent\src\closepaw`，产物 `app/build/outputs/apk/debug/app-debug.apk`
+    `C:\Users\<user>\AndroidAgent\src\closepaw`，产物 `app/build/outputs/apk/debug/app-debug.apk`
 - 模型接入：用 **Other（自定义 OpenAI 兼容端点）**
   - Base URL `https://dashscope.aliyuncs.com/compatible-mode/v1`
   - Model `qwen3.8-flash`，条目名 `other-custom`

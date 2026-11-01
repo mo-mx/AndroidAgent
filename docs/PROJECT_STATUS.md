@@ -1,4 +1,34 @@
 # PROJECT_STATUS — 当前真实状态
+## 第58轮：无新审查，把「脱敏」从 `docs/evidence/` 扩到整个 `docs/` 树（零源码改动，未实机）
+
+PR #4 自第57轮评论（`6558200669`，12:52:41Z）后**没有新审查**；最新复审仍是 `6557962727`（`be6d87b`），它只剩 B3 验收门槛并已宣布两轮停止。所以本轮不碰冻结范围，只补第57轮自己写明「未改、如需请说一声」的那半条隐私尾巴——它同时也是 `AGENTS.md` 第 8 条（不把个人数据写进仓库）的直接落实。
+
+### 做了什么
+
+1. **脱敏范围扩到 `docs/**/*.md`**（只改路径前缀，不改任何结论/数字/断言）：`phase1-device-report.md`（3 处：adb 路径、`env.sh`、项目目录）、`phase2-basic-agent-report.md`（1 处源码路径）、`TEST_RESULTS.md`（1 处 `bash` 吃掉反斜杠的复现说明，`C:Users<user>AppDataLocalTemp...` 形态保留原意）。`PROJECT_STATUS.md` 里那条 `grep -rn "Users.<name>"` 示例命令原本自带用户名，也换成占位符。
+2. **`docs/evidence/sanitize_evidence.py` 增加 `--scope evidence|docs|all`**，默认行为与第57轮一致：
+   - `<盘>:\Users\<用户>\` → `C:\Users\<user>\`；`Users<用户>AppData…`（反斜杠被吃掉的形态）→ `Users<user>AppData…`；
+   - JSON 的双反斜杠形态单独一遍处理，**替换后仍是合法 JSON**（`json.loads` 实测通过），不产生 `\U` 这类非法转义；
+   - 幂等：`mask(mask(x)) == mask(x)` 实测 True，已脱敏的 `<user>` 不会被二次改写；
+   - 用户名从 `USERNAME`/`USER`/`getpass` 读，**不写进仓库**。
+3. **`--check` 变成可复跑闸门**（`--scope all --check`，exit 0 = 干净），并继续逐类求和比对 JUnit 汇总的声明总计。
+
+### 实跑数据（Python，本机 Windows 11；**未跑 Gradle**——本轮 `src/`、`app/src/test/` 零 diff）
+
+| 检查 | 命令 | 结果 |
+|---|---|---|
+| 脱敏前 | `sanitize_evidence.py --scope all --check` | 3 个文件 `WOULD MASK`，**exit=1**；两份汇总 `2528/6`、`2529/0` 求和均 `match=True` |
+| 脱敏 | `--scope docs` | `MASKED: phase1-device-report.md / phase2-basic-agent-report.md / TEST_RESULTS.md`，exit=0 |
+| 脱敏后 | `--scope all --check` | **exit=0**；两份汇总求和仍 `match=True`（计数未因脱敏改变） |
+| 残留扫描 | `git grep -ni "$USERNAME" -- docs/`（本机用户名） | 无命中 |
+| 幂等 | 直接调 `mask()` | `mask(mask(x)) == mask(x)` → True |
+| JSON 安全 | 构造 `refs.json` 同形串 → `mask` → `json.loads` | 解析成功，`wav` 变成 `C:\Users\<user>\AndroidAgent\...` |
+
+### 仍列 KNOWN-OPEN（不假装已修）
+
+- `asr_eval/refs.json`、`asr_eval/make_set.ps1` 仍有本机绝对路径。这是 **ASR 评测脚本的功能性输入**，不是文档：`eval_asr.py:152` 直接 `read_wav(r["wav"])` 读 `refs.json` 里的绝对路径。要改成仓库相对路径必须同时改 `eval_asr.py` 的解析逻辑，属**功能改动**，且本轮没有真实 wav/模型可验证，不在这个冻结 PR 里顺手做。`--scope all` 会把这两个文件打成 `KNOWN-OPEN` 打印出来。
+- 探针/汇总只证明本机 Windows 机制；Linux/POSIX JVM、独立 CI、真机三条仍未闭合，等待用户决定。
+
 ## 第57轮：处理复审 `6557962727` 的两条 FOLLOW-UP（探针文件不可按发布命令执行 + 证据含本机路径），源码零改动
 
 复审 `6557962727`（`<!-- chatgpt-hourly-review SHA:be6d87b -->`，2026-11-01T12:30:03Z）是第56轮评论之后唯一的新审查。它**没有指认新的代码缺陷**，仍只有 B3 验收门槛，并明确「已达两轮停止条件、不指派第三轮修复」；另给两条**非阻塞 FOLLOW-UP**，都属证据可复现性/隐私，可离线闭合，故本轮只做这两条。
@@ -11,7 +41,7 @@
 ### FOLLOW-UP ②：JUnit 汇总与探针输出包含本机 Windows 用户目录 —— 成立，已脱敏且计数未变
 
 - 新增 `docs/evidence/sanitize_evidence.py`，只做两类替换：`<盘>:\Users\<名>\` → `C:\Users\<user>\`，`<盘>:\Users\<user>\AppData\Local\Temp\(junit|probe)<数字>` → `%TEMP%\<kind><n>`；测试类名、计数、断言原文不动。
-- 脚本每次运行都会**重新逐类求和**并与声明总计比对；脱敏后实得：`a6a498f` 汇总 **271/2528/6/0/8 一致**，`197dd90` 汇总 **271/2529/0/0/8 一致**。`--check` 复跑 exit=0（无残留可脱敏项），`grep -rn "Users.Aqua" docs/evidence/` 无命中。
+- 脚本每次运行都会**重新逐类求和**并与声明总计比对；脱敏后实得：`a6a498f` 汇总 **271/2528/6/0/8 一致**，`197dd90` 汇总 **271/2529/0/0/8 一致**。`--check` 复跑 exit=0（无残留可脱敏项），`grep -rn "Users.<user>" docs/evidence/` 无命中（<user> 指本机用户名，见第58轮）。
 - 顺带把 `docs/TEST_RESULTS.md` 日志目录里的本机用户名改成 `C:\Users\<user>\`；`docs/phase1-device-report.md`、`docs/phase2-basic-agent-report.md` 中的旧绝对路径未改（属历史设备报告正文，非本次被点名的证据文件）。
 
 ### 证据级别（不升级）
