@@ -1,4 +1,31 @@
 # PROJECT_STATUS — 当前真实状态
+
+## 第59轮：新复审 `6558533290` —— 无新 BLOCKER；把「`--check` 通过 ≠ 仓库无私人路径」实测出来并更正上轮措辞（零源码改动，未实机）
+
+本轮唯一新审查是 PR #4 评论 `6558533290`（`<!-- chatgpt-hourly-review SHA:24d02c2... -->`，2026-11-01T13:22:27Z），针对当前 HEAD `24d02c2f355d5e18ccfe152c20e03df0b0ac3c9f`。
+
+### 复审给的三类结论（按它的分类照抄，不升级）
+
+- **B1/B2**：本次差异（`be6d87b..24d02c2`，4 个提交 / 15 个文件）**未发现新的、有可达路径与最小复现的安全阻塞**；`TorchControl`、`ActionMemory`、语义闸门、Termux Bridge 生产源码本轮未改动。
+- **B3**：阶段 1 最终验收仍未关闭，需要用户决定（Bridge 是否纳入阶段 1、是否授权限定设备验收），**不是新发现的代码缺陷**。复审已触发两轮停止条件，**不指派第三轮修复**。
+- **FOLLOW-UP（非阻塞）**：`sanitize_evidence.py --scope all --check` 对 `KNOWN_OPEN` 只打印提醒、不计入 `dirty`，仍可能 `exit=0`，因此不能把「`--check` 通过」读成「整个仓库已无私人路径」。
+
+### 本轮只做两件离线可验证的事
+
+1. **实测该 FOLLOW-UP 是否成立**（它自己只写了「可能」）：`python docs/evidence/sanitize_evidence.py --scope all --check` 实跑输出两行 `KNOWN-OPEN (needs separate decision, not rewritten): asr_eval/refs.json`、`... asr_eval/make_set.ps1`，**EXIT=0**。同时 `--scope docs --check` EXIT=0、`--check`（evidence）EXIT=0，两份 JUnit 汇总逐类求和仍 `match=True`（`2528/6`、`2529/0`）。**结论：FOLLOW-UP 成立，已复现。**
+2. **把「仓库级还剩多少」量出来**（复审只点名 2 个 KNOWN-OPEN，实际更多）：`git grep -l -i "$USERNAME" -- .`（本机用户名）命中 **24 个已跟踪文件** —— `scripts/` 19 个、`asr_eval/` 2 个、`env.sh`、`scrcpy_wireless.bat`、`mobile-actions-eval/setup_harness.py`。逐个与 `git diff --name-only origin/main...HEAD` 求交，**交集为空**：即这些本机绝对路径**全部是 main 上既有的**，PR #4 没有新增。`origin/main` 在 `scripts/`、`asr_eval/`、`env.sh`、`scrcpy_wireless.bat`、`mobile-actions-eval/` 下共有 41 个文件。
+
+### 为什么不修（不是「忘了」）
+
+- 改 `--check` 语义（把 `KNOWN_OPEN` 计入 `dirty`）会让这条闸门在**尚未决定如何处置那 2 个功能性输入**的情况下永久红；复审本身写明「若日后单独处理，应另经用户授权，不在本轮扩大修复范围」。
+- 另外 22 个文件是**本机开发脚本里写死的绝对路径**（与 `asr_eval/refs.json` 同类：是脚本的功能性输入，不是文档）。要改成相对路径/环境变量必须改脚本解析逻辑，属功能改动，且这些脚本只在本机跑、本轮无对应运行环境可验证——按 AGENTS.md 第 3/4 条，不能「改了就宣称好了」。
+- 因此本轮**只更正文档措辞**，把「`exit 0 = 干净`」收窄为「`exit 0` 只表示可掩码目标里没有可掩码项」，并把上面 24/2 的实测数字写进状态，避免下轮把这条当已闭合。
+
+### 证据级别
+
+- 本轮 `src/`、`app/src/test/` **零 diff**（`git diff --stat 197dd90..HEAD` 12 个文件全在 `docs/`），故**未跑 Gradle**；「全量 JVM 全绿」的证据仍是第56轮在 `197dd90` 的实跑记录，代码版本相同不代表在 `24d02c2` 上重跑过。
+- 实跑证据仅限：Python 脱敏脚本、`git grep`/`git diff`（Windows 11 本机）。**未构建/安装/测试 APK，未操作手机**。B3 的「真机验收」与「独立 CI」两条仍为空。
+
 ## 第58轮：无新审查，把「脱敏」从 `docs/evidence/` 扩到整个 `docs/` 树（零源码改动，未实机）
 
 PR #4 自第57轮评论（`6558200669`，12:52:41Z）后**没有新审查**；最新复审仍是 `6557962727`（`be6d87b`），它只剩 B3 验收门槛并已宣布两轮停止。所以本轮不碰冻结范围，只补第57轮自己写明「未改、如需请说一声」的那半条隐私尾巴——它同时也是 `AGENTS.md` 第 8 条（不把个人数据写进仓库）的直接落实。
@@ -11,7 +38,7 @@ PR #4 自第57轮评论（`6558200669`，12:52:41Z）后**没有新审查**；�
    - JSON 的双反斜杠形态单独一遍处理，**替换后仍是合法 JSON**（`json.loads` 实测通过），不产生 `\U` 这类非法转义；
    - 幂等：`mask(mask(x)) == mask(x)` 实测 True，已脱敏的 `<user>` 不会被二次改写；
    - 用户名从 `USERNAME`/`USER`/`getpass` 读，**不写进仓库**。
-3. **`--check` 变成可复跑闸门**（`--scope all --check`，exit 0 = 干净），并继续逐类求和比对 JUnit 汇总的声明总计。
+3. **`--check` 变成可复跑闸门**（`--scope all --check`），并继续逐类求和比对 JUnit 汇总的声明总计。**第59轮更正**：`exit 0` 只表示「可掩码的目标里没有可掩码项」；`KNOWN_OPEN` 只打印、不计入 `dirty`，故 `exit 0` **不等于**整个仓库已无私人路径（实测仓库内仍有 24 个此类文件，且均为 main 既有）。
 
 ### 实跑数据（Python，本机 Windows 11；**未跑 Gradle**——本轮 `src/`、`app/src/test/` 零 diff）
 
@@ -19,7 +46,7 @@ PR #4 自第57轮评论（`6558200669`，12:52:41Z）后**没有新审查**；�
 |---|---|---|
 | 脱敏前 | `sanitize_evidence.py --scope all --check` | 3 个文件 `WOULD MASK`，**exit=1**；两份汇总 `2528/6`、`2529/0` 求和均 `match=True` |
 | 脱敏 | `--scope docs` | `MASKED: phase1-device-report.md / phase2-basic-agent-report.md / TEST_RESULTS.md`，exit=0 |
-| 脱敏后 | `--scope all --check` | **exit=0**；两份汇总求和仍 `match=True`（计数未因脱敏改变） |
+| 脱敏后 | `--scope all --check` | **exit=0**；两份汇总求和仍 `match=True`（计数未因脱敏改变）。该 exit=0 **不含** `KNOWN_OPEN` 判断（第59轮实测） |
 | 残留扫描 | `git grep -ni "$USERNAME" -- docs/`（本机用户名） | 无命中 |
 | 幂等 | 直接调 `mask()` | `mask(mask(x)) == mask(x)` → True |
 | JSON 安全 | 构造 `refs.json` 同形串 → `mask` → `json.loads` | 解析成功，`wav` 变成 `C:\Users\<user>\AndroidAgent\...` |
