@@ -1,5 +1,34 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㊸轮：撤销被使用后没有失效（源码 + JVM，未实机）
+
+本轮 PR #4 **无新审查**（最新复审仍是 `6552469328`，已由第㊷轮评论回复；其后 PR 无新评论）。按「无新审查则推进可离线项」取遗留清单里的 **undo 安全性**。
+
+**缺陷（源码分析 + JVM 实证）**：`ActionMemory.undo` 发出逆操作后不清除记忆，而记忆断言的是「刚刚哪次变更、对象当时是什么状态」。撤销一旦执行，那个状态就不成立了：
+
+- 「打开手电筒」→「取消刚才的操作」→ 灯灭，记忆仍是 `ENABLE/TORCH`；
+- 再说一次「取消刚才的操作」→ 又发一次 `set(false)`，播「已关闭手电筒」——把空操作说成刚做完的动作；
+- 对 `DISABLE` 记录，重复的逆操作是 `set(true)`：撤销过一次关灯后，用户若手动关灯，再说「撤销」会**把灯点亮**，对自己造成的状态动手。
+
+**改法**：逆操作 `status == SUCCESS` 即消费记忆（`verified` 不参与——已发出的逆操作已经改变对象，重复它就是双重翻转）；逆操作没跑成（设备不可用/无对应逆操作）保留记忆，允许诚实重试。
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TorchUndoConsumptionTest`(5)，生产未改 | **RED 5 / 4 failed / 0 errors**（`getLast()` expected null but was `Entry(ENABLE/TORCH…)`；二次撤销实得「已关闭手电筒」；`DISABLE` 条实得「已开启手电筒」） |
+| 实现后同组 | **GREEN 5 / 5**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **360 / 0 failed / 0 errors / 0 skipped**，exit=0（第㊷轮 355） |
+| 全量 `:app:testDebugUnitTest` | **2450 / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**；失败仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过 |
+
+**假设被推翻的记录**：开工假设是「二次撤销会把灯重新打开」，RED 实跑证明对 `ENABLE` 记录不是——它重复发 `set(false)` 并**谎报新动作**；真正翻转的是 `DISABLE` 记录。断言按实跑结果重写。
+
+边界：全部为源码 + JVM（`Context`/`CameraManager` 被 mock），证明账本不符实机灯光；只有手电进撤销记忆，时钟创建/取消仍是安全拒绝；**记忆仍无过期时间**（`Entry.at` 未被读过，列为待办，本轮未做）；设备矩阵维持 4 通过 / 0 失败 / 3 未测，本 SHA 未构建/未安装/未实测，实机需用户重新授权；`closeAlarm` 仍 BLOCKED；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
+环境事故：一次前台 `gradlew` 被工具超时中断，孤儿构建持有 `R.jar` 导致两次 `:app:processDebugResources` 报 `Couldn't delete R.jar`（不是测试失败）；`./gradlew --stop` 后重跑成功，上面数字均来自成功运行。
+
+## 第㊷轮：点击身份与动作面的页面绑定（源码 + JVM，未实机）
+
+见 `docs/phase6-stage1-semantic-gate.md` 与 PR #4 第㊷轮评论：`UiAutomator.featureControlOnce` 只保留「唯一可点击目标」才点；新增 `UiAutomator.clickIdentityMiss`（view-id/className/label/windowId/无文本页面结构指纹）；修正 `SemanticExecutionTest` 桩错重载。数字：semantics 252 / voice 355 / 全量 2445、6 failed、8 skipped、exit=1。
+
 ## 第㊶轮：取消倒计时的「唯一绑定」只在视口内成立（源码 + JVM，未实机）
 
 本轮 PR #4 **无新审查**（最新复审仍是 `6551941593`，已由评论 `6552207011` 回复；其后 PR 无新评论）。按「无新审查则推进可离线项」取任务清单里的**计时器唯一绑定**（剩余的一半）。

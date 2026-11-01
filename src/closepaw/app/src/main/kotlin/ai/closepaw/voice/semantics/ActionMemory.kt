@@ -40,7 +40,16 @@ object ActionMemory {
 
 
 
-    /** Undo the previous task by issuing its inverse — never by creating something new. */
+    /**
+     * Undo the previous task by issuing its inverse — never by creating something new.
+     *
+     * Round 43: the memory is consumed by the undo that applies it. Issuing the inverse changes the
+     * world, so the remembered state ("torch was ON") stops being true the moment the inverse runs;
+     * keeping it made a second "取消刚才的操作" re-issue the same inverse and report it as a fresh
+     * success (and, for a remembered `DISABLE`, re-enable a torch the user may have just switched
+     * off by hand). An inverse that did **not** run (device unavailable, no inverse) leaves the
+     * entry in place, so an honest retry is still possible.
+     */
     fun undo(ctx: Context): ToolResult {
         val e = last ?: return ToolResult.unavailable("undo", "无法确认刚才变更的具体对象，不能安全撤销", "no verified identity-bound inverse")
         val r = when {
@@ -54,7 +63,11 @@ object ActionMemory {
             )
             else -> ToolResult.unavailable("undo", "刚才的操作没有对应的撤销动作", e.speech)
         }
-        Log.i(TAG, "undo(${e.action}/${e.target}) → ${r.status} ${r.detail}")
+        // Only a status of SUCCESS means the inverse was actually issued. `verified` is not part of
+        // this decision: an unconfirmed-but-sent inverse already moved the object, and repeating it
+        // is the double toggle this guards against.
+        if (r.status == ToolStatus.SUCCESS && last === e) last = null
+        Log.i(TAG, "undo(${e.action}/${e.target}) → ${r.status} ${r.detail}${if (last == null) " consumed" else ""}")
         return ToolResult(r.status, "undo", r.speak, "undo of ${e.action}/${e.target}: ${r.detail}", r.verified)
     }
 }

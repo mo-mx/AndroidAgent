@@ -760,3 +760,44 @@ TDD：每个修复切片先观察对应行为断言失败，再修改生产代�
 既有测试为适配新契约做了桩调整：`featureControl` 变成标签集重载后，`any()` 需显式 `any<List<String>>()`（4 个文件）；`AppFeatureWindowIdentityTest`/`AppFeatureReadCompletenessTest`/`SemanticExecutionTest` 补 `featureControlOnce` 桩，真实重解析由 `AppFeatureIdentityTest` 覆盖。
 
 **未实机**：真机上帮助卡片与真入口的节点角色、className、resource-id，以及三星设备上「扫码」的实际映射都未验证；本轮刻意不按控件角色猜业务入口，规则是「证明不了就拒绝」。代价：同页面两个控件对得上同一标签（含同义词）即拒绝打开；点击前多一次全树解析，大树页面更容易 `candidates-truncated`。设备矩阵维持 4 通过 / 0 失败 / 3 未测，本 SHA 未构建/未安装/未实测，实机需用户重新授权。`closeAlarm` 仍 BLOCKED，计时器对象级终态仍 UNPROVEN，在线 `ToolRouter` 同门禁（阶段 2）未开始。
+
+## 第㊸轮：撤销被使用后没有失效（源码 + JVM，未实机）
+
+本轮 PR #4 **无新审查**（最新复审 `6552469328` 已由第㊷轮评论回复，其后无新评论）。按「无新审查则推进可离线项」取遗留清单里的**创建/变更后的 undo 安全性**，落在 `ActionMemory`。
+
+### 缺陷
+
+`ActionMemory.undo` 发出逆操作后**不清除**记忆。记忆里那句注释「an attempted mutation invalidates older undo state」只实现了一半：新的变更会清掉记忆，**应用这条记忆的那次撤销不会**。于是记忆持续断言一个已经被它自己改掉的世界状态：
+
+- 「打开手电筒」→「取消刚才的操作」→ 灯灭，记忆仍是 `ENABLE/TORCH`；
+- 再说一次「取消刚才的操作」→ 又发一次 `set(false)`，并播「已关闭手电筒」，把一次空操作说成刚做完的动作；
+- 对 `DISABLE` 记录同理，重复的逆操作是 `set(true)`：撤销过一次关灯之后，用户若手动关掉手电，再说「撤销」会**把灯重新点亮**——对用户自己造成的状态动手。
+
+### 改法
+
+逆操作**真的发出去了**（`status == SUCCESS`）就把记忆消费掉；`verified` 不参与这个判断——未确认但已发出的逆操作同样已经改变了对象，重复它就是这里要防的双重翻转。逆操作**没跑成**（设备不可用、没有对应逆操作）则保留记忆，允许诚实重试。
+
+### TDD 与实跑数据（`--offline --rerun-tasks`，JDK 17）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TorchUndoConsumptionTest`(5)，生产未改 | **RED 5 tests / 4 failed / 0 errors**。真实失败值：`value of: getLast() expected: null but was : Entry(action=ENABLE, target=TORCH, …)`；第二次撤销 `expected to contain: 不能安全撤销 but was: 已关闭手电筒`；`DISABLE` 那条实得 `已开启手电筒`。控制组「新的变更在撤销之后仍会被记录」本就通过 |
+| 实现后同组 | **GREEN 5 / 5**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **360 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊷轮 355，+5） |
+| 全量 `:app:testDebugUnitTest` | **2450 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**；失败仍是既知两类 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过，本轮未重跑旧 SHA 基线 |
+
+### 假设被自己推翻的记录
+
+本轮开工时的假设是「第二次撤销会把灯重新打开」。RED 实跑证明**对 `ENABLE` 记录不是**：第二次撤销发的是同样的 `set(false)`，播「已关闭手电筒」——问题在于**谎报新动作**，不是翻转。真正会翻转的是 `DISABLE` 记录（逆操作是 `set(true)`）。测试按实跑结果改写断言，没有留着一个好听的错误结论。
+
+### 边界（必须看清）
+
+- 全部为**源码 + JVM**，`Context`/`CameraManager` 为 mock：证明的是记忆账本，不是真机上灯真的灭了。
+- 当前唯一会被记住的变更是手电（`recordResult` 只接受 `TORCH` 且 `verified == true`）。时钟的创建/取消**不进撤销记忆**，这是既有的安全拒绝（无对象级身份），本轮未改。
+- **记忆仍无过期时间**：`Entry.at` 一直没被读过，隔很久说「撤销」仍会按旧记忆发逆操作。本轮没有加时间窗——阈值没有真机数据支撑，属于待办而非已完成。
+- 设备矩阵维持历史 4 通过 / 0 失败 / 3 未测；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+- `closeAlarm` 仍 BLOCKED；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
+### 环境事故（如实记录，不计入测试结论）
+
+一次前台 `gradlew` 调用被工具超时中断，遗留的孤儿构建持有 `R.jar`，随后两次 `:app:processDebugResources` 都以 `Couldn't delete …\R.jar` 失败（不是测试失败）。`./gradlew --stop` 停掉 2 个 daemon 后重跑才成功；上面的数字全部来自成功的那几次运行。
