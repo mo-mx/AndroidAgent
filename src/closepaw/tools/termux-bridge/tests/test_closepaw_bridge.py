@@ -8,7 +8,7 @@ import threading
 import time
 from pathlib import Path
 
-from conftest import HOST, BridgeProcess, start_process, stop_process, wait_for_health
+from conftest import HOST, TOKEN, BridgeProcess, start_process, stop_process, wait_for_health
 
 
 OUTPUT_CAP_BYTES = 65536
@@ -232,6 +232,21 @@ def test_cwd_is_constrained_to_resolved_workspace(bridge_server, tmp_path):
     for response in (absolute_escape, dotdot_escape, symlink_escape):
         assert response.status == 400
         assert response.body == {"error": "workspace_escape"}
+
+
+def test_probe_with_the_daemon_token_recognizes_our_own_daemon(bridge_server):
+    """Review 6555767212 added token auth to /v1/health; the local probe must speak it.
+
+    The probe is how a starting bridge decides whether the pidfile points at one of ours.
+    If it asks without credentials it gets 401 and concludes "not a bridge", so a live
+    daemon can never be replaced. That does not mean the probe may go back to trusting any
+    listener: an unauthenticated or wrong-token probe must still say "not ours".
+    """
+    import closepaw_bridge
+
+    assert closepaw_bridge.health_is_bridge(bridge_server.port, TOKEN) is True
+    assert closepaw_bridge.health_is_bridge(bridge_server.port) is False
+    assert closepaw_bridge.health_is_bridge(bridge_server.port, "x" * len(TOKEN)) is False
 
 
 def test_stale_daemon_pidfile_is_overwritten_by_new_daemon(tmp_path, free_port, bridge_factory):

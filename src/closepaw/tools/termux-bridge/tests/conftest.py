@@ -14,7 +14,12 @@ import pytest
 
 
 HOST = "127.0.0.1"
-BRIDGE_SCRIPT = Path(__file__).resolve().parents[1] / "closepaw_bridge.py"
+BRIDGE_DIR = Path(__file__).resolve().parents[1]
+BRIDGE_SCRIPT = BRIDGE_DIR / "closepaw_bridge.py"
+# Some tests call the module's own probe helpers instead of going through HTTP, so the
+# bridge module has to be importable from the tests directory.
+if str(BRIDGE_DIR) not in sys.path:
+    sys.path.insert(0, str(BRIDGE_DIR))
 TOKEN = "test-bridge-token-0123456789abcdef0123456789abcdef"
 USE_STORED_TOKEN = object()
 

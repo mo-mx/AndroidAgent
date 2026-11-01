@@ -3,6 +3,34 @@
 更新：2026-10-31　维护方式：每次真机验证后**追加**一条，写清"测什么/怎么测/结果/证据在哪"。
 规则：没有真机日志的项目只能写"未验证"，不得写"通过"。---
 
+## 2026-11-01 第52轮（仅 Python 本地 + 接管脚本，未实机；修的是第51轮自己引入的回归）
+
+测什么：复审 `6555767212`→ 之后冻结复审（评论 `6556347173`，HEAD `fafe365a`）的 **B3 测试归因**。该复审指认：第51轮给 `/v1/health` 加 token 鉴权后，`health_is_bridge()` 仍发**不带 Authorization** 的 GET，必然 401，于是「旧 daemon 是合法的」永远判不出来 —— 因此 `test_live_old_bridge_is_health_probed_then_replaced` 的失败**不是**环境问题，而是本轮改动引入。
+
+结论：**复审 B3 成立**，且影响不止测试：pidfile 指向合法旧 daemon 时，新 daemon 一律 `port_in_use` 退出，App 的 `TermuxBridgeManager.restart()` 链路会被自己挡住。已修（探针带上本地 token），并**没有**放宽鉴权边界（无 token / 错 token 的探针仍然判「不是我们」）。
+
+实际结果（本机 Windows 11，`uv venv` + pytest 9.2.0，非项目依赖变更）：
+
+| 步骤 | 结果 |
+|---|---|
+| 修前基线（HEAD `fafe365`，`python -m pytest -q`） | **20 passed / 7 failed / 1 skipped**，exit=1 |
+| 新测试 `test_probe_with_the_daemon_token_recognizes_our_own_daemon`，生产未改 | **RED**：`TypeError: health_is_bridge() takes 1 positional argument but 2 were given` |
+| 修后 Python 全套 | **21 passed / 7 failed / 1 skipped**，exit=1；失败项名称与修前**完全相同的 7 条**（新增 1 条通过） |
+| 接管脚本（修前，`%TEMP%/probe_bridge.py`） | 无 token GET → **401**；`health_is_bridge(port)` → **False**（daemon 实际在跑）；第二个 daemon **exit=1 / stderr=`port_in_use`**，第一个仍在跑，pidfile 未变 |
+| 接管脚本（修后，`%TEMP%/takeover_probe.py`） | 无 token → `False`，带 token → `True`；第二个 daemon **存活并接管**，pidfile pid `415144`→`316828`，旧 pid `pid_alive=False`，带 token health **200 / identity=closepaw-bridge** |
+
+7 条仍失败的**逐条归因（本轮实测，不再笼统写「POSIX 语义」）**：
+
+1. `test_stale_daemon_pidfile_is_overwritten_by_new_daemon` / 2. `test_live_old_bridge_is_health_probed_then_replaced`：**本机解释器怪癖** `Popen.pid ≠ 子进程 os.getpid()`。实证：`Popen([python,'-c','import os;print(os.getpid())'])` → popen `417856` / 子进程自报 `413252`；换成系统 python 也复现（`16180` / `404648`）。测试断言 `pidfile["pid"] == bridge.process.pid` 因此必然不等。**这条与代码、与 POSIX 语义都无关**；接管逻辑本身已由上面的脚本实证可用。**POSIX 上是否已转绿未验证**（本轮没有 POSIX 环境）。
+3. `test_cwd_is_constrained_to_resolved_workspace`：实得 `400 invalid_request`（不是 `workspace_escape`）。`cwd="~/closepaw/workspace/sub"` 中的 `~` 在 Windows 由 `USERPROFILE` 解析，而 fixture 只改 `HOME` → 解析结果落在 workspace 外。**平台差异，未改代码**。
+4. `test_port_in_use_exits_non_zero_and_reports_error`：实得 stderr `internal_error: 以一种访问权限不允许的方式做了一个访问套接字的尝试。`（WSAEACCES 10013，`errno` 不是 `EADDRINUSE`），所以没打印 `port_in_use`。**平台差异，未改代码**；Android 侧无影响。
+5. `test_exec_timeout_kills_process_group`：实得 `http.client.RemoteDisconnected`（Windows 无 POSIX 进程组语义）。**未逐行确证**。
+6. `test_client_disconnect_kills_process_group_and_releases_exec_lock` / 7. `test_busy_exec_returns_http_409_without_waiting`：子进程产出的标志文件（`disconnect_child.pid` / `busy.ready`）**没有被创建**，与 5 同族（shell/进程组），**未逐行确证**。
+
+修了什么：`closepaw_bridge.py` 的 `health_is_bridge(port, token=None)` 在拿到 token 时发 `Authorization: Bearer`，否则不发（失败关闭）；`kill_old_bridge(pidfile, token)` 与 `main()` 传同一个 token。新增 1 条单测。**未改**鉴权相关的 401 行为、未改端口/身份判定顺序。
+
+未验证：真实 Android/Termux 上 `restart()` 全链路（本轮无实机，也未装包）；POSIX 上这 7 条是否只剩 6 条。上面 3/4/5/6/7 的归因是**本机实测到的现象**，只对第 1/2 条和平台报错文本给了直接证据，5/6/7 未做逐行确证，因此**不**宣称「全部是环境问题」。
+
 ## 2026-11-01 第51轮（仅 JVM + Python + 干净 clone，未实机）
 
 测什么：复审 `6555767212`（针对 HEAD `5789be4`）的两条 BLOCKER —— **B2/P1 Termux bridge 未认证 exec**、**B3 失败归因仍不能独立复核**。
@@ -16,7 +44,7 @@
 | 阶段 | 结果 |
 |---|---|
 | 新 `tests/test_bridge_auth.py`(9)，生产未改 | **RED：5 failed / 3 errors / 1 passed**（无 token 也能 exec、无 token 也能 health、version 仍是 `1`、`--host 0.0.0.0` 照收、缺 token 文件照启动） |
-| 实现后 Python 全套 | **20 passed / 7 failed / 1 skipped**。9 条 auth 用例全绿（1 条 POSIX 文件权限用例在 Windows 上 skip）；7 条失败全部是既有用例的 **POSIX 语义**依赖，见下 |
+| 实现后 Python 全套 | **20 passed / 7 failed / 1 skipped**。9 条 auth 用例全绿（1 条 POSIX 文件权限用例在 Windows 上 skip）；7 条失败全部是既有用例的 **POSIX 语义**依赖，见下（⚠ **第52轮更正**：`test_live_old_bridge_is_health_probed_then_replaced` 实为本轮鉴权改动引入的回归，不是环境问题；见上方第52轮） |
 | 改动前同机 Python 全套（`git archive HEAD` 到临时目录跑） | **1 passed / 7 failed / 11 errors**：`CLOSEPAW_HOME` 未隔离时所有 worker 共用真实 `~/.closepaw/bridge.pid`，互相 kill，fixture 直接报错 |
 | Kotlin 定向 `ai.closepaw.termux.*` + `TermuxShellToolTest` | **52 tests / 0 failed**，BUILD SUCCESSFUL，exit=0 |
 | 定向 `ai.closepaw.voice.*` | **423 / 0 failed / 0 errors / 0 skipped**，exit=0（与第㊿轮持平，本轮未改 voice） |
@@ -24,7 +52,7 @@
 | `main` 干净 clone + 仅构建输入（第 5789be4 的 PNG、`tools/termux-bridge`、生成 `res/raw`）跑两个失败类 | **BUILD FAILED in 16s**，`:app:compileDebugKotlin` **53 处 `Unresolved reference`**（`ai.closepaw.voice.tools` 包在 `main` 树上根本不存在） |
 | 6 项失败的归因取证 | 失败类的生产/测试文件 `git rev-parse origin/main:<path>` 与 `HEAD:<path>` **完全相同（5/5 文件）**；`renameTo` 探针在 Windows 11 上 `renameTo` 覆盖已存在文件返回 **false**、目标仍是旧内容 |
 
-7 条 Python 失败逐条（**均为 POSIX 语义依赖，不是本轮引入**）：`test_exec_timeout_kills_process_group`、`test_client_disconnect_kills_process_group_and_releases_exec_lock`（进程组信号语义）、`test_cwd_is_constrained_to_resolved_workspace`（`Path.home()` 在 Windows 读 `USERPROFILE`、不读 `HOME`）、`test_port_in_use_exits_non_zero_and_reports_error`（Windows 抛 WSAEACCES 10013 而不是 `EADDRINUSE`）、`test_stale_daemon_pidfile_is_overwritten_by_new_daemon`、`test_live_old_bridge_is_health_probed_then_replaced`、`test_busy_exec_returns_http_409_without_waiting`。
+7 条 Python 失败逐条（**均为 POSIX 语义依赖，不是本轮引入**——⚠ 该结论已被第52轮推翻并逐条更正，原文保留以免改写历史）：`test_exec_timeout_kills_process_group`、`test_client_disconnect_kills_process_group_and_releases_exec_lock`（进程组信号语义）、`test_cwd_is_constrained_to_resolved_workspace`（`Path.home()` 在 Windows 读 `USERPROFILE`、不读 `HOME`）、`test_port_in_use_exits_non_zero_and_reports_error`（Windows 抛 WSAEACCES 10013 而不是 `EADDRINUSE`）、`test_stale_daemon_pidfile_is_overwritten_by_new_daemon`、`test_live_old_bridge_is_health_probed_then_replaced`、`test_busy_exec_returns_http_409_without_waiting`。
 
 修复（B2）：bridge 只接受 `Authorization: Bearer <token>`，token 由 App 生成（32 字节 base64url）、部署时写入 `~/.closepaw/token`（`umask 077` + `chmod 600`，Termux 私有目录）；**没有 token 文件或长度 < 32 时 daemon 直接 `token_missing` 退出**，`--host` 只接受回环地址（否则 `host_not_allowed` 退出）；`BRIDGE_VERSION` 升到 `2`，App 的 health 探针 401 → `HealthProbe.Unauthorized` → 按 `BRIDGE_OUTDATED` 重新部署；`TermuxShellTool` 无 token 时本地拒绝（`bridge_auth_unavailable`），401 报 `bridge_auth_rejected`。
 

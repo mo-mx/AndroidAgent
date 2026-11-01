@@ -79,12 +79,21 @@ def read_pidfile(pidfile):
         except OSError:
             pass
         return {}
-def health_is_bridge(port):
+def health_is_bridge(port, token=None):
+    """Is the listener on ``port`` one of our daemons?
+
+    The daemon authorizes /v1/health with the Termux-private token (review 6555767212), so a
+    credential-less probe only ever sees 401. Pass the local token to actually reach the
+    identity field; without it this returns False, which keeps "not proven to be ours" the
+    safe default for anything the pidfile might be pointing at.
+    """
     if isinstance(port, bool) or not isinstance(port, int):
         return False
     try:
         url = f"http://127.0.0.1:{port}/v1/health"
-        with urllib.request.urlopen(url, timeout=1) as response:
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        request = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(request, timeout=1) as response:
             data = json.loads(response.read().decode())
         return data.get("identity") == IDENTITY
     except (OSError, ValueError, json.JSONDecodeError, urllib.error.URLError):
@@ -103,7 +112,7 @@ def terminate_pid(pid):
             pass
         if not wait_dead(pid, 1):
             port_in_use()
-def kill_old_bridge(pidfile):
+def kill_old_bridge(pidfile, token=None):
     data = read_pidfile(pidfile)
     if not data:
         return
@@ -114,7 +123,7 @@ def kill_old_bridge(pidfile):
         except OSError:
             pass
         return
-    if data.get("identity") != IDENTITY or not health_is_bridge(data.get("port")):
+    if data.get("identity") != IDENTITY or not health_is_bridge(data.get("port"), token):
         port_in_use()
     terminate_pid(pid)
 def write_pidfile(pidfile, port):
@@ -412,7 +421,7 @@ def main():
         print("token_missing", file=sys.stderr)
         return 1
     pidfile = closepaw_dir() / "bridge.pid"
-    kill_old_bridge(pidfile)
+    kill_old_bridge(pidfile, token)
     try:
         server = BridgeServer((args.host, args.port), Handler,
                               args.idle_timeout_sec, args.watchdog_tick_sec, token)

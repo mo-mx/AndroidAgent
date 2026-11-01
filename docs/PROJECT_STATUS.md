@@ -1,5 +1,17 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第52轮：冻结复审判定「两轮停止」后的自伤回归修复（源码 + Python 实跑，未实机）
+
+复审 `6556347173`（HEAD `fafe365a`，阶段 1 冻结收口）判定两轮修复用尽、**不指派第三轮**，并保留一条 BLOCKER **B3**：第51轮给 `/v1/health` 加 token 鉴权后，`health_is_bridge()` 仍发**不带 Authorization** 的 GET（`closepaw_bridge.py:82-91`），必然收到 401，`kill_old_bridge()` 因此把合法旧 daemon 判成「不是我们」→ `port_in_use` 退出。复审据此指出：`test_live_old_bridge_is_health_probed_then_replaced` 的失败**不是**环境问题，`TEST_RESULTS.md` 把它归为「POSIX 语义依赖」是错误归因。
+
+本轮**只做一件事**：把这条自查实的回归修掉（不属于扩项，也不改变复审要求用户拍板的问题——bridge 是否留在交付版本里仍待用户决定），并按复审 B3 的要求把 7 条 Python 失败**逐条**重新归因，不再笼统写「POSIX 语义」。
+
+- **[B3] 复审成立，且影响不止测试**：pidfile 指向合法旧 daemon 时，新 daemon 一律 `port_in_use` 退出 → App 的 `TermuxBridgeManager.restart()` 会被自己挡住。修法：`health_is_bridge(port, token=None)` 在拿到 token 时发 `Authorization: Bearer`，`kill_old_bridge(pidfile, token)` 传本地 token；**没有放宽鉴权**——无 token / 错 token 的探针仍判 `False`（失败关闭）。新增单测 `test_probe_with_the_daemon_token_recognizes_our_own_daemon`。
+- **实证（真跑，不是分析）**：修前 `%TEMP%/probe_bridge.py` → 无 token GET `401`、`health_is_bridge(port)=False`（daemon 在跑）、第二个 daemon `exit=1 stderr=port_in_use`、旧 daemon 存活、pidfile 未变；修后 `%TEMP%/takeover_probe.py` → 无 token `False` / 带 token `True`、第二个 daemon 存活接管、pidfile pid `415144`→`316828`、旧 pid `pid_alive=False`、带 token health `200 identity=closepaw-bridge`。
+- **7 条 Python 失败重新归因**（详见 `TEST_RESULTS.md` 第52轮）：1/2 两条 pidfile 用例的真实原因已定位为**本机解释器怪癖** `Popen.pid ≠ 子进程 os.getpid()`（纯 python `-c` 亦复现：`417856` vs `413252`；系统 python `16180` vs `404648`），与代码和 POSIX 语义都无关；3 是 `~` 在 Windows 读 `USERPROFILE`（实得 `400 invalid_request`）；4 是 WSAEACCES 10013（实得 `internal_error` 中文报错，非 `port_in_use`）；5/6/7 未逐行确证，标注为未确证，**不**宣称「全部是环境问题」。
+- **数字**：修前 `20 passed / 7 failed / 1 skipped`（exit=1）→ 修后 `21 passed / 7 failed / 1 skipped`（exit=1），失败项名称完全相同；本轮未跑 Kotlin（本轮未改 Kotlin）。接管链路已用脚本实证，但 **POSIX 上这 7 条是否转绿未验证**，**真实 Android/Termux `restart()` 未验证**（无实机、未装包）。
+- **待用户决定（复审已提出，我不代拍）**：①把 `tools/termux-bridge` 与 `copyClosePawBridge` 移出阶段 1（即该入口不进交付）；②授权限定环境（POSIX/真机）验收；③另立后续 Issue。在此之前本 PR **不合并**、不装包、不动手机。
+
 ## 第51轮：复审 `6555767212`（针对 `5789be4`）B2 安全入口 + B3 归因（源码 + JVM + Python + 干净 clone，未实机）
 
 复审意见：B2/P1「新纳入版本控制并打包的 Termux bridge 允许未经认证的本地进程执行任意 shell 命令」，B3「阶段验收归因仍未闭合」。两条都离线处理；**同时接受审查的停止条件：不再扩项，B2 的处理方式（加认证而不是删除功能）需用户确认，若要改为「交付版本不含该入口」可整体回退本轮的 `tools/termux-bridge` 打包改动。**
@@ -13,7 +25,7 @@
 | 阶段 | 结果 |
 |---|---|
 | 新 Python `test_bridge_auth.py`(9)（生产未改） | **RED 5 failed / 3 errors / 1 passed** |
-| Python 全套（改后） | **20 passed / 7 failed / 1 skipped**（7 条为既有用例的 POSIX 依赖，逐条列在 `TEST_RESULTS.md`） |
+| Python 全套（改后） | **20 passed / 7 failed / 1 skipped**（⚠ **第52轮更正**：其中 `test_live_old_bridge_is_health_probed_then_replaced` 是本轮鉴权改动引入的回归，已修；逐条归因见第52轮） |
 | Python 全套（改前，同机） | **1 passed / 7 failed / 11 errors**（未隔离 `CLOSEPAW_HOME`，worker 共用真实 `~/.closepaw/bridge.pid` 互相 kill） |
 | Kotlin `ai.closepaw.termux.*` + `TermuxShellToolTest` | **52 / 0 failed**，exit=0 |
 | 定向 `ai.closepaw.voice.*` | **423 / 0 failed / 0 errors / 0 skipped**，exit=0 |
