@@ -100,8 +100,11 @@ class TorchUndoConsumptionTest {
     @Test
     fun `an inverse that did not run keeps the memory so the undo can be retried`() {
         // First attempt cannot reach the camera; the torch is still on, so the entry must survive.
+        // Round 44: `dispatched = false` is the fact this fixture now has to carry — the real
+        // `TorchControl` reports it when the camera refused before `setTorchMode` was called, and it
+        // is what distinguishes "safe to retry" from "may already have moved the object".
         every { TorchControl.set(ctx, false) } returns
-            ToolResult.unavailable("torch", "现在没法控制手电筒", "camera in use")
+            ToolResult.unavailable("torch", "现在没法控制手电筒", "camera in use", dispatched = false)
         remember()
         val first = ActionMemory.undo(ctx)
         assertThat(first.status).isNotEqualTo(ToolStatus.SUCCESS)

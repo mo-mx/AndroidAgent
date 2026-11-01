@@ -242,6 +242,65 @@ object ClockControl {
         "没有正在运行的定时器", "没有在运行的定时器", "暂无定时器", "无正在运行的定时器",
     )
 
+    /** One timer card bound from a single read: its cancel control, its declared duration, its text. */
+    private data class BoundTimerCard(
+        val button: android.view.accessibility.AccessibilityNodeInfo,
+        val duration: Int,
+        val texts: List<String>,
+    )
+
+    /** What one node's subtree contributes to the cancel scan. */
+    private data class TimerScan(
+        val buttons: List<android.view.accessibility.AccessibilityNodeInfo>,
+        val durations: List<Int>,
+        val texts: List<String>,
+    )
+
+    /** Every text/contentDescription in [n]'s subtree, bounded by the same node budget as a scan. */
+    private fun textsUnder(n: android.view.accessibility.AccessibilityNodeInfo?): List<String> {
+        if (n == null) return emptyList()
+        val out = ArrayList<String>()
+        var visited = 0
+        val stack = ArrayDeque<android.view.accessibility.AccessibilityNodeInfo>()
+        stack.addLast(n)
+        while (stack.isNotEmpty() && ++visited <= 800) {
+            val cur = stack.removeLast()
+            cur.text?.toString()?.let { out.add(it) }
+            cur.contentDescription?.toString()?.let { out.add(it) }
+            for (i in 0 until cur.childCount) cur.getChild(i)?.let { stack.addLast(it) }
+        }
+        return out
+    }
+
+    /** Card text that says the timer is *not* running any more (these keep their duration label). */
+    private val stoppedTimerMarkers =
+        listOf("已暂停", "暂停中", "已结束", "已响铃", "已完成", "已停止", "剩余 0 秒")
+
+    /** A remaining-time readout ("4 分 32 秒") — the shape a running card shows. */
+    private val remainingTimePattern = Regex("\\d+\\s*分(?:钟)?\\s*\\d+\\s*秒")
+
+    /**
+     * Does this bound card *state* that its timer is running? `true` running, `false` stopped,
+     * `null` no evidence either way.
+     *
+     * Round 44 review P1/P2: round 41 compared `N 个定时器正在运行` with `candidates.size`, but the
+     * candidates were every card carrying an original-duration label and one cancel control — and a
+     * paused card keeps both. The two numbers therefore counted different populations, so equality
+     * proved nothing: one running card plus one paused card covers a stated total of 2 while a
+     * running twin of the requested duration sits below the fold.
+     *
+     * `初始时长` / `总时长` are original-duration evidence, not running evidence, and are excluded
+     * before looking for a readout. A card that only says "5 分钟" is unproven, not running.
+     */
+    internal fun cardRunningState(texts: List<String>): Boolean? {
+        val t = texts.map { it.trim() }.filter { it.isNotEmpty() }
+        if (t.any { s -> stoppedTimerMarkers.any { s.contains(it) } }) return false
+        if (t.any { it.contains("剩余") || it.contains("倒计时") }) return true
+        val readout = t.filterNot { it.startsWith("初始时长") || it.startsWith("总时长") }
+        if (readout.any { remainingTimePattern.containsMatchIn(it) }) return true
+        return null
+    }
+
     /**
      * Lower bound on the running timers visible in one read, or -1 when the shape is unreadable.
      *
@@ -420,13 +479,13 @@ object ClockControl {
                 "window=clock tab=not-selected attempts=${window.attempts}")
         }
         val root = window.root
-        val candidates = ArrayList<Pair<android.view.accessibility.AccessibilityNodeInfo, Int>>()
+        val candidates = ArrayList<BoundTimerCard>()
         val boundTexts = ArrayList<String>()
         var visited = 0
         var complete = true
         var scrollable = false
-        fun scan(n: android.view.accessibility.AccessibilityNodeInfo?): Pair<List<android.view.accessibility.AccessibilityNodeInfo>, List<Int>> {
-            if (n == null || ++visited > 800) { complete = false; return emptyList<android.view.accessibility.AccessibilityNodeInfo>() to emptyList() }
+        fun scan(n: android.view.accessibility.AccessibilityNodeInfo?): TimerScan {
+            if (n == null || ++visited > 800) { complete = false; return TimerScan(emptyList(), emptyList(), emptyList()) }
             if (n.isScrollable) scrollable = true
             val text = listOfNotNull(n.text?.toString(), n.contentDescription?.toString())
             boundTexts.addAll(text)
@@ -438,34 +497,54 @@ object ClockControl {
             var childBound = false
             for (i in 0 until n.childCount) {
                 val before = candidates.size
-                val (bs, ds) = scan(n.getChild(i))
-                buttons.addAll(bs); durations.addAll(ds)
+                val sub = scan(n.getChild(i))
+                buttons.addAll(sub.buttons); durations.addAll(sub.durations)
                 if (candidates.size > before) childBound = true
             }
+            // Round 44: a bound card carries every text below it, so the caller can tell a running
+            // card from a paused one instead of comparing a running header with all cards.
+            val texts = textsUnder(n)
             // Do not bind a global container or widen an already-bound card to a sibling.
-            if (n != root && !childBound && buttons.size == 1 && durations.size == 1) candidates.add(buttons.single() to durations.single())
-            return buttons to durations
+            if (n != root && !childBound && buttons.size == 1 && durations.size == 1)
+                candidates.add(BoundTimerCard(buttons.single(), durations.single(), texts))
+            return TimerScan(buttons, durations, texts)
         }
-        val (allButtons, _) = scan(root)
-        val matching = candidates.filter { seconds == null || it.second == seconds }
+        val allButtons = scan(root).buttons
+        val matching = candidates.filter { seconds == null || it.duration == seconds }
         // Round 41: `complete` only means the walk stayed inside its node budget. A scrollable
         // container can hold timer cards this walk never loaded, so the bound set is a *viewport*,
         // not the list — and one visible 5-minute card is exactly what a phone running two of them
         // looks like from here. Uniqueness therefore needs the page's own statement: a header total
         // (`N 个定时器正在运行`) that the fully bound cards actually cover. Without it (or with fewer
         // bound cards than it reports) the set is unproven and nothing is clicked.
+        // Round 44: "covers the total" only means something when both numbers count the same
+        // population. The header counts *running* timers; a paused card keeps its original duration
+        // and its cancel control, so it was being counted against a running total. Equality of two
+        // different populations proves nothing: one running plus one paused card covers a stated
+        // total of 2 while a running twin of the requested duration sits below the fold. The
+        // comparison is therefore made only over cards that prove they are running.
+        val runningStates = candidates.map { cardRunningState(it.texts) }
+        val runningProven = runningStates.count { it == true }
+        val stoppedBound = runningStates.count { it == false }
+        val unprovenBound = runningStates.size - runningProven - stoppedBound
+        val comparableSet = stoppedBound == 0 && unprovenBound == 0
         val statedTotal = timerCountFrom(boundTexts, truncated = !complete)
         val viewportComplete = complete && !scrollable
-        val coveredByPageTotal = statedTotal >= 0 && candidates.size >= statedTotal
+        val coveredByPageTotal = statedTotal >= 0 && comparableSet && candidates.size >= statedTotal
         if (!viewportComplete && !coveredByPageTotal) {
-            val speak = if (scrollable) {
-                "倒计时列表可以滚动，没法确认视口外还有没有同样时长的倒计时，没有执行取消"
-            } else {
-                "屏幕读取被截断，没法确认还有没有同样时长的倒计时，没有执行取消"
+            val speak = when {
+                scrollable && !comparableSet ->
+                    "倒计时列表可以滚动，而且没法确认视口里每张卡片都在运行，没法确认还有没有同样时长的倒计时，没有执行取消"
+                scrollable ->
+                    "倒计时列表可以滚动，没法确认视口外还有没有同样时长的倒计时，没有执行取消"
+                else ->
+                    "屏幕读取被截断，没法确认还有没有同样时长的倒计时，没有执行取消"
             }
             return ToolResult(ToolStatus.BLOCKED, "timer_cancel", speak,
                 "duration=$seconds candidates=${candidates.size} complete=$complete" +
-                    " scrollable=$scrollable stated=$statedTotal viewport-is-not-the-list",
+                    " scrollable=$scrollable stated=$statedTotal running=$runningProven" +
+                    " stopped=$stoppedBound unproven=$unprovenBound" +
+                    (if (comparableSet) " viewport-is-not-the-list" else " set-mixed viewport-is-not-the-list"),
                 false)
         }
         // An unreadable second card might be the same requested duration, so it cannot be ignored.
@@ -473,7 +552,7 @@ object ClockControl {
             return ToolResult(ToolStatus.BLOCKED, "timer_cancel",
                 "无法唯一定位你说的倒计时，请在时钟中确认具体对象", "duration=$seconds candidates=${matching.size} complete=$complete", false)
         }
-        val button = matching.single().first
+        val button = matching.single().button
         // Facts about *this click*, checked on this very node now, not at scan time. The wrapper we
         // bound can outlive the screen it described: the card is re-created, the tab changes, the
         // list scrolls. `refresh()` is the framework's own liveness test, and a node that cannot be
@@ -492,7 +571,7 @@ object ClockControl {
         // Never use UiAutomator.click: that helper may climb parents or inject coordinates.
         val clicked = button.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         if (!clicked) return ToolResult.error("timer_cancel", "已定位倒计时，但取消按钮不可操作", "node click failed")
-        val bound = matching.single().second
+        val bound = matching.single().duration
         // Read back the same page the click was bound from. `ACTION_CLICK == true` is the gesture,
         // not the outcome, so nothing is claimed from it. Counts come from the same tree as the
         // labels, so a shortened page cannot report a decrease that the visible cards do not support.

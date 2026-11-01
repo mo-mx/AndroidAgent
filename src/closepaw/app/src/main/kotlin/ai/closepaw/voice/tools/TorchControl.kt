@@ -63,10 +63,11 @@ object TorchControl {
     fun set(ctx: Context, on: Boolean): ToolResult {
         val cam = findTorchCamera(ctx)
             ?: return ToolResult.unavailable(
-                "torch", "这台手机没有可用的闪光灯", "no camera reports FLASH_INFO_AVAILABLE"
+                "torch", "这台手机没有可用的闪光灯", "no camera reports FLASH_INFO_AVAILABLE",
+                dispatched = false,
             )
         val cm = ctx.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
-            ?: return ToolResult.unavailable("torch", "相机服务不可用")
+            ?: return ToolResult.unavailable("torch", "相机服务不可用", dispatched = false)
 
         val tracker = RequestTracker(cam.id, on)
         val baselineLatch = CountDownLatch(1)
@@ -93,6 +94,10 @@ object TorchControl {
         // execute on a worker). Passing null there throws IllegalArgumentException.
         val handler = Handler(Looper.getMainLooper())
 
+        // Set as soon as `setTorchMode` returns: from that moment the request is out, whatever the
+        // callback does (round 44). A throwable raised before it never issued anything.
+        var issued = false
+
         return try {
             cm.registerTorchCallback(callback, handler)
             // The registration event reports the *current* mode; it is not the result of a request
@@ -101,6 +106,7 @@ object TorchControl {
             baselineLatch.await(BASELINE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             tracker.markRequested()
             cm.setTorchMode(cam.id, on)
+            issued = true
             // Samsung's CameraService delivered the torch callbacks ~2.6 s after the request in
             // on-device tests, so the window has to be generous. Blocking is fine: this runs on
             // a worker thread (see VoiceActivity.handleText).
@@ -117,10 +123,16 @@ object TorchControl {
             )
         } catch (e: CameraAccessException) {
             Log.e(TAG, "setTorchMode failed", e)
-            ToolResult.error("torch", "相机拒绝了这个操作", e.message ?: "CameraAccessException")
+            ToolResult(
+                ToolStatus.EXECUTION_ERROR, "torch", "相机拒绝了这个操作",
+                e.message ?: "CameraAccessException", false, dispatched = false,
+            )
         } catch (t: Throwable) {
             Log.e(TAG, "torch unexpected", t)
-            ToolResult.error("torch", "手电筒调用出错", t.javaClass.simpleName)
+            ToolResult(
+                ToolStatus.EXECUTION_ERROR, "torch", "手电筒调用出错",
+                t.javaClass.simpleName, false, dispatched = issued,
+            )
         } finally {
             runCatching { cm.unregisterTorchCallback(callback) }
         }
@@ -203,7 +215,8 @@ object TorchControl {
             // earlier callback said.
             unavailable -> ToolResult.unavailable(
                 "torch", "手电筒被占用，可能正在使用相机",
-                "onTorchModeUnavailable after request (camera in use)"
+                "onTorchModeUnavailable after request (camera in use)",
+                dispatched = true,
             )
             // A post-request event named this camera and reported the state we asked for: that is
             // evidence of the promised state, so it has to be reported as such. Until round 34 it
@@ -219,16 +232,19 @@ object TorchControl {
                     state = if (on) "on" else "off",
                     source = "camera2:torch-callback",
                 ),
+                dispatched = true,
             )
-            observed != null && observed != on -> ToolResult.error(
-                "torch", "手电筒没有切换成功", "requested=$on observed=$observed"
+            observed != null && observed != on -> ToolResult(
+                ToolStatus.EXECUTION_ERROR, "torch", "手电筒没有切换成功",
+                "requested=$on observed=$observed", false, dispatched = true,
             )
             else -> ToolResult(
                 ToolStatus.TIMEOUT, "torch",
                 if (on) "手电筒请求发出去了，但没等到确认" else "关闭请求发出去了，但没等到确认",
                 "no post-request TorchCallback matching requested=$on within ${VERIFY_TIMEOUT_MS}ms" +
                     " (baseline=$baseline)",
-                null
+                null,
+                dispatched = true,
             )
         }
 

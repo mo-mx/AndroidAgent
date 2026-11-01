@@ -1,5 +1,48 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㊹轮：复审 `6553305508`(针对 `57b2741`) 3 条处理（源码 + JVM，未实机）
+
+本轮开工读到 PR #4 新复审 `6553305508`（2026-11-01T04:16:49Z，审的是当前 HEAD `57b2741`）：1 条 P1（撤销已下发但 TIMEOUT 仍可重放）+ 1 条 P1/P2（可滚动计时器的「覆盖总数」混用运行总数与卡片总数）+ 1 条 P2（撤销记忆无时效）。三条都**先在 JVM 上跑出实证再改**，没有把审查描述当事实直接采信。
+
+### 已修 1 — [P1] 「逆操作已下发」≠「逆操作已确认」
+
+`TorchControl.set` 先 `cm.setTorchMode(...)` 再最多等 4 s 回调；回调不来就是 `TIMEOUT`——灯可能已经换了，但我们证明不了。第㊸轮只在 `status == SUCCESS` 时消费记忆，于是这条路径把「可能已经动过」的记录留下了：第一次撤销（未确认）真的点亮了灯，用户手动关掉，第二次「撤销」又发 `set(true)`，把用户刚关的灯打开。
+
+改法：`ToolResult` 新增 `dispatched: Boolean?`（是否真的交给了系统），与 `verified`（能否证明结果）分开。`TorchControl` 明确落值：没有闪光灯/没有相机服务/`CameraAccessException` → `false`；`setTorchMode` 返回后（含 TIMEOUT、onTorchModeUnavailable、状态不符） → `true`；其它 `Throwable` → 用 `issued` 局部标记（只有 `setTorchMode` 返回后才为真）。`ActionMemory.undo` 改为 `if (r.dispatched != false && last === e) last = null`：只有**能证明没下发**才保留记忆供重试，其余一律消费。
+
+### 已修 2 — [P1/P2] 运行总数与卡片总数不是同一个集合
+
+`N 个定时器正在运行` 数的是**运行中**的倒计时；`candidates.size` 数的是所有带「初始时长/总时长」+ 一个取消控件的卡片，而**暂停中的卡片两样都还在**。视口里 1 张运行中 + 1 张已暂停、页面声明 2 个运行中、视口外还有一张同样时长的运行中卡片时：`candidates.size == statedTotal == 2` 成立，`matching.size == 1`，于是点掉视口里那张。
+
+改法：只有**能证明自己在运行**的卡片才参与计数比较。新增 `ClockControl.cardRunningState(texts)`：命中「已暂停/暂停中/已结束/已响铃/已完成/已停止/剩余 0 秒」→ `false`（非运行）；命中「剩余」/「倒计时」或剩余读数形（`4 分 32 秒`，且排除 `初始时长`/`总时长` 标签）→ `true`；其余 → `null`（无证据）。`comparableSet = stopped == 0 && unproven == 0` 才允许 `candidates.size >= statedTotal` 成立；否则拒绝并说明「列表可以滚动，而且没法确认视口里每张卡片都在运行」，`detail` 记 `running=/stopped=/unproven=` 与 `set-mixed`。为此扫描时把每张绑定卡片的子树文本一起带出（`BoundTimerCard` / `TimerScan` / `textsUnder`）。
+
+### 已修 3 — [P2] 撤销记忆没有时效
+
+`Entry.at` 从第㊸轮起就被记录、但从没被读过，所以「撤销刚才的操作」可以落在几小时前的记录上；手电还可被手动或其它 App 改动，此时的逆操作是**新的一次变更**。改法：`ActionMemory.MAX_AGE_MS = 120_000L`，`undo(ctx, now = System.currentTimeMillis())` 在 `now - e.at > MAX_AGE_MS` 时拒绝并丢弃记录（`stale memory age=… window=…`），零下发。窗口内同样不知道外部有没有变过，所以结果仍是未验证——这一点照实写在措辞与文档里。
+
+### TDD 与实跑数字（`--offline --rerun-tasks`，JDK 17）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TorchUndoDispatchTest`(6) + `UndoMemoryExpiryTest`(3) + `TimerCancelRunningSetTest`(4)，生产未改 | **RED 13 tests / 8 failed / 0 errors**：`TimerCancelRunningSetTest` 两例实得 **`SUCCESS`**（旧代码真的点了取消，期望 BLOCKED）；`TorchUndoDispatchTest` 实得 `getLast()` 非空、二次撤销实得「已关闭手电筒」、`getDispatched()` 实测 `null`（期望 `true`/`false`）；`UndoMemoryExpiryTest` 过期记录实得 `SUCCESS`（期望拒绝）。5 条控制组本就通过 |
+| 实现后同 5 组（含旧 `TorchUndoConsumptionTest`/`TimerCancelViewportCompletenessTest`） | **GREEN 23 / 23**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **373 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊸轮 360，+13） |
+| 全量 `:app:testDebugUnitTest` | **2463 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿** |
+
+全量 6 项失败仍是既知两类：`AgentSkillCatalogTest > entry filePath points to SKILL md` 1 + `MemoryStoreTest` 5，未改、未跳过，本轮未重跑旧 SHA 基线。日志只留本机（`$LOCALAPPDATA/Temp`→实际落在仓库 `logs/pr4-review44-{red,green1,green2,targeted,full}.txt`，未提交）。
+
+**改了旧夹具的地方（如实）**：`TimerCancelViewportCompletenessTest` 的 `card()` 现在每张卡带一行「剩余 4 分 50 秒」——新契约要求卡片自证在运行，旧夹具的卡片只有时长标签；断言一条未改。`TorchUndoConsumptionTest` 的「逆操作没跑成可重试」用例把桩改成 `ToolResult.unavailable(..., dispatched = false)`，因为真实工具现在会这么说；断言同样未改。
+
+### 边界（必须看清）
+
+- 全部为**源码 + JVM 合成树**：三星时钟在暂停/结束时**到底还显不显示「初始时长」**、运行卡片的真实剩余时间文案、`setTorchMode` 后回调超时在真机上是否真的发生过，**均未验证**。
+- **可用性代价（真实）**：可滚动计时器列表里，只要有一张卡片读不出运行证据，「覆盖总数」这条就不再成立 → 取消会被拒绝。真机若不给剩余文本，取消功能实际等于关闭（只能靠不可滚动的完整树）。这是把「猜一个」换成「说不知道」的代价，只能靠真机数据定。
+- 撤销窗口 120 s 是我选的经验值，不是从用户习惯推出来的；窗口内外部改动仍不可知，`verified` 仍是 `null`。
+- 「卡片数 ≥ 声明总数」+「集合口径一致」只证明**数量与人群**，不证明绑定到的就是用户说的那一个；对象级身份仍未解决，回读结论仍是 `UNPROVEN`。
+- 设备矩阵维持历史 4 通过 / 0 失败 / 3 未测；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+- `closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+- 未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未改受保护规则、未 push main、未合并。
+
 ## 第㊸轮：撤销被使用后没有失效（源码 + JVM，未实机）
 
 本轮 PR #4 **无新审查**（最新复审仍是 `6552469328`，已由第㊷轮评论回复；其后 PR 无新评论）。按「无新审查则推进可离线项」取遗留清单里的 **undo 安全性**。

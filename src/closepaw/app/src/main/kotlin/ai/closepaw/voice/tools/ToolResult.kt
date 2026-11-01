@@ -48,6 +48,17 @@ data class ToolResult(
     val verified: Boolean? = null,
     /** What exactly was read back. Null when the tool has no object-level evidence. */
     val observed: ObservedState? = null,
+    /**
+     * Whether the mutation was actually handed to the OS.
+     *
+     * Separate from [verified] on purpose: `verified` answers "can we prove the promised state",
+     * this answers "did anything get issued at all". A torch request whose callback times out is
+     * dispatched-but-unproven; a camera that refused before `setTorchMode` is neither. Undo has to
+     * tell them apart (consuming on the first, retrying on the second).
+     *
+     * `null` means the producer did not say.
+     */
+    val dispatched: Boolean? = null,
 ) {
     val ok: Boolean get() = status == ToolStatus.SUCCESS
 
@@ -65,7 +76,8 @@ data class ToolResult(
             verified: Boolean? = null,
             detail: String = "",
             observed: ObservedState? = null,
-        ) = ToolResult(ToolStatus.SUCCESS, tool, speak, detail, verified, observed)
+            dispatched: Boolean? = null,
+        ) = ToolResult(ToolStatus.SUCCESS, tool, speak, detail, verified, observed, dispatched)
 
 
         /**
@@ -88,8 +100,8 @@ data class ToolResult(
         fun restricted(tool: String, speak: String, detail: String = "") =
             ToolResult(ToolStatus.SYSTEM_RESTRICTED, tool, speak, detail, false)
 
-        fun unavailable(tool: String, speak: String, detail: String = "") =
-            ToolResult(ToolStatus.DEVICE_UNAVAILABLE, tool, speak, detail, false)
+        fun unavailable(tool: String, speak: String, detail: String = "", dispatched: Boolean? = null) =
+            ToolResult(ToolStatus.DEVICE_UNAVAILABLE, tool, speak, detail, false, dispatched = dispatched)
 
         fun error(tool: String, speak: String, detail: String = "") =
             ToolResult(ToolStatus.EXECUTION_ERROR, tool, speak, detail, false)

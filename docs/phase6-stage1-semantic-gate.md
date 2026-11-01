@@ -2,6 +2,56 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第㊹轮：复审 `6553305508`（针对 `57b2741`）3 条全部处理（离线源码 + JVM，未实机）
+
+需要复审；审查未关闭。本轮开工读到 ChatGPT 定时复审 `6553305508`（2026-11-01T04:16:49Z，审的是当时 HEAD `57b2741`）：1 条 P1 + 1 条 P1/P2 + 1 条 P2。
+
+### 已修 1 — [P1] 已下发但 TIMEOUT 的逆操作仍保留记忆
+
+`TorchControl.set` 的执行顺序是 `cm.setTorchMode(...)` → 等回调最多 4 s。回调不来即 `TIMEOUT`，此时灯可能已经换了。第㊸轮的消费条件是 `status == SUCCESS`，正好漏掉这条路径：记忆仍在 → 用户手动关灯 → 第二次「撤销」再发 `set(true)`，把用户刚关的灯点亮。
+
+`ToolResult` 现在把两件事分开：`verified`（能否证明结果）与新增的 `dispatched: Boolean?`（是否真的交给系统）。`TorchControl` 明确落值：
+
+| 路径 | `dispatched` |
+|---|---|
+| 没有 `FLASH_INFO_AVAILABLE` 的相机 / `CAMERA_SERVICE` 取不到 | `false` |
+| `CameraAccessException`（回调注册或 `setTorchMode` 抛，都没下发成功） | `false` |
+| `setTorchMode` 返回后：TIMEOUT / `onTorchModeUnavailable` / 状态不符 / 已确认 | `true` |
+| 其它 `Throwable` | 局部 `issued`（只有 `setTorchMode` 返回后才为真） |
+
+`ActionMemory.undo` 改为 `if (r.dispatched != false && last === e) last = null`：**只有能证明没下发**才保留记忆供重试。`dispatched = null`（生产者没说）按「可能已下发」处理并消费——宁可少一次重试，不可重复翻转用户的状态。
+
+### 已修 2 — [P1/P2] 「覆盖总数」的两个数不是同一人群
+
+页面头部 `N 个定时器正在运行` 数**运行中**的；`candidates.size` 数的是所有带「初始时长/总时长」+ 一个取消控件的卡片，**暂停中的卡片两样都还在**。所以「相等」可能只是巧合：视口 1 运行 + 1 暂停、页面声明 2 个运行中、视口外还有一张同时长的运行中卡 → `2 >= 2` 通过 → `matching.size == 1` → 点掉视口里那张。
+
+改法：只有**自证在运行**的卡片参与比较。新增 `ClockControl.cardRunningState(texts): Boolean?`：
+
+- `已暂停 / 暂停中 / 已结束 / 已响铃 / 已完成 / 已停止 / 剩余 0 秒` → `false`；
+- `剩余` / `倒计时`，或剩余读数形 `4 分 32 秒`（先排除以 `初始时长`/`总时长` 开头的标签） → `true`；
+- 其余 → `null`（无证据）。
+
+`comparableSet = stopped == 0 && unproven == 0` 时才允许 `candidates.size >= statedTotal`；否则 `BLOCKED`、零点击，措辞按事实分两句（集合混用 / 只是视口），`detail` 记 `running= / stopped= / unproven= / set-mixed`。为此扫描把每张绑定卡片的子树文本一并带出（`BoundTimerCard`、`TimerScan`、`textsUnder`）。
+
+### 已修 3 — [P2] 撤销记忆无时效
+
+`Entry.at` 记录后从未被读。现在 `ActionMemory.MAX_AGE_MS = 120_000L`，`undo(ctx, now = System.currentTimeMillis())` 超出窗口即拒绝并丢弃该条（`stale memory age=… window=…`），零下发。窗口内也**不知道**外部有没有改过设备，所以结果仍是未验证，措辞里不承诺正确性。
+
+### TDD 与实跑数字（`--offline --rerun-tasks`，JDK 17）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TorchUndoDispatchTest`(6) + `UndoMemoryExpiryTest`(3) + `TimerCancelRunningSetTest`(4)，生产未改 | **RED 13 / 8 failed / 0 errors**（全部为断言失败，非编译错误）：取消路径实得 `SUCCESS` 并真的点了取消；撤销路径 `getLast()` 非空、二次撤销实得「已关闭手电筒」；`getDispatched()` 实测 `null`；过期记录实得 `SUCCESS` |
+| 实现后同 5 组 | **GREEN 23 / 23**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **373 / 0 failed / 0 errors / 0 skipped**，exit=0（+13） |
+| 全量 `:app:testDebugUnitTest` | **2463 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（`AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过） |
+
+一条编译错误如实记：`ToolResult.ok(... dispatched = true)` 首次报 `No parameter with name 'dispatched' found`，因为只给 `unavailable` 加了参数；补上 `ok` 的具名参数后重跑。编译错误不计入 RED。
+
+### 边界
+
+全部为源码 + JVM 合成树：三星时钟在暂停/结束态是否仍显示 `初始时长`、运行卡片的真实剩余文案、真机上 `setTorchMode` 后回调超时是否发生，**均未验证**。可用性代价真实存在：可滚动计时器列表里只要有一张卡读不出运行证据，取消就被拒绝（真机不给剩余文本 = 取消功能实际关闭）。撤销窗口 120 s 是经验值，不是推导出来的。设备矩阵仍 4 通过 / 0 失败 / 3 未测；本 SHA 未构建/未安装/未实测，实机需用户**重新授权**。
+
 ## 第㊳轮：复审 `6551213132`（针对 `86e9830`）3 条全部处理（离线源码 + JVM，未实机）
 
 需要复审；审查未关闭。本轮在上一条第㊲轮评论之后，收到 ChatGPT 定时复审 `6551213132`（2026-11-01T00:19:03Z，审的是 `86e9830`），1 条 P1（时长参数完整性）+ 1 条 P1/P2（点击前窗口归属）+ 1 条 P2（截断时的「找不到」）。

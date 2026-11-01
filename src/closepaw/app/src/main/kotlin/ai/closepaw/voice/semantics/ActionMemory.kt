@@ -14,6 +14,9 @@ import android.util.Log
 object ActionMemory {
     private const val TAG = "ActionMemory"
 
+    /** How long a recorded mutation stays replayable as "刚才的操作". */
+    const val MAX_AGE_MS: Long = 120_000L
+
     data class Entry(
         val action: Action,
         val target: Target,
@@ -50,8 +53,23 @@ object ActionMemory {
      * off by hand). An inverse that did **not** run (device unavailable, no inverse) leaves the
      * entry in place, so an honest retry is still possible.
      */
-    fun undo(ctx: Context): ToolResult {
+    fun undo(ctx: Context, now: Long = System.currentTimeMillis()): ToolResult {
         val e = last ?: return ToolResult.unavailable("undo", "无法确认刚才变更的具体对象，不能安全撤销", "no verified identity-bound inverse")
+        // Round 44 review P2: `at` was recorded but never read, so a "撤销刚才的操作" said hours later
+        // still ran the inverse of an old remembered state. The torch can be switched by hand or by
+        // another app in between, which turns that inverse into a *new* mutation. Outside the window
+        // the entry is refused and dropped; inside it nothing about an external change is known
+        // either, which is why the result stays unverified.
+        val age = now - e.at
+        if (age > MAX_AGE_MS) {
+            if (last === e) last = null
+            Log.i(TAG, "undo(${e.action}/${e.target}) refused age=${age}ms > ${MAX_AGE_MS}ms")
+            return ToolResult.unavailable(
+                "undo",
+                "刚才的操作已经过去太久了，这中间手机状态可能变了，不能安全撤销",
+                "stale memory age=${age}ms window=${MAX_AGE_MS}ms",
+            )
+        }
         val r = when {
 
             e.target == Target.TORCH && e.action == Action.ENABLE -> TorchControl.set(ctx, false)
@@ -63,11 +81,17 @@ object ActionMemory {
             )
             else -> ToolResult.unavailable("undo", "刚才的操作没有对应的撤销动作", e.speech)
         }
-        // Only a status of SUCCESS means the inverse was actually issued. `verified` is not part of
-        // this decision: an unconfirmed-but-sent inverse already moved the object, and repeating it
-        // is the double toggle this guards against.
-        if (r.status == ToolStatus.SUCCESS && last === e) last = null
+        // Round 44 review P1: "the inverse was issued" and "the inverse was confirmed" are different
+        // facts. `TorchControl.set` calls `setTorchMode` and then waits for a callback; a callback
+        // that never arrives yields TIMEOUT even though the torch may already have switched — and
+        // `dispatched` records exactly that. Consuming only on SUCCESS kept the memory across such a
+        // timeout, so a second "撤销" re-issued the same inverse (for a remembered DISABLE: turning
+        // on a torch the user had just switched off by hand). The entry is therefore kept only when
+        // dispatch is *provably* absent or unknown-but-refused-before-issue, i.e. `dispatched ==
+        // false`; anything else may already have moved the object.
+        if (r.dispatched != false && last === e) last = null
         Log.i(TAG, "undo(${e.action}/${e.target}) → ${r.status} ${r.detail}${if (last == null) " consumed" else ""}")
-        return ToolResult(r.status, "undo", r.speak, "undo of ${e.action}/${e.target}: ${r.detail}", r.verified)
+        return ToolResult(r.status, "undo", r.speak, "undo of ${e.action}/${e.target}: ${r.detail}", r.verified,
+            dispatched = r.dispatched)
     }
 }
