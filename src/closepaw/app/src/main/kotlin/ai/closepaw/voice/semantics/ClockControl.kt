@@ -424,8 +424,10 @@ object ClockControl {
         val boundTexts = ArrayList<String>()
         var visited = 0
         var complete = true
+        var scrollable = false
         fun scan(n: android.view.accessibility.AccessibilityNodeInfo?): Pair<List<android.view.accessibility.AccessibilityNodeInfo>, List<Int>> {
             if (n == null || ++visited > 800) { complete = false; return emptyList<android.view.accessibility.AccessibilityNodeInfo>() to emptyList() }
+            if (n.isScrollable) scrollable = true
             val text = listOfNotNull(n.text?.toString(), n.contentDescription?.toString())
             boundTexts.addAll(text)
             val buttons = ArrayList<android.view.accessibility.AccessibilityNodeInfo>()
@@ -446,6 +448,26 @@ object ClockControl {
         }
         val (allButtons, _) = scan(root)
         val matching = candidates.filter { seconds == null || it.second == seconds }
+        // Round 41: `complete` only means the walk stayed inside its node budget. A scrollable
+        // container can hold timer cards this walk never loaded, so the bound set is a *viewport*,
+        // not the list — and one visible 5-minute card is exactly what a phone running two of them
+        // looks like from here. Uniqueness therefore needs the page's own statement: a header total
+        // (`N 个定时器正在运行`) that the fully bound cards actually cover. Without it (or with fewer
+        // bound cards than it reports) the set is unproven and nothing is clicked.
+        val statedTotal = timerCountFrom(boundTexts, truncated = !complete)
+        val viewportComplete = complete && !scrollable
+        val coveredByPageTotal = statedTotal >= 0 && candidates.size >= statedTotal
+        if (!viewportComplete && !coveredByPageTotal) {
+            val speak = if (scrollable) {
+                "倒计时列表可以滚动，没法确认视口外还有没有同样时长的倒计时，没有执行取消"
+            } else {
+                "屏幕读取被截断，没法确认还有没有同样时长的倒计时，没有执行取消"
+            }
+            return ToolResult(ToolStatus.BLOCKED, "timer_cancel", speak,
+                "duration=$seconds candidates=${candidates.size} complete=$complete" +
+                    " scrollable=$scrollable stated=$statedTotal viewport-is-not-the-list",
+                false)
+        }
         // An unreadable second card might be the same requested duration, so it cannot be ignored.
         if (!complete || allButtons.size != candidates.size || matching.size != 1) {
             return ToolResult(ToolStatus.BLOCKED, "timer_cancel",

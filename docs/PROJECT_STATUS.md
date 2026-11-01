@@ -1,5 +1,38 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㊶轮：取消倒计时的「唯一绑定」只在视口内成立（源码 + JVM，未实机）
+
+本轮 PR #4 **无新审查**（最新复审仍是 `6551941593`，已由评论 `6552207011` 回复；其后 PR 无新评论）。按「无新审查则推进可离线项」取任务清单里的**计时器唯一绑定**（剩余的一半）。
+
+**缺陷（源码分析 + JVM 实证）**：`ClockControl.cancelTimer` 的候选扫描用 `complete`（只在 800 节点预算耗尽时置 false）当作「候选全集」。`isScrollable` **从未被读过**——而同一文件里的 `closeAlarm` 早就把可滚动列表当作「不是全列表」直接 `BLOCKED`。计时器列表可滚动时，视口下方可能还有一张相同时长的卡片：手机真有两张 5 分钟倒计时，本轮之前的代码只看到一张，`matching.size == 1` 通过，于是点掉视口里的那张并播「已请求取消指定倒计时」。这就是审查反复点出的「部分扫描当成全集」。
+
+**改法（不用「一律拒绝」换安全）**：区分两种计数——`N 个定时器正在运行` 是页面**自己声明**的总数（`timerCountFrom` 已有此契约），视口卡片数只是下界。所以：
+
+```
+statedTotal = timerCountFrom(boundTexts, truncated = !complete)
+viewportComplete    = complete && !scrollable
+coveredByPageTotal  = statedTotal >= 0 && candidates.size >= statedTotal
+if (!viewportComplete && !coveredByPageTotal) → BLOCKED，零点击
+```
+
+即可滚动时**只要完整绑定到的卡片数 ≥ 页面声明的总数**，仍可证明「这个时长只有一张」，功能不被一刀切掉；没有声明总数或绑定数不足则拒绝，`speak` 按事实分两句（可滚动 / 读取被截断），`detail` 记 `complete/scrollable/stated`。
+
+TDD 与实跑数据（`--offline --rerun-tasks`，JDK 17）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 新 `TimerCancelViewportCompletenessTest`(5)，生产未改 | **RED 5 tests / 2 failed / 0 errors**（Truth 断言：`expected: BLOCKED but was : SUCCESS`——旧代码在「可滚动 + 页面声明 2 个 + 视口 1 张」和「可滚动 + 无总数」两种情形下都真的点了取消）；3 条控制组本就通过 | 控制台输出；未单独留 RED 日志文件 |
+| 实现后同组 | **GREEN 5 / 5**，exit=0 | 本机临时日志 |
+| 定向 `ai.closepaw.voice.*` | **348 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊵轮 343，+5） | 本机临时日志 |
+| 全量 `:app:testDebugUnitTest` | **2438 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**；失败仍是既知两类 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过，本轮未重跑旧 SHA 基线 | 本机临时日志 |
+
+边界（必须看清）：
+- 全部为**源码 + JVM 合成树**：三星时钟的定时器列表页是否真的上报 `isScrollable=true`、页头那句「N 个定时器正在运行」在真机上的实际文案与是否只统计运行中的卡片，**均未验证**。若真机既不上报 `isScrollable` 又不给总数，本改动不生效（等于旧行为）；若上报了 `isScrollable` 但从不给总数，`cancelTimer` 会**全部拒绝**——这是真实的可用性代价，必须靠真机数据确认。
+- 「卡片数 ≥ 声明总数」只证明**数量**覆盖，不证明绑定到的就是用户说的那一个；对象级身份仍未解决，回读结论仍是 `UNPROVEN`。
+- 本轮的 5 条测试夹具是我自己构造的树，不是真机脱敏树。
+- 设备矩阵维持历史 4 通过 / 0 失败 / 3 未测；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+- `closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
 ## 第㊵轮：功能身份（精确标签≠业务身份）、扫码/扫一扫同义词、点击边界重解析（源码 + JVM，未实机）
 
 本轮处理新复审 `6551941593`（针对 `8252913`）的 1 条 P1/P2 + 2 条 P2，三条全部已修，且三条都先用**真实返回值**证实在旧代码上成立，不是推断。
@@ -503,6 +536,8 @@ P1 的可见对象误操作路径已失败闭合，待复审；**P2 恢复后同
 7. 投屏控制注入、电脑重启后重建连接、换 Wi-Fi 远程开发、纯移动数据远程开发 4 项未验收。
 
 ## 5. 正在执行的任务
+
+（第㊶轮，离线，源码 + JVM，未实机）本轮 **PR #4 无新审查**（最新复审 `6551941593` 已由评论 `6552207011` 回复，其后无新评论），按「无新审查则推进可离线项」推进任务清单里的**计时器唯一绑定**剩余一半。**缺陷**：`ClockControl.cancelTimer` 把 `complete`（只在 800 节点预算耗尽时才为 false）当作候选全集，`isScrollable` **从未读过**——同文件的 `closeAlarm` 早已把可滚动列表判为「不是全列表」直接 BLOCKED。可滚动计时器列表里视口下方可能还有一张同时长卡片：手机真有两张 5 分钟倒计时时，旧代码只看见一张，`matching.size == 1` 通过，点掉视口那张并播「已请求取消指定倒计时」。**改法**：区分「页面声明的总数」与「视口卡片数」——`statedTotal = timerCountFrom(boundTexts, truncated = !complete)`；`viewportComplete = complete && !scrollable`；`coveredByPageTotal = statedTotal >= 0 && candidates.size >= statedTotal`；两者都不成立才 `BLOCKED` + 零点击，措辞按事实分「列表可以滚动」/「读取被截断」两种，`detail` 记 `complete/scrollable/stated`。这样可滚动但页面给了总数且绑定数覆盖时仍能取消，不是一刀切拒绝。TDD：新 `TimerCancelViewportCompletenessTest`(5) 先写、生产未改 → **RED 5 tests / 2 failed / 0 errors**（`expected: BLOCKED but was : SUCCESS`，旧代码在两种情形下真的点了取消；3 条控制组本就通过）；实现后 **GREEN 5/5**，exit=0。定向 `ai.closepaw.voice.*` **348 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊵轮 343，+5）；全量 `:app:testDebugUnitTest` **2438 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，未重跑旧 SHA 基线）。边界：真机三星定时器页是否上报 `isScrollable`、页头「N 个定时器正在运行」实际文案是否只统计运行中，**均未验证**；若上报可滚动却从不给总数，`cancelTimer` 会全部拒绝（真实可用性代价）；「卡片数 ≥ 总数」只证数量覆盖、不证绑定对象就是用户说的那个，回读仍是 `UNPROVEN`；夹具是我自建的合成树。`closeAlarm` 仍 BLOCKED（安全拒绝）；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。本轮未构建/安装 APK、未操作手机、未调用付费 API、未合并 PR、未 push main。
 
 （第㊳轮，离线，源码 + JVM，未实机）按新复审 `6551213132`（针对 HEAD `86e9830`，2026-11-01T00:19:03Z）处理 1 条 P1 + 1 条 P1/P2 + 1 条 P2。**P1 时长参数完整性**：`ChineseTime.durationSeconds` 每类正则只 `find` 一次、消费后不检查剩余文本，于是「五分钟或者十分钟」→300 s（「或者十分钟」没读）、「十分钟和一分钟」→600 s（第二个被丢）、「一个半分钟」→30 s（`半分钟` 抢先命中，留下「一个」，本意 90 s）。现在新增 `($NUM)个?半(?:分钟|分)` 复合形（一个半分钟=90、两个半分钟=150），排在裸 `半分钟` 前；并把墙钟形 `N点(M)` 先剥掉，再用 `RESIDUAL_DURATION`（`N+小时/钟头/分钟/分/秒`）检查残留——只要还剩第二个时长就返回 `null`，调用方追问。`IntentGate` 用同一函数，所以下游拦不住，负向断言落在**工具入参**上。**P1/P2 点击前窗口归属**：`launch` 的前台验证在读屏之前，读屏只查 `serviceAvailable`，随后 `findNode(feature)` 在活动窗口里按包含匹配取首个节点、点完才查前台。新增 `UiAutomator.featureControl(pkg,text,timeout): FeatureLookup(control, why)`——root 包名必须等于目标包，命中节点自身也必须同包且 `isVisibleToUser`，点击目标取标签自身或**同包内**最近可点祖先（跳数有上限、不越窗口根），失败返回具名原因 `window-not-target(pkg)`/`not-found`/`label-not-clickable`/`no-window`；`openFeatureResolved` 读屏后先比对 `before.rootPackage`，不符即拒绝，命中后只对绑定节点 `performAction(ACTION_CLICK)`，不再用会父级上溯/坐标兜底的 `UiAutomator.click`。**P2 截断时的「找不到」**：`control == null` 且 `before` 被截断时改播「屏幕读取被截断，没法确认有没有X」，完整读取才保留「界面上没有找到X」。TDD：新 `ChineseTimeAmbiguityTest`(10)+`AppFeatureWindowIdentityTest`(6)+`TimerAmbiguousDurationArgumentTest`(3) 先写、生产未改 → **RED 19 tests / 14 failed / 0 errors**（断言失败非编译错误，6 条控制组本就通过）；实现后 GREEN，exit=0。定向 `ai.closepaw.voice.*` **315 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊲轮 296，+19）；全量 **2405 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（仍为既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过）。两处自身问题如实记录：窗口用例复用同一份读屏桩导致走成 TIMEOUT（改为第二次读有新文本）；截断措辞初版含「没有找到」与 `doesNotContain("没有找到")` 冲突，改的是生产句子而非断言。`SemanticExecutionTest` 与 `AppFeatureReadCompletenessTest` 的原断言未改，只补新路径所需桩。边界：真机上 `root.packageName`/`isClickable`/`isVisibleToUser` 的表现、权限弹窗与分屏场景全部**未实机**；`openFeature` 完整读取下仍只播「界面有变化，但没能确认已经进入」、`verified=null`；`closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。本轮未构建/安装 APK、未操作手机、未调用付费 API、未合并 PR、未 push main。
 
