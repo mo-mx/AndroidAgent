@@ -2,6 +2,47 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第㊾轮：复审 `6555010682`（针对 `8b48f3a`）B1/B2 + B3 证据（离线源码 + JVM，未实机）
+
+**范围说明**：本轮按冻结清单只处理 B1/B2（手电「本来就是目标状态」→ 错误的撤销记忆）与 B3（交付证据门槛）。B3 不是业务代码修改：它要的是「同一 HEAD 的可复现结果」+「6 项失败的同环境旧 SHA 基线」，见下面的实测。
+
+### BLOCKER B1/B2 — 已在目标态的手电仍被记成「本轮打开」
+
+旧成功分支只要求 `confirmed && observed == on && baseline != null && baselinePreRequest`，**没有要求 `baseline != on`**。于是：用户自己开着灯 → 注册回调给 `baseline=true` → 说「打开手电筒」→ 同状态回调 → `SUCCESS + verified=true` → `ActionMemory.recordResult(ENABLE, TORCH, …)` 记下「可撤销的开启」→「撤销」执行 `TorchControl.set(false)`，把用户原本开着的灯关掉。关闭方向对称。
+
+改法（三层，任何一层单独都足以阻断）：
+
+1. `TorchControl.alreadyAtTarget(on, baseline, baselinePreRequest)`：只有**可信的**请求前基线等于目标状态才算「已满足」。迟到基线（`baselinePreRequest=false`）不能证明任何事，不能用来声称「本来就开着」。
+2. `TorchControl.set()`：基线到达后先判「已满足」，**不再下发 `setTorchMode`**，直接返回 `alreadySatisfied`（`verified=true` + `observed=on/off`（真实观测）+ **`dispatched=false`**，detail 记 `already-at-target`）。
+3. `outcome()` 增加同一条分支（放在「事后回调报了相反状态」分支**之后**——更新的证据优先），并要求 `confirmed`；`ActionMemory.recordResult` 再加 `result.dispatched != false` 硬条件：没交给系统的结果永远不能成为可撤销记忆。
+
+**可用性代价（真实）**：若真实设备在「灯已经开着」时不给注册回调（`baseline == null`），路径不变（仍走事后确认/未确认）；若给了基线且等于目标，就不再重复下发请求——对灯本身无影响，但这一轮的「手电筒已打开」措辞会变成「手电筒本来就是开着的，没有再切换」。
+
+### 同轮离线项 — `setAlarm` 把「读不到」说成「没登记」
+
+`IntentActions.setAlarm` 的 6 s 等待用 `System.currentTimeMillis()`（与第㊽轮蓝牙同类），并且用 `nextAlarm(ctx)` 读取——它丢掉 `NextAlarm.known`，所以 `AlarmManager` 抛 6 秒异常的读失败与「系统真没有下一个闹钟」不可区分，最后播「已经打开闹钟界面，可能还需要你按一下保存」：这句同时断言了闹钟登记和一个从未观测到的保存界面（请求带 `EXTRA_SKIP_UI=true`，多数时钟根本不弹界面）。
+
+改法：抽出 `awaitNextAlarm(probe, timeoutMs, now, pause)`——单调 deadline（默认 `System.nanoTime()/1_000_000`）+ 硬读数上限，返回 `AlarmWait(trigger, lastKnown, reads, why)`，`why ∈ {found, timeout, read-failed, read-cap}`；`setAlarm` 按 `lastKnown` 分两种措辞（「读不到系统的闹钟状态」/「系统里没有登记下一个闹钟」），都保持 `sentWithoutProof`。
+
+### TDD 与实跑数字（`--offline --rerun-tasks`，JDK 17）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `AlarmTriggerWaitTest`(6)，生产仅加保持旧行为的脚手架 | **RED 6 tests / 4 failed / 0 errors**。实得：反向校时后读数 **35562739** 次（期望 3）、前跳后 **96949444** 次（期望 1）——即「有界等待被墙上时钟拉成无界」；读失败与可读空态都播「已经打开闹钟界面，可能还需要你按一下保存」。首跑另有 3 条 `NullPointerException`（夹具没桩 `putExtra(String, Boolean)`），属夹具错误，补桩后以第二跑为准 |
+| 新 `TorchAlreadyAtTargetTest`(6)，生产未改 | **RED 6 tests / 3 failed / 0 errors**。实得：已在目标态播「手电筒已打开」、detail 无 `already-at-target`；`verified=true + dispatched=false` 的结果被 `recordResult` 记成 `Entry(action=ENABLE, target=TORCH, …)` |
+| 实现后 定向 `ai.closepaw.voice.*` | **421 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊽轮 409，+12） |
+| 全量 `:app:testDebugUnitTest` | **2511 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（`AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5） |
+| B3 旧 SHA 同环境基线（`4d1e78d` worktree，补齐 gitignored 的 `drawable-*`/`mipmap-*` PNG 与 `res/raw`） | 两个失败类 **55 tests / 6 failed / 0 errors / 0 skipped**，失败名逐条一致 → 当前 HEAD 的 6 项失败不是本 PR 引入 |
+
+**过程问题（如实）**：B1/B2 首版把「已满足」分支放在「事后回调报了相反状态」之前，3 条既有断言因此变红（`SwitchReadbackEvidenceTest` 反向状态应 `EXECUTION_ERROR`、`TorchAttributionTest` 未确认应 `TIMEOUT`、`TorchLateRegistrationAttributionTest` 迟到基线不应 `verified=true`）。改法：新分支移到矛盾分支之后并要求 `confirmed`；同时 `TorchLateRegistrationAttributionTest` 第一条用例补上 `baselinePreRequest = t.baselinePreRequest`（它把「迟到」声明成了「请求前」，与生产调用不一致），**断言未改**。
+
+### 边界（必须看清）
+
+- 全部为**源码 + JVM**：`CameraManager`、`AlarmManager` 均为 mock。真实 CameraManager 是否会为「重复设置同一状态」再发一次同状态回调、注册事件是否总早于 `setTorchMode`、`baseline` 在不同 OEM 上是否可靠，**均未实机**；B1/B2 的反例证明的是「当前代码在该可输入事件序列下会错归属」，不是「已在手机复现」。
+- `nextAlarmClock` 何时抛异常、三星时钟是否弹保存界面、`EXTRA_SKIP_UI` 的实际效果，**均未实机**。
+- 设备矩阵仍 **4 通过 / 0 失败 / 3 未测**（属旧 APK/旧 SHA）；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+- 未解：`closeAlarm` 仍 BLOCKED；计时器创建/取消对象级终态仍 UNPROVEN；阶段 2（在线 `ToolRouter` 同门禁）未开始；Issue #6 未并入。
+
 ## 第㊽轮：复审 `6554387042`（针对 `278fdce`）3 条处理（离线源码 + JVM，未实机）
 
 **先更正第㊼轮的判断**：第㊼轮开工时（06:17Z）PR 最新评论是 `6554195052`，`> 06:01:19Z` 为空，据此判为「无新审查」；但复审 `6554387042` 于 **06:22:02Z** 到达（在我提交第㊼轮评论 06:37:52Z 之前），所以第㊼轮评论里「本轮无新审查」的说法是错的。本轮按 `6554387042` 处理，并已在该评论下更正。

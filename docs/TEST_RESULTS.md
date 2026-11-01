@@ -3,6 +3,22 @@
 更新：2026-10-31　维护方式：每次真机验证后**追加**一条，写清"测什么/怎么测/结果/证据在哪"。
 规则：没有真机日志的项目只能写"未验证"，不得写"通过"。---
 
+## 2026-11-01 第㊾轮（仅 JVM，未实机）
+
+测什么：复审 `6555010682`（HEAD `8b48f3a`）的 B1/B2 与 B3。**B1/B2**：手电「本来已经是目标状态」仍被记成「本轮打开了灯」——注册回调给出 `baseline=true`，用户说「打开手电筒」，随后同状态回调让 `confirmed && observed == on && baseline != null && baselinePreRequest` 全真 → `SUCCESS + verified=true` → `ActionMemory` 记下可撤销 `ENABLE/TORCH`，「撤销」随后 `TorchControl.set(false)` 关掉用户自己开的灯；关闭方向同理。**B3**：交付证据门槛——全量 6 项失败需给出同环境旧 SHA 基线。同时推进同类的离线项：`IntentActions.setAlarm` 的 6 s 等待用墙上时钟、且 `nextAlarm(ctx)` 丢掉 `known`，把「读不到闹钟状态」说成「没有登记」，并播「已经打开闹钟界面，可能还需要你按一下保存」（请求带 `EXTRA_SKIP_UI=true`，可能根本没有界面）。
+
+怎么测：仓库根 `source env.sh` → `cd src/closepaw` → `./gradlew --offline --rerun-tasks :app:testDebugUnitTest --tests 'ai.closepaw.voice.tools.AlarmTriggerWaitTest'`（新测试先写、生产只加保持旧行为的脚手架，取 RED）；再 `--tests 'ai.closepaw.voice.tools.TorchAlreadyAtTargetTest'`（生产未改，取 RED）；实现后 `--tests 'ai.closepaw.voice.*'`，最后全量同任务不带 `--tests`。B3 基线：`git worktree add ../AndroidAgent-baseline-4d1e78d 4d1e78d`，把本机 gitignored 的 `res/drawable-*dpi`、`res/mipmap-*dpi`、`res/raw`（`*.png` 与 `raw/` 被根 `.gitignore` 排除，工作树里有、git 里没有）复制进该 worktree，然后跑 `--tests 'ai.closepaw.agent.cognition.skills.AgentSkillCatalogTest' --tests 'ai.closepaw.memory.MemoryStoreTest'`。
+
+实际结果：`AlarmTriggerWaitTest`(6) **RED 6 tests / 4 failed / 0 errors**（Truth 断言失败）。实得：反向校时后读数 `35562739` 次（期望 3，即「有界等待被拉成无界」）、前跳后 `96949444` 次（期望 1）；闹钟读失败与可读空态都播「已经打开闹钟界面，可能还需要你按一下保存」。首跑还有 3 条 `NullPointerException`（我的夹具没桩 `Intent.putExtra(String, Boolean)`），属夹具错误，补桩后以第二跑为准。`TorchAlreadyAtTargetTest`(6) **RED 6 tests / 3 failed / 0 errors**：已在目标态时播「手电筒已打开」、detail 无 `already-at-target`、`verified=true + dispatched=false` 的结果仍被 `recordResult` 记成 `Entry(action=ENABLE, target=TORCH,…)`（即真实存在的撤销记忆漏洞）。实现后：定向 `ai.closepaw.voice.*` **421 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊽轮 409，+12）；全量 `:app:testDebugUnitTest` **2511 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败名与旧 SHA 完全一致，见下）。
+
+B3 同环境旧 SHA 基线（**本轮首次真正跑出来**）：`4d1e78d` 上两个失败类 **55 tests / 6 failed / 0 errors / 0 skipped**，失败名逐条一致（`AgentSkillCatalogTest > entry filePath points to SKILL md` 1 项、`MemoryStoreTest` 5 项）。故当前 HEAD 的这 6 项失败不是本 PR 引入。首次基线跑不起来是**环境**问题而非测试问题：`4d1e78d` 的 res 树缺少被 gitignore 的 launcher PNG（AAPT `resource drawable/ic_launcher_foreground not found`）与 `res/raw`（Kotlin `Unresolved reference 'raw'`），补齐后才编译。
+
+过程问题（如实）：B1/B2 首版把「已满足」分支放在 `observed != on` 矛盾分支之前，导致 3 条既有断言变红（`SwitchReadbackEvidenceTest` 反向状态应 `EXECUTION_ERROR`、`TorchAttributionTest` 未确认应 `TIMEOUT`、`TorchLateRegistrationAttributionTest` 迟到基线不应 `verified=true`）。改法是把新分支移到矛盾分支之后并要求 `confirmed`；另外 `TorchLateRegistrationAttributionTest` 的第一条用例没把 `baselinePreRequest = t.baselinePreRequest` 传进去（夹具把「迟到」声明成「请求前」，与生产调用不一致），补上该参数，**断言一条未改**。
+
+未验证：真实 CameraManager 是否会在「重复设置同一状态」时再发一次同状态回调（本轮的错归属反例来自代码路径与可输入事件序列，未在手机复现）；真机上注册事件是否总先于 `setTorchMode`、`baseline` 是否可靠；闹钟路径上 `nextAlarmClock` 何时抛异常、三星时钟是否会弹保存界面——全部**未实机**。本轮未构建/安装 APK、未操作手机、未调用付费 API。设备矩阵仍 4 通过 / 0 失败 / 3 未测（属旧 APK/旧 SHA），本 SHA 需用户**重新授权**才能上机。
+
+证据：本机 gitignored `logs/pr4-round49-{red-alarm,red-torch,green-tools,green-directed,full,baseline-4d1e78d}.txt`，不入库。
+
 ## 2026-11-01 第㊽轮（仅 JVM，未实机）
 
 测什么：复审 `6554387042` 的 1 条 P1 + 2 条 P2。P1：手电 `RequestTracker` 把收到的第一条回调无条件当基线，不看它是否早于 `markRequested()`；基线窗口超时后下发请求，迟到事件可能已是请求后状态 → 被记成基线 → 下一条匹配事件判 `verified=true` 并写出可撤销 `ENABLE/TORCH`（反向则吞掉真实事后事件 → 假超时）。P2：蓝牙 `awaitState` 的 1.2 s 窗口用 `System.currentTimeMillis()`，校时可延长/缩短；P2：蓝牙 `enable()`/`disable()` 抛非 `SecurityException` 异常被吞成 `false`，落进「API 拒绝」分支播「Android 不允许普通应用直接切换蓝牙」。
