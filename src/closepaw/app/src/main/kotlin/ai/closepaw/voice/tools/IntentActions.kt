@@ -94,15 +94,26 @@ object IntentActions {
         val read = if (clockForeground) UiAutomator.readScreen(80) else null
         val pageOk = tab == "clicked" && read?.rootPackage == UiAutomator.CLOCK_PKG &&
             read?.selectedTabs?.get("定时器") == true
+        // A bounded read is a sample of the page: `readTree` stops on the 600-node cap or the text
+        // budget. So "no countdown text in this read" is only "not found", and only a *complete*
+        // read can turn that into "this page does not show a countdown". An explicit zero count is
+        // affirmative evidence about the page, so clipping cannot erase it.
+        val readClipped = read != null && (read.textsTruncated || read.nodesTruncated)
         // Review `6547564219` P2: `contains("定时器正在运行")` also matched "0 个定时器正在运行",
         // so the empty state was reported as a running countdown. The count is parsed instead.
-        val countdown: Boolean? = if (!pageOk) null else read?.texts?.any { countdownWording(it) } ?: false
+        val countdown: Boolean? = when {
+            !pageOk || read == null -> null
+            read.texts.any { countdownWording(it) } -> true
+            read.texts.any { explicitZeroCountdown(it) } -> false
+            readClipped -> null
+            else -> false
+        }
         val mins = seconds / 60
         val human = if (seconds % 60 == 0) "${mins}分钟" else "${seconds}秒"
         Log.i(
             TAG,
             "timer verify: fg=$fg clockFg=$clockForeground tab=$tab page=${if (pageOk) "timer-selected" else "unconfirmed"}" +
-                " countdown=${countdown ?: "unknown"} textCount=${read?.texts?.size ?: 0}"
+                " countdown=${countdown ?: "unknown"} readClipped=$readClipped textCount=${read?.texts?.size ?: 0}"
         )
 
         val pageDetail = if (pageOk) "page=timer-selected" else "page=unconfirmed"
@@ -117,10 +128,16 @@ object IntentActions {
                 "${human}的倒计时请求已经发送，但无法确认新倒计时是否开始，请在时钟里核对",
                 "clockFg=true tab=$tab $pageDetail $countdownDetail; no newly created object identity"
             )
+            pageOk && countdown == null -> ToolResult.sentWithoutProof(
+                "timer",
+                "${human}的倒计时请求已经发送，但屏幕读取不完整，没法确认新倒计时是否开始，请在时钟里核对",
+                "clockFg=true tab=$tab $pageDetail $countdownDetail" +
+                    " readClipped=$readClipped texts=${read?.texts?.size ?: 0}; partial read cannot be read as absence"
+            )
             pageOk -> ToolResult.sentWithoutProof(
                 "timer",
                 "${human}的倒计时请求已经交给时钟应用，但我在时钟界面里没看到倒计时",
-                "clockFg=true tab=$tab $pageDetail $countdownDetail, countdown text not found"
+                "clockFg=true tab=$tab $pageDetail $countdownDetail, countdown text not found in a complete read"
             )
             clockForeground -> ToolResult.sentWithoutProof(
                 "timer",
@@ -153,6 +170,13 @@ object IntentActions {
         if (text.contains("定时器正在运行")) return true
         return text.contains("剩余") || text.contains("倒计时") || DURATION.containsMatchIn(text)
     }
+
+    /**
+     * An affirmative "there are none" from the page's own header, e.g. 「0 个定时器正在运行」.
+     * Unlike "no countdown wording found", this is evidence and survives a clipped read.
+     */
+    private fun explicitZeroCountdown(text: String): Boolean =
+        RUNNING_TIMERS.find(text)?.groupValues?.get(1)?.toIntOrNull() == 0
 
     // ── alarms ──
     fun setAlarm(ctx: Context, hour: Int, minute: Int, label: String? = null): ToolResult {
@@ -204,15 +228,28 @@ object IntentActions {
         }
     }
 
-    fun nextAlarm(ctx: Context): AlarmManager.AlarmClockInfo? = runCatching {
-        (ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager).nextAlarmClock
-    }.getOrNull()
+    fun nextAlarm(ctx: Context): AlarmManager.AlarmClockInfo? = nextAlarmProbe(ctx).info
+
+    /** What `AlarmManager.nextAlarmClock` said, and whether it could be read at all. */
+    internal data class NextAlarm(val info: AlarmManager.AlarmClockInfo?, val known: Boolean)
+
+    /**
+     * `nextAlarmClock == null` and "the call failed" are different facts that `runCatching{}.getOrNull()`
+     * used to merge into one null. [known] keeps them apart so a failed read is never spoken as an
+     * empty phone.
+     */
+    internal fun nextAlarmProbe(ctx: Context): NextAlarm = runCatching {
+        NextAlarm((ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager).nextAlarmClock, true)
+    }.getOrElse {
+        Log.e(TAG, "nextAlarm unreadable: ${it.javaClass.simpleName}", it)
+        NextAlarm(null, false)
+    }
 
     fun showAlarms(ctx: Context): ToolResult {
-        val alarm = nextAlarm(ctx)
+        val probe = nextAlarmProbe(ctx)
         val i = Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val opened = resolvable(ctx, i) && runCatching { ctx.startActivity(i); true }.getOrDefault(false)
-        val when_ = alarm?.triggerTime?.let {
+        val when_ = probe.info?.triggerTime?.let {
             SimpleDateFormat("M 月 d 日 HH 点 mm 分", Locale.CHINA).format(java.util.Date(it))
         }
         // SHOW_ALARMS is not handled by every OEM clock; fall back to opening the clock app.
@@ -221,14 +258,20 @@ object IntentActions {
             val clock = AppRegistry.find(ctx, "时钟") ?: AppRegistry.find(ctx, "闹钟")
             if (clock != null) launchedClock = AppRegistry.launch(ctx, clock).ok
         }
+        // `nextAlarmClock == null` means "no alarm is enabled right now". It does not enumerate the
+        // alarms the user created (a phone full of disabled alarms reads exactly the same), so the
+        // wording says which fact was actually observed. An unreadable probe says nothing at all.
         val speech = when {
-            !opened && !launchedClock && when_ == null -> "没有找到闹钟应用，也没有设置中的闹钟"
+            !probe.known -> "读不到系统的闹钟状态，没法确认有没有闹钟"
             when_ != null -> "下一个闹钟是 $when_"
-            launchedClock -> "已经打开时钟，现在没有设置闹钟"
-            else -> "现在没有设置闹钟"
+            !opened && !launchedClock -> "没有找到闹钟应用，系统里也没有下一个已启用的闹钟"
+            launchedClock -> "已经打开时钟，系统里没有下一个已启用的闹钟"
+            else -> "系统里没有下一个已启用的闹钟"
         }
         return ToolResult.ok(
-            "alarms", speech, verified = true, detail = "next=$when_ opened=$opened clock=$launchedClock"
+            "alarms", speech, verified = probe.known,
+            detail = "next=$when_ nextKnown=${probe.known} opened=$opened clock=$launchedClock;" +
+                " nextAlarmClock is not an enumeration"
         )
     }
 

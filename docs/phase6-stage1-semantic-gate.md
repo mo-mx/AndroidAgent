@@ -2,6 +2,48 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第㊲轮：读不到＝没看到？——计时器诊断与闹钟播报里的「缺席断言」（离线源码 + JVM，未实机）
+
+需要复审；审查未关闭。本轮**无新审查**（最新 review `6550162379` 已由 `6550446557` 回复，其后 PR 无新评论），按「无新审查则推进可离线项」继续同一类问题：**把「我没采到」说成「它不在」**。第㊱轮修的是 `AppNavigator`，本轮是剩下两个还没过这道门的出口。
+
+### 问题 1 — `IntentActions.setTimer`：被截断的读屏被当成「页面里没有倒计时」
+
+`setTimer` 发完 `ACTION_SET_TIMER` 后用 `readScreen(80)` 读一次时钟，`pageOk` 只验包名与 `selectedTabs["定时器"]`。`readScreen` 最多走 600 节点、80 条文本，撞上限时 `countdown` 仍被算成 `false`，于是播「我在时钟界面里没看到倒计时」——这是对时钟 UI 的断言，证据却是一次不完整的采样。
+
+### 问题 2 — `IntentActions.showAlarms`：三种不同事实被讲成一句话
+
+旧代码 `runCatching{...}.getOrNull()` 把「`nextAlarmClock` 返回 null」和「这次调用抛异常」合并成同一个 null，再统一播：
+
+- 读到闹钟 → 「下一个闹钟是 X」（这条没问题）；
+- 读到 null → 「现在没有设置闹钟」——观察到的只是**当前没有已启用的闹钟**，禁用中的闹钟读出来一模一样；
+- 调用抛异常 → 同样是「现在没有设置闹钟」——**读失败被说成了空手机**，而且 `verified=true`。
+
+### 改动
+
+- `IntentActions.kt` `setTimer`：`countdown` 改为三态判定，顺序是「找到运行证据 → `true`」→「页头明确 `0 个定时器正在运行` → `false`」→「这次读取被截断 → `null`（unknown）」→「完整读取且没找到 → `false`」。新增 `explicitZeroCountdown()`：显式 0 是**关于页面的肯定证据**，截断不能把它抹掉。新增 `pageOk && countdown == null` 分支：`SUCCESS` + `verified=null` +「…但屏幕读取不完整，没法确认新倒计时是否开始，请在时钟里核对」，`detail` 记 `countdown-ui=unknown readClipped=<bool> texts=<n>`；日志同步加 `readClipped`。
+- `IntentActions.kt` `showAlarms`：新增 `nextAlarmProbe(ctx): NextAlarm(info, known)`，`known=false` 表示读取失败；`nextAlarm(ctx)` 保留原签名（`= nextAlarmProbe(ctx).info`），其余调用方未改。播报改为：读不到 → 「读不到系统的闹钟状态，没法确认有没有闹钟」+ `verified=false`；读到 null → 「系统里没有下一个已启用的闹钟」（打开时钟/没找到 App 的措辞各自保留），不再出现「没有设置闹钟」；`detail` 追加 `nextKnown=<bool>` 与「nextAlarmClock is not an enumeration」。
+
+没有放宽任何既有断言；`TimerDiagnosticsEvidenceTest` 的既有 6 条（含「0 个定时器正在运行」不算运行中、跨窗口读取为 unknown）全部保持。
+
+### 真实数据（`--offline --rerun-tasks`，JDK 17，仓库根先 `source env.sh`）
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 新 `TimerReadTruncationTest`(5) + `AlarmAbsenceWordingTest`(3) 先写、生产未改 | **RED 8 tests / 4 failed / 0 errors**（Truth 断言失败，非编译错误）：文本截断 1、节点截断 1、闹钟 null 措辞 1、闹钟读取失败 1；4 条控制组（显式 0、完整读取未找到、截断中仍找到证据、有下一个闹钟）本就通过 | `logs/pr4-review37-red.txt` |
+| 实现后同组 + `TimerDiagnosticsEvidenceTest` | **GREEN**，exit=0 | `logs/pr4-review37-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **296 tests / 0 failed / 0 errors / 0 skipped**，exit=0（上轮 288，+8） | `logs/pr4-review37-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2386 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**；失败仍为既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，本轮未重跑旧 SHA 基线 | `logs/pr4-review37-full.txt` |
+
+（过程中一次误报：给 `./gradlew` 传了错误的超时参数，前台 180 s 截断后残留 Gradle/Kotlin 守护进程占着 `R.jar`，下一次 `processDebugResources` 报 `Couldn't delete R.jar`。停掉守护进程、删掉该文件后重跑，上述数字来自干净重跑，不是那次失败运行的产物。）
+
+### 边界（必须看清）
+
+- **「读取完整」仍只是「没撞上 600 节点 / 80 文本预算」**，不等于看到了整屏：可滚动、虚拟化列表仍可能没枚举完，因此 `countdown-ui=false` 依然不是「这个页面确实没有倒计时」的强证明，只是比截断时更可信。
+- 三星时钟在真机上到底会不会撞上限、`readScreen` 的 80 条预算对它够不够、`AlarmManager.nextAlarmClock` 在你机器上何时会抛：**全部未实机**。
+- `showAlarms` 现在**不再枚举闹钟列表**，也不再宣称「没有设置闹钟」；禁用中的闹钟、多个闹钟的开关状态仍需走 `ClockControl.queryAlarms`（视图读取，受第㊱轮同一完整性闸门约束）或后续全列表枚举。
+- `closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+- 本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未合并 PR、未 push main。
+
 ## 第㊱轮：打开功能时「界面有没有变」不再从被截断的读屏里推（离线源码 + JVM，未实机）
 
 需要复审；审查未关闭。本轮**无新审查**（最新 review `6550162379` 已由评论 `6550446557` 回复，其后无新评论，HEAD 仍是 `af8e901`），按「无新审查则推进可离线项」处理遗留清单里的「查询结果截断未当作不完整」。
