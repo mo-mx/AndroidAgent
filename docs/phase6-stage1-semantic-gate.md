@@ -2,6 +2,49 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第㊳轮：复审 `6551213132`（针对 `86e9830`）3 条全部处理（离线源码 + JVM，未实机）
+
+需要复审；审查未关闭。本轮在上一条第㊲轮评论之后，收到 ChatGPT 定时复审 `6551213132`（2026-11-01T00:19:03Z，审的是 `86e9830`），1 条 P1（时长参数完整性）+ 1 条 P1/P2（点击前窗口归属）+ 1 条 P2（截断时的「找不到」）。
+
+### 已修 1 — [P1] 时长短语必须被完整消费，歧义不给单一数值
+
+旧 `ChineseTime.durationSeconds` 对每种正则只 `find` 一次，移除首个匹配后只检查 `matched && !badNumeral && total > 0`，**不看剩下的文本里还有没有第二个时长**。于是：
+
+- 「设置五分钟或者十分钟的倒计时」→ 300 s，「或者十分钟」原样留在文本里没被读（用户还没选）；
+- 「设置十分钟和一分钟的倒计时」→ 600 s，第二个时长被静默丢弃；
+- 「设置一个半分钟的倒计时」→ 30 s（`半分钟` 先命中，留下「一个」），本意是 90 s。
+
+改法：新增 `($NUM)个?半(?:分钟|分)` 复合形（一个半分钟=90 s、两个半分钟=150 s），排在裸 `半分钟` 之前；新增 `RESIDUAL_DURATION` 残留检查——所有时长短语消费完后，若文本里仍存在时长形（`N+小时/钟头/分钟/分/秒`）则整句返回 `null`，调用方追问而不是猜。墙钟形（`7点30分`）会与「30分」这种时长形撞车，因此先用 `CLOCK_TIME_IN_TEXT` 剥掉再解析。注意 `IntentGate` 与 `SemanticParser` 用的是同一个函数，所以这一层修不了的问题下游也拦不住——负向断言因此落在**工具实际收到的入参**上。
+
+### 已修 2 — [P1/P2] 点开功能前先证明窗口归属，点击不再走通用回退
+
+`AppRegistry.launch` 的前台验证在读屏**之前**；读屏结果只检查了 `serviceAvailable`，没比对 `rootPackage == app.packageName`；随后 `UiAutomator.findNode(feature)` 在当时的活动窗口里按 `text/contentDescription.contains` 找首个节点，**没有包名或控件身份约束**，点完再查前台也撤不回副作用。
+
+改法：新增 `UiAutomator.featureControl(pkg, text, timeout) : FeatureLookup(control, why)`——每一轮要求 `root.packageName == pkg`；命中节点自身也必须属于 `pkg` 且 `isVisibleToUser`；点击目标取「标签自身或其**同一包内**最近可点祖先」（`clickableWithin`，有跳数上限、不越过窗口根）。返回具名原因（`window-not-target(<pkg>)` / `not-found` / `label-not-clickable` / `no-window`），不再用一个 null 混三种事实。`AppNavigator.openFeatureResolved`：读屏后先比对 `before.rootPackage` 与 App 包名，不符即拒绝；命中后**只对绑定节点** `performAction(ACTION_CLICK)`，不再调用 `UiAutomator.click`（那个助手会上溯父节点、必要时按坐标点击）。
+
+### 已修 3 — [P2] 截断读取里的「没找到」不再等于「不存在」
+
+`findNode == null` 分支原来一律播「界面上没有找到X」，即使这次读取已撞上 600 节点/120 文本上限。现在先看 `before.textsTruncated || before.nodesTruncated`：截断则播「打开了X，但屏幕读取被截断，没法确认有没有F」（`before-truncated`），完整读取才保留原句。
+
+### TDD 与实跑数字（`--offline --rerun-tasks`）
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 新 `ChineseTimeAmbiguityTest`(10) + `AppFeatureWindowIdentityTest`(6) + `TimerAmbiguousDurationArgumentTest`(3)，先写测试、生产未改 | **RED 19 tests / 14 failed / 0 errors**（Truth/MockK 断言失败，非编译错误）：时长歧义 4、复合分钟 2、墙钟混排 1、窗口归属 3、截断措辞 2、入参 3（有一部分重叠计数见日志），控制组 6 条本就通过 | `logs/pr4-review38-red.txt` |
+| 实现后（含 2 条自身夹具修正） | **GREEN**，exit=0 | `logs/pr4-review38-green2.txt` |
+| 定向 `ai.closepaw.voice.*` | **315 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊲轮 296，+19） | `logs/pr4-review38-targeted2.txt` |
+| 全量 `:app:testDebugUnitTest` | **2405 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败仍为既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过） | `logs/pr4-review38-full.txt` |
+
+过程中两处**我自己的夹具/断言问题**，如实记录：(a) `AppFeatureWindowIdentityTest` 的「点击直达」用例复用同一份读屏桩，第二次读与第一次相同 → 走成 `TIMEOUT`，改成第二次读有新文本；(b) 初版截断措辞里含「没有找到」四字，与同一用例的 `doesNotContain("没有找到")` 冲突，改的是**生产句子**（「屏幕读取被截断，没法确认有没有X」），没有放宽断言。`SemanticExecutionTest` 的 `feature does not succeed merely because launch succeeds` 补上了新路径需要的窗口/读屏桩（原断言 `contains("没有找到扫一扫")`、`doesNotContain("已经进入")` 一字未改）。`AppFeatureReadCompletenessTest` 的 `findNode`/`click` 桩换成 `featureControl`/`performAction`，断言语义未动。
+
+### 边界（必须看清）
+
+- 时长解析与窗口归属全部为**源码 + JVM**：三星真机上 `root.packageName` 在权限弹窗、悬浮窗、分屏时是否稳定等于 App 包名，`isClickable`/`isVisibleToUser` 是否如预期上报，**未验证**。
+- 「一个半分钟=90 s」按字面语义实现；如果用户实际口语里这句话意为别的，本轮不会知道——它现在至少不再是 30 s。
+- 完整读取下 `openFeature` 仍只播「界面有变化，但没能确认已经进入」，`verified=null`；页面身份仍未证明。
+- `closeAlarm` 仍 BLOCKED；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+- 本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未合并 PR、未 push main。
+
 ## 第㊲轮：读不到＝没看到？——计时器诊断与闹钟播报里的「缺席断言」（离线源码 + JVM，未实机）
 
 需要复审；审查未关闭。本轮**无新审查**（最新 review `6550162379` 已由 `6550446557` 回复，其后 PR 无新评论），按「无新审查则推进可离线项」继续同一类问题：**把「我没采到」说成「它不在」**。第㊱轮修的是 `AppNavigator`，本轮是剩下两个还没过这道门的出口。

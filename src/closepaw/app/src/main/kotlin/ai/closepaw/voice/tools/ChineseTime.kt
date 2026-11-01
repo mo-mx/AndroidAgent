@@ -64,7 +64,10 @@ object ChineseTime {
      * tried before the plain ones, and numbers may be decimal.
      */
     fun durationSeconds(text: String): Int? {
-        var work = text.replace(" ", "")
+        // Wall-clock shapes (「7点30分」) share digits and the 分 unit with durations, and the duration
+        // patterns would otherwise eat the "30分" of a time. Remove them before looking for a
+        // duration.
+        var work = text.replace(" ", "").replace(CLOCK_TIME_IN_TEXT, "")
         var total = 0.0
         var matched = false
         var badNumeral = false
@@ -92,6 +95,9 @@ object ChineseTime {
         take(Regex("($NUM)个?(?:小时|钟头)半")) { m -> num(m.groupValues[1])?.let { it * 3600 + 1800 } }
         // 一小时 / 1.5小时 / 一个钟头.
         take(Regex("($NUM)个?(?:小时|钟头)")) { m -> num(m.groupValues[1])?.let { it * 3600 } }
+        // 一个半分钟 is 90 s: 「一个」+「半分钟」, and it must be tried before the bare 半分钟 shape,
+        // which would otherwise eat 半分钟 and leave 一个 unread.
+        take(Regex("($NUM)个?半(?:分钟|分)")) { m -> num(m.groupValues[1])?.let { it * 60 + 30 } }
         // 半分钟 is 30 s, not half an hour: it must be tried before the N分钟 shape.
         take(Regex("半(?:个)?(?:分钟|分)")) { 30.0 }
         // 一分半 / 三分钟半.
@@ -101,8 +107,24 @@ object ChineseTime {
         // 45秒.
         take(Regex("($NUM)秒")) { m -> num(m.groupValues[1]) }
 
+        // Every duration word in the utterance must have been consumed and must describe one value.
+        // 「五分钟或者十分钟」 and 「十分钟和一分钟」 are choices, not a duration: picking the first
+        // match hands the system a number the user never settled on, and `IntentGate` re-parses with
+        // the same function, so nothing downstream would catch it. Wall-clock times (「7点30分」)
+        // are removed first so they are not mistaken for a second duration.
+        val leftover = work
+        if (matched && !badNumeral && total > 0 && RESIDUAL_DURATION.containsMatchIn(leftover)) {
+            return null
+        }
+
         return if (matched && !badNumeral && total > 0) Math.round(total).toInt() else null
     }
+
+    /** A wall-clock shape, which shares digits/units with durations but is not one. */
+    private val CLOCK_TIME_IN_TEXT = Regex("($NUM)点(半|一刻|三刻|$NUM)?")
+
+    /** Any duration phrase still sitting in the text after the first one was consumed. */
+    private val RESIDUAL_DURATION = Regex("($NUM)个?半?(?:小时|钟头|分钟|分|秒)")
 
     /** Arabic or Chinese numeral, decimals included ("1.5"), for [durationSeconds]. */
     private fun num(raw: String): Double? = raw.toDoubleOrNull() ?: number(raw)?.toDouble()

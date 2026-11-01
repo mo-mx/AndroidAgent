@@ -114,7 +114,14 @@ class SemanticExecutionTest {
         val app = AppRegistry.App("微信", "com.tencent.mm", emptyList())
         every { AppRegistry.apps(ctx, any()) } returns listOf(app)
         every { AppRegistry.launch(ctx, app) } returns ToolResult.ok("app", "已打开微信", verified = true)
-        every { UiAutomator.findNode("扫一扫", any()) } returns null
+        // Round 38: the control lookup is bound per window, so the fixture has to model the app's
+        // own window and a complete read — otherwise it would be refused at the window gate and the
+        // "control not found" path this test is about would never run.
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("微信", "通讯录"), nodesVisited = 10,
+            rootPackage = "com.tencent.mm", serviceAvailable = true)
+        every { UiAutomator.featureControl("com.tencent.mm", "扫一扫", any()) } returns
+            UiAutomator.FeatureLookup(null, "not-found")
         val reply = SemanticRunner.run(ctx, "打开微信扫一扫", 1)
         assertThat(reply).contains("没有找到扫一扫")
         assertThat(reply).doesNotContain("已经进入")

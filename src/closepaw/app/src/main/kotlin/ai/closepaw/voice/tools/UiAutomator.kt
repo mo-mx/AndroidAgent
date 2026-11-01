@@ -55,6 +55,86 @@ object UiAutomator {
 
     fun waitForText(text: String, timeoutMs: Long): Boolean = findNode(text, timeoutMs) != null
 
+    /** A control that was found *inside the target app's window* and can be acted on. */
+    data class FeatureControl(val node: AccessibilityNodeInfo, val label: String)
+
+    /**
+     * Why a feature control was not found. A bare null cannot separate "the app's window is not in
+     * front" from "the label is not in the tree", and those need different answers.
+     */
+    data class FeatureLookup(val control: FeatureControl?, val why: String?)
+
+    /**
+     * Find the clickable control whose label contains [text], but only inside a window that belongs
+     * to [pkg].
+     *
+     * `findNode` matches any label in the *active* window: a permission sheet, a system dialog or a
+     * same-text hint card from another app would be matched and clicked, and the foreground check
+     * after the click cannot undo the side effect. Binding is therefore done per window: the root
+     * package must be [pkg], the label node must report the same package, and the clicked node is
+     * the label itself or its nearest clickable ancestor inside that same package — never a generic
+     * ancestor climb and never a coordinate tap.
+     */
+    fun featureControl(pkg: String, text: String, timeoutMs: Long = 4000): FeatureLookup {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        var why = "no-window"
+        while (System.currentTimeMillis() < deadline) {
+            val r = root()
+            val rootPkg = r?.let { runCatching { it.packageName?.toString() }.getOrNull() }
+            if (r == null) {
+                why = "no-window"
+            } else if (rootPkg != pkg) {
+                // The app was launched, but something else owns the front window right now.
+                why = "window-not-target($rootPkg)"
+            } else {
+                val hit = findFirst(r) { n ->
+                    runCatching { n.packageName?.toString() }.getOrNull() == pkg &&
+                        runCatching { n.isVisibleToUser }.getOrDefault(false) &&
+                        labelOf(n).contains(text.lowercase())
+                }
+                if (hit != null) {
+                    val clickable = clickableWithin(hit, r, pkg)
+                    if (clickable != null) {
+                        return FeatureLookup(FeatureControl(clickable, labelOf(hit)), null)
+                    }
+                    why = "label-not-clickable"
+                } else {
+                    why = "not-found"
+                }
+            }
+            Thread.sleep(120)
+        }
+        return FeatureLookup(null, why)
+    }
+
+    private fun labelOf(n: AccessibilityNodeInfo): String =
+        ((runCatching { n.text?.toString() }.getOrNull() ?: "") + " " +
+            (runCatching { n.contentDescription?.toString() }.getOrNull() ?: "")).lowercase()
+
+    /**
+     * The label itself when clickable, else its nearest clickable ancestor, but never anything
+     * outside the app's own window ([root]) or outside [pkg].
+     */
+    private fun clickableWithin(
+        label: AccessibilityNodeInfo,
+        root: AccessibilityNodeInfo,
+        pkg: String,
+    ): AccessibilityNodeInfo? {
+        var cur: AccessibilityNodeInfo? = label
+        var hops = 0
+        while (cur != null && hops <= NAV_MAX_HOPS) {
+            if (runCatching { cur!!.isClickable }.getOrDefault(false) &&
+                runCatching { cur!!.packageName?.toString() }.getOrNull() == pkg
+            ) {
+                return cur
+            }
+            if (sameNode(cur!!, root)) return null
+            cur = runCatching { cur!!.parent }.getOrNull()
+            hops++
+        }
+        return null
+    }
+
     /**
      * Selected state of the node whose text/content-description names [text] (or of its nearest
      * ancestors), i.e. whether that navigation tab is the active one.

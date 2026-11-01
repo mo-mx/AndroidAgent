@@ -6,6 +6,7 @@ import ai.closepaw.voice.tools.ToolStatus
 import ai.closepaw.voice.tools.UiAutomator
 import android.content.Context
 import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
 
 /**
  * App resolution and in-app navigation.
@@ -142,15 +143,49 @@ object AppNavigator {
                 "app=${app.packageName} a11y=unavailable ($why)", false
             )
         }
-        val control = UiAutomator.findNode(feature, 4000)
-            ?: return ToolResult(
+        // The launch is verified *before* this read, so the read can be somebody else's window: a
+        // permission sheet, a system dialog, another app. Binding a control from that tree and
+        // clicking it is a side effect the foreground check after the click cannot undo.
+        if (before.rootPackage != app.packageName) {
+            return ToolResult(
                 ToolStatus.DEVICE_UNAVAILABLE, "app_feature",
-                "打开了${app.label}，但界面上没有找到$feature",
-                "app=${app.packageName} control-not-found read=${readFacts(before)}", false
+                "打开的窗口不是${app.label}的界面，没有点$feature",
+                "app=${app.packageName} window=not-target(${before.rootPackage}) ($why)", false
             )
+        }
+        // Control identity is bound per window: same package for the root *and* the label node, and
+        // the clicked node is the label itself or its nearest clickable ancestor in that package —
+        // no generic ancestor climb, no coordinate tap.
+        val lookup = UiAutomator.featureControl(app.packageName, feature, 4000)
+        val control = lookup.control
+        if (control == null) {
+            val clipped = before.textsTruncated || before.nodesTruncated
+            val windowLost = lookup.why?.startsWith("window-not-target") == true
+            return when {
+                windowLost -> ToolResult(
+                    ToolStatus.DEVICE_UNAVAILABLE, "app_feature",
+                    "点之前${app.label}的界面被另一个窗口盖住了，没有点$feature",
+                    "app=${app.packageName} window=${lookup.why} ($why)", false
+                )
+                // A clipped read is a sample: "not in the part I read" is not "not there".
+                clipped -> ToolResult(
+                    ToolStatus.DEVICE_UNAVAILABLE, "app_feature",
+                    "打开了${app.label}，但屏幕读取被截断，没法确认有没有$feature",
+                    "app=${app.packageName} control-not-found before-truncated " +
+                        "read=${readFacts(before)} ($why)", false
+                )
+                else -> ToolResult(
+                    ToolStatus.DEVICE_UNAVAILABLE, "app_feature",
+                    "打开了${app.label}，但界面上没有找到$feature",
+                    "app=${app.packageName} control-not-found read=${readFacts(before)} ($why)", false
+                )
+            }
+        }
 
-        val clicked = UiAutomator.click(control)
-        Log.i(TAG, "openFeature $feature clicked=$clicked")
+        // Only the node the lookup bound to; `UiAutomator.click` may climb parents or tap
+        // coordinates, which is exactly the blind click this refuses to do.
+        val clicked = control.node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        Log.i(TAG, "openFeature $feature clicked=$clicked label=${control.label}")
         if (!clicked) {
             return ToolResult.error("app_feature", "找到了${feature}但点不动", "click failed")
         }
