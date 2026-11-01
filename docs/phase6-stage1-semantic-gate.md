@@ -2,6 +2,17 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第54轮：无新审查，给当前 HEAD 补第一次 Kotlin 实跑证据（JVM，未实机）
+
+**范围说明**：无代码改动。`created_at > 2026-11-01T10:29Z`（第53轮评论）之后 PR #4 无新评论；最新复审仍是 `6556347173`（针对 `fafe365`，第52/53轮已处理），且该复审已宣布「两轮停止、不指派第三轮」。因此本轮不扩项，只补一条被复审反复要求、而当前 SHA 恰好缺失的证据：**同一 HEAD 的 Kotlin 实跑**。第51–53轮只跑 Python（第53轮明写「没有 Kotlin 改动，因此没有跑 Gradle」），PR 正文里的 423/2528 都是 `5789be4`/`fafe365` 的旧数字。
+
+- 定向（`ai.closepaw.voice.*` + `ai.closepaw.termux.*`，HEAD `179f762`）：**459 / 0 failed / 0 errors / 0 skipped**，exit=0。
+- 全量（同 SHA）：**2528 / 6 failed / 0 errors / 8 skipped**，exit=1，6 项与旧 SHA 逐条同名（`AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，均 Windows 宿主语义），未改未跳。
+- 一次真实构建故障：前台调用被 180 s 截断 → 守护进程占住 `R.jar` → `:app:processDebugResources` 报 `Couldn't delete ...R.jar`（构建没起来，不是测试失败）；`--stop` + 清 `R.jar`/`test-results` 后重跑，数字取自该次。
+- **仍未闭合**：Linux 宿主上没有跑过这 6 项（WSL 无 JDK、无 `~/.gradle` caches、无 SDK，`--offline` 不成立），所以「与本 PR 无关」仍是**源码归因 + 同环境旧 SHA 对照**，不升级为已证明。
+- 待用户决定的事项（bridge 去留 / 限定环境验收 / 另立 Issue）本轮依旧不代拍；PR #4 不合并、不装包、不动手机。
+
+
 ## 第51轮：复审 `6555767212`（针对 `5789be4`）Termux bridge 认证 + 失败归因（离线源码 + JVM + Python，未实机）
 
 **范围说明**：本轮只处理这两条 BLOCKER，不扩项。审查已宣布「两轮停止条件」，因此本轮的目标是**把危险入口变成不可达/需凭证**并把失败归因做实，而不是继续追新问题。

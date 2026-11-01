@@ -3,6 +3,44 @@
 更新：2026-10-31　维护方式：每次真机验证后**追加**一条，写清"测什么/怎么测/结果/证据在哪"。
 规则：没有真机日志的项目只能写"未验证"，不得写"通过"。---
 
+## 2026-11-01 第54轮（JVM 实跑：HEAD `179f762` 定向 + 全量，未实机）
+
+测什么：**当前 HEAD 在 Kotlin 侧此前没有任何实跑证据**（第51–53轮只跑 Python；第53轮明写未跑 Gradle），而 PR 正文/复审引用的 423 / 2528 属于 `5789be4`、`fafe365`。复审 B3 要求的「同一 HEAD 可复核」在这一环上是空的，本轮补上。不改代码，只补证据。
+
+怎么测：`source env.sh`（JDK `17.0.20.1+1`、SDK 在仓库 `tools/`），在 `src/closepaw` 下
+`./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.voice.*' --tests 'ai.closepaw.termux.*'`，
+再跑一次无 `--tests` 的全量；统计直接读 `app/build/test-results/testDebugUnitTest/**/*.xml`（JUnit XML 的 `tests/failures/errors/skipped` 求和），不采信控制台摘要。日志：`logs/pr4-round54-targeted.txt`、`logs/pr4-round54-full.txt`（gitignored，本机）。
+
+实际结果：
+
+| 任务 | HEAD | 结果 | exit |
+|---|---|---|---|
+| 定向 `ai.closepaw.voice.*` + `ai.closepaw.termux.*` | `179f762` | **459 tests / 0 failed / 0 errors / 0 skipped**（voice 423 + termux 36） | 0 |
+| 全量 `:app:testDebugUnitTest` | `179f762` | **2528 tests / 6 failed / 0 errors / 8 skipped** | **1（不是全绿）** |
+
+全量 6 项失败逐条（与 `fafe365`、`5789be4` 同名，本轮未改未跳过）：
+
+```
+ai.closepaw.agent.cognition.skills.AgentSkillCatalogTest :: entry filePath points to SKILL md
+ai.closepaw.memory.MemoryStoreTest :: append with duplicate heading inserts under last occurrence
+ai.closepaw.memory.MemoryStoreTest :: append on file with missing heading appends new section at EOF
+ai.closepaw.memory.MemoryStoreTest :: append under heading followed by free text inserts before next heading
+ai.closepaw.memory.MemoryStoreTest :: multiple entries append to same section
+ai.closepaw.memory.MemoryStoreTest :: app entries stay inside their target section
+```
+
+过程问题（如实）：第一次跑用前台调用，被 180 s 上限截断；残留 Gradle/Kotlin 守护进程占着
+`app/build/intermediates/.../processDebugResources/R.jar`，下一跑在 `:app:processDebugResources`
+直接 `java.io.IOException: Couldn't delete ...R.jar`（BUILD FAILED in 25s）——**那次不是测试失败，是构建没起来**。
+`./gradlew --stop` + 删该 `R.jar` + 清空 `test-results` 后重跑，上表数字全部来自这次干净重跑；
+被截断那次残留的 423 条旧 XML 在重跑前删除，未混入统计（所以 459 是重跑的真实求和，不是旧结果）。
+
+未验证 / 做不了：
+
+- **POSIX（Linux）宿主上这 6 项是否转绿：未验证**。本机 WSL Ubuntu 实测 `java: command not found`、`~/.gradle` 不存在（无 caches）、无 Android SDK，`--offline` Gradle 构建在该环境不成立；联网拉 JDK/Gradle/SDK 超出本轮边界，故**未做**，不写成「已在 POSIX 验证」。
+- 6 项失败的性质仍是**源码机制归因**（Windows 路径分隔符断言 + `File.renameTo` 覆盖既有目标返回 false）+ **Windows 同环境旧 SHA `4d1e78d` 对照**（`55 tests / 6 failed`，失败名一致）。没有一次在 Linux JVM 上跑过同一批用例。
+- 真机：未构建 APK、未安装、未操作设备。设备矩阵仍是 **4 通过 / 0 失败 / 3 未测**，且属旧 APK/旧 SHA；本 SHA 实机需用户重新授权。
+
 ## 2026-11-01 第53轮（Python 双平台实跑：Windows + WSL Ubuntu，未实机）
 
 测什么：第52轮遗留的「7 条 Python 失败**逐条归因未闭环**」（复审 `6556347173` 的 B3 要求，第52轮自己写明 5/6/7 未逐行确证、且「POSIX 上是否转绿未验证」）。本轮补的是**证据**，不是新功能。

@@ -1,5 +1,17 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第54轮：无新审查，给当前 HEAD `179f762` 补第一次 Kotlin 实跑证据（JVM，未实机）
+
+PR #4 无新审查（最新复审仍是 `6556347173`，针对 `fafe365`，第52/53轮已处理；`created_at > 2026-11-01T10:29Z` 的评论为空）。按「无新审查推进可离线项」，本轮补的是**证据缺口**，不是新功能，也不是第54次扩项：第51–53轮只跑过 Python（第53轮明写「没有 Kotlin 改动，因此没有跑 Gradle」），因此 **HEAD `179f762` 这个 SHA 在 Kotlin 侧一次实跑都没有**，PR 正文里的 423 / 2528 全部是 `5789be4`/`fafe365` 的数字。复审 B3 反复要的就是「同一 HEAD 可独立复核」，本轮把它补齐。
+
+- **定向实跑（HEAD `179f762`，`--offline`，JDK 17，`:app:testDebugUnitTest --tests ai.closepaw.voice.* --tests ai.closepaw.termux.*`）**：**459 tests / 0 failed / 0 errors / 0 skipped**，`GRADLE_EXIT=0`（`ai.closepaw.voice` 423 + `ai.closepaw.termux` 36）。
+- **全量实跑（同 SHA，`:app:testDebugUnitTest`）**：**2528 tests / 6 failed / 0 errors / 8 skipped**，`GRADLE_EXIT=1`，**不是全绿**。6 项失败与 `fafe365`/`5789be4` 逐条同名：`AgentSkillCatalogTest :: entry filePath points to SKILL md` + `MemoryStoreTest` 5 项（`MemoryStore.atomicWrite` 的 `File.renameTo` 覆盖既有目标在 Windows 返回 false）。本轮**没有**改、没有跳过这 6 项。
+- **过程问题（如实）**：第一次前台调用被 180 s 上限截断，残留 Gradle/Kotlin 守护进程占住 `R.jar`，下一次 `processDebugResources` 报 `Couldn't delete ...R.jar`（BUILD FAILED in 25s）。`--stop` + 删该文件 + 清空 `test-results` 后重跑，上面两行数字来自这次干净重跑；被截断那次留下的 423 条旧 XML 已删除，未混入统计。
+- **POSIX（WSL）Kotlin 对照：本轮做不了，有实证**。`wsl -e bash -lc` 实测 `java: command not found`，`~/.gradle` 不存在（无 caches），本机 WSL 无 JDK、无 Gradle 分发、无 Android SDK；`--offline` 构建在该环境不可能成立，联网下载又超出「不引入新依赖/不调用外部服务」的边界。因此「两个失败类在 Linux 宿主上转绿」仍**未验证**，6 项失败的性质仍是**源码机制归因 + Windows 同环境旧 SHA 对照**，不升级为「已证明与本 PR 无关」。
+- **无代码改动**：本轮只写文档，`src/` 零 diff；未构建 APK、未安装、未操作手机、未改受保护规则、未 push main、未合并、未 delegate、未调用付费 API。
+- **仍待用户决定（第51–53轮提出，本轮不代拍）**：①把 `tools/termux-bridge` 与 `copyClosePawBridge` 移出阶段 1；②授权限定 POSIX/真机环境验收；③另立后续 Issue。复审 `6556347173` 已宣布「两轮停止」，在这些选择做出前 **PR #4 不合并**。
+- 设备矩阵维持 **4 通过 / 0 失败 / 3 未测**（旧 APK/旧 SHA）；`closeAlarm` 仍安全 BLOCKED、计时器对象级终态 UNPROVEN、阶段 2（在线 `ToolRouter` 同门禁）未开始、Issue #6 未并入。
+
 ## 第53轮：无新审查，把「7 条 Python 失败」的归因用 POSIX 实跑闭合（源码 + Python 双平台，未实机）
 
 PR #4 无新审查（最新复审仍是 `6556347173`，针对 `fafe365`，已由第52轮评论 `IC_kwDOVdfNwc8AAAABhsyBgg`（HEAD `fc2cef5`）处理；其后只有我自己的评论）。按「无新审查推进可离线项」，本轮做第52轮自己标注为未完成的一件事：**7 条 Python 失败逐条归因 + 「POSIX 上是否转绿未验证」**。复审 B3 要求的就是这种可独立复核的证据，本轮不扩项、不碰 bridge 去留（仍待用户拍板）。
