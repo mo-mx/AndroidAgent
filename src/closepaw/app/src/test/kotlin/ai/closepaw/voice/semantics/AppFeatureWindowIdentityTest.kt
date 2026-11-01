@@ -56,7 +56,12 @@ class AppFeatureWindowIdentityTest {
         every { AppRegistry.launch(any(), any()) } returns ToolResult.ok("app", "已打开微信", verified = true)
         every { UiAutomator.foregroundPackage() } returns pkg
         every { UiAutomator.readScreen(any()) } returns read("微信", "通讯录", "扫一扫")
-        every { UiAutomator.featureControl(any(), any(), any()) } returns
+        every { UiAutomator.featureControl(any<String>(), any<List<String>>(), any<Long>()) } returns
+            UiAutomator.FeatureLookup(UiAutomator.FeatureControl(node, "扫一扫"), null)
+        // Round 40: the click now acts on a control re-resolved at the action boundary, so the
+        // fresh one-shot lookup is stubbed with the same result. The re-resolution itself is
+        // covered against real implementations in AppFeatureIdentityTest.
+        every { UiAutomator.featureControlOnce(any<String>(), any<List<String>>()) } returns
             UiAutomator.FeatureLookup(UiAutomator.FeatureControl(node, "扫一扫"), null)
         every { node.performAction(any()) } returns true
     }
@@ -69,7 +74,7 @@ class AppFeatureWindowIdentityTest {
     fun `a foreign window in front is not searched for the feature`() {
         every { UiAutomator.readScreen(any()) } returns
             read("微信", "扫一扫", rootPackage = "com.android.permissioncontroller")
-        every { UiAutomator.featureControl(any(), any(), any()) } returns
+        every { UiAutomator.featureControl(any<String>(), any<List<String>>(), any<Long>()) } returns
             UiAutomator.FeatureLookup(null, "window-not-target(com.android.permissioncontroller)")
 
         val r = AppNavigator.openFeatureResolved(ctx, app, "扫一扫", "unit-test")
@@ -101,7 +106,7 @@ class AppFeatureWindowIdentityTest {
     /** Item 2: the target window must still be the app's at bind time. */
     @Test
     fun `a lookup that lost the app window refuses without clicking`() {
-        every { UiAutomator.featureControl(any(), any(), any()) } returns
+        every { UiAutomator.featureControl(any<String>(), any<List<String>>(), any<Long>()) } returns
             UiAutomator.FeatureLookup(null, "window-not-target(com.android.systemui)")
 
         val r = AppNavigator.openFeatureResolved(ctx, app, "扫一扫", "unit-test")
@@ -117,7 +122,7 @@ class AppFeatureWindowIdentityTest {
     fun `a text-capped read that missed the control does not claim it is absent`() {
         every { UiAutomator.readScreen(any()) } returns
             read("微信", "通讯录", textsTruncated = true)
-        every { UiAutomator.featureControl(any(), any(), any()) } returns
+        every { UiAutomator.featureControl(any<String>(), any<List<String>>(), any<Long>()) } returns
             UiAutomator.FeatureLookup(null, "not-found")
 
         val r = AppNavigator.openFeatureResolved(ctx, app, "扫一扫", "unit-test")
@@ -133,7 +138,7 @@ class AppFeatureWindowIdentityTest {
     fun `a node-capped read that missed the control does not claim it is absent`() {
         every { UiAutomator.readScreen(any()) } returns
             read("微信", "通讯录", nodesTruncated = true)
-        every { UiAutomator.featureControl(any(), any(), any()) } returns
+        every { UiAutomator.featureControl(any<String>(), any<List<String>>(), any<Long>()) } returns
             UiAutomator.FeatureLookup(null, "not-found")
 
         val r = AppNavigator.openFeatureResolved(ctx, app, "扫一扫", "unit-test")
@@ -145,7 +150,7 @@ class AppFeatureWindowIdentityTest {
     /** Control: a complete read that really has no such label keeps the old wording. */
     @Test
     fun `a complete read that missed the control still says it was not found`() {
-        every { UiAutomator.featureControl(any(), any(), any()) } returns
+        every { UiAutomator.featureControl(any<String>(), any<List<String>>(), any<Long>()) } returns
             UiAutomator.FeatureLookup(null, "not-found")
 
         val r = AppNavigator.openFeatureResolved(ctx, app, "扫一扫", "unit-test")

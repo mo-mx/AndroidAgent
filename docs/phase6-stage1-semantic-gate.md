@@ -720,3 +720,43 @@ TDD：每个修复切片先观察对应行为断言失败，再修改生产代�
 编译期一次失败（`$feature的地方` 被当成标识符）已修，不计 RED。
 
 **未实机**：三星上同名可点控件的实际出现率、功能标签是精确还是带后缀、窗口根是否常可点，全部未验证。`featureControl` 对大页面更保守（600 节点内数不完即拒绝），代价只能在真机上评估。设备矩阵维持 4 通过 / 0 失败 / 3 未测，本 SHA 未构建/未安装/未实测，实机需用户重新授权。`closeAlarm` 仍 BLOCKED，计时器对象级终态仍 UNPROVEN，在线 `ToolRouter` 同门禁（阶段 2）未开始。
+
+## 第㊵轮：复审 `6551941593`（HEAD `8252913`）——功能身份、同义词、点击边界重解析
+
+**证据类型：源码 + JVM。未实机。**
+
+### 1. [P1/P2] 精确标签仍可把说明/帮助卡片当成真实功能入口
+
+`featureControl` 第㊴轮的分层是 `if (scan.exact.isNotEmpty()) scan.exact else scan.loose`——**精确层非空就整层丢弃包含层**。反向组合因此仍会误点：帮助卡片子节点文字恰好「扫一扫」（exact），真入口 `contentDescription=「扫一扫，打开相机」`（loose）；exact 层唯一，`clickableWithin` 返回帮助卡片，`ACTION_CLICK` 落在卡片上。RED 实跑确证：`FeatureControl(node=AccessibilityNodeInfo(#180), label=扫一扫)`。
+
+改法：两层**都**是候选；对每个可点目标（`sameNode` 去重）取**目标自身**标签（`ownLabel`：自身 text 或 contentDescription，去空格小写）：
+
+- `direct` = 自身标签精确等于任一目标标签名的目标；
+- `direct.size == 1` → 用它；
+- 否则 `targets.size == 1` → 用它；
+- 否则 `ambiguous(n)`，不点击。
+
+这样「扫一扫」精确按钮旁边有「扫一扫设置」卡片时仍点按钮（卡片自身标签是「扫一扫设置」，不 direct，但 direct 恰好 1 个），而「卡片内含精确文字 + 真入口描述更长」两个目标都不 direct → 拒绝。**没有**引入按 className/resource-id 识别业务入口的规则（缺真机树证据）。
+
+### 2. [P2] 「扫码」与「扫一扫」未归一化
+
+`appFeatureWords` 同时列「扫一扫」「扫码」，但命中词原样进 `params["feature"]`，界面匹配又是字面比较。RED 实跑：说「打开微信扫码」、树里只有「扫一扫」时，真的回答 `打开了微信，但界面上没有找到扫码`。
+
+改法：`AppFeatureAliases`（`semantics/AppFeatureAliases.kt`）给出「口语词 → 功能身份 → 允许的界面标签集」：`扫一扫/扫码/扫描/扫二维码` → 「扫一扫」，`付款码/收付款/收钱码` → 「付款码」，其余词身份即自身。`SemanticParser` 写规范化 `feature`；`UiAutomator.featureControl` 新增 `List<String>` 重载，任一标签精确/包含命中即可，歧义与截断规则不变；`AppNavigator` 用 `AppFeatureAliases.labelsFor(feature)`。
+
+### 3. [P2 · 静态竞态] 扫描与点击之间没有窗口再校验
+
+旧代码点的是早先读取里拿到的 `AccessibilityNodeInfo`，中间没有任何再读；弹出对话框或页面跳转时，是否会对过时控件执行动作没有证据。改法：不点旧节点——`UiAutomator.featureControlOnce`（单次、不重试）在**动作边界**重读活动窗口并重新解析，点击落在**重解析后的新节点**；解析失败（窗口换了 App、标签消失、候选变多/被截断）→ 拒绝点击，话术「点之前…的界面又变了，没有点X」，`verified=false`，detail 记 `beyond-scan=<why>`。
+
+### 测试
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `AppFeatureIdentityTest`(10)，生产未改（只放直通骨架 `AppFeatureAliases` 以便编译） | **RED 10 / 6 failed / 0 errors**，全部 Truth 断言：实得帮助卡片、实得 feature=`扫码`、实说「没有找到扫码」、三例窗口已换仍点击。失败值见 `logs/pr4-review40-red.txt` |
+| 实现后 | **GREEN 10 / 10**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **343 / 0 failed / 0 errors / 0 skipped**，exit=0（第㊴轮 333，+10） |
+| 全量 | **2433 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（`AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，既知、未跳过、未改） |
+
+既有测试为适配新契约做了桩调整：`featureControl` 变成标签集重载后，`any()` 需显式 `any<List<String>>()`（4 个文件）；`AppFeatureWindowIdentityTest`/`AppFeatureReadCompletenessTest`/`SemanticExecutionTest` 补 `featureControlOnce` 桩，真实重解析由 `AppFeatureIdentityTest` 覆盖。
+
+**未实机**：真机上帮助卡片与真入口的节点角色、className、resource-id，以及三星设备上「扫码」的实际映射都未验证；本轮刻意不按控件角色猜业务入口，规则是「证明不了就拒绝」。代价：同页面两个控件对得上同一标签（含同义词）即拒绝打开；点击前多一次全树解析，大树页面更容易 `candidates-truncated`。设备矩阵维持 4 通过 / 0 失败 / 3 未测，本 SHA 未构建/未安装/未实测，实机需用户重新授权。`closeAlarm` 仍 BLOCKED，计时器对象级终态仍 UNPROVEN，在线 `ToolRouter` 同门禁（阶段 2）未开始。

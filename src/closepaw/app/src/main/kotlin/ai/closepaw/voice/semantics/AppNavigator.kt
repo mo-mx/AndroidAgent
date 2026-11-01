@@ -156,7 +156,10 @@ object AppNavigator {
         // Control identity is bound per window: same package for the root *and* the label node, and
         // the clicked node is the label itself or its nearest clickable ancestor in that package —
         // no generic ancestor climb, no coordinate tap.
-        val lookup = UiAutomator.featureControl(app.packageName, feature, 4000)
+        // Round 40 (review 6551941593, item 2): an utterance like 「打开微信扫码」 names the
+        // feature, not the literal label on screen. Every label that may stand for it is accepted.
+        val featureLabels = AppFeatureAliases.labelsFor(feature)
+        val lookup = UiAutomator.featureControl(app.packageName, featureLabels, 4000)
         val control = lookup.control
         if (control == null) {
             val clipped = before.textsTruncated || before.nodesTruncated
@@ -200,10 +203,27 @@ object AppNavigator {
             }
         }
 
-        // Only the node the lookup bound to; `UiAutomator.click` may climb parents or tap
+        // Round 40 (review 6551941593, item 3): between the scan and the click an async popup or a
+        // page jump may replace the window, and Android gives no proof that `performAction` on a
+        // node from the *earlier* read would fail instead of hitting whatever now occupies that
+        // spot. So the control is re-resolved against a fresh read right at the action boundary and
+        // the fresh node is the one clicked; if the fresh read no longer identifies exactly one
+        // control, nothing is clicked.
+        val fresh = UiAutomator.featureControlOnce(app.packageName, featureLabels)
+        val target = fresh.control
+        if (target == null) {
+            return ToolResult(
+                ToolStatus.DEVICE_UNAVAILABLE, "app_feature",
+                "点之前${app.label}的界面又变了，没有点$feature",
+                "app=${app.packageName} beyond-scan=${fresh.why} " +
+                    "scan=${control.label.trim()} ($why)", false
+            )
+        }
+
+        // Only the node the fresh lookup bound to; `UiAutomator.click` may climb parents or tap
         // coordinates, which is exactly the blind click this refuses to do.
-        val clicked = control.node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        Log.i(TAG, "openFeature $feature clicked=$clicked label=${control.label}")
+        val clicked = target.node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        Log.i(TAG, "openFeature $feature clicked=$clicked label=${target.label}")
         if (!clicked) {
             return ToolResult.error("app_feature", "找到了${feature}但点不动", "click failed")
         }

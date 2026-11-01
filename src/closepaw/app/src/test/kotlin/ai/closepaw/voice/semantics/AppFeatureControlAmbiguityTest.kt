@@ -162,7 +162,7 @@ class AppFeatureControlAmbiguityTest {
 
     @Test
     fun `an ambiguous lookup is spoken and never clicked`() {
-        every { UiAutomator.featureControl(any(), any(), any()) } returns
+        every { UiAutomator.featureControl(any<String>(), any<List<String>>(), any<Long>()) } returns
             UiAutomator.FeatureLookup(null, "ambiguous(2)")
 
         val r = AppNavigator.openFeatureResolved(ctx, app, "扫一扫", "unit-test")

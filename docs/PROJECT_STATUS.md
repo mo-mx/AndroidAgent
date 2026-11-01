@@ -1,5 +1,31 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㊵轮：功能身份（精确标签≠业务身份）、扫码/扫一扫同义词、点击边界重解析（源码 + JVM，未实机）
+
+本轮处理新复审 `6551941593`（针对 `8252913`）的 1 条 P1/P2 + 2 条 P2，三条全部已修，且三条都先用**真实返回值**证实在旧代码上成立，不是推断。
+
+1. **P1/P2 精确标签会把说明卡当真入口**：`val tier = if (scan.exact.isNotEmpty()) scan.exact else scan.loose` 一旦发现精确标签就**整层丢弃**包含匹配。实测（RED）：帮助卡片子节点文字「扫一扫」+ 真按钮 `contentDescription=「扫一扫，打开相机」`，旧代码返回 `FeatureControl(node=…, label=扫一扫)`——即返回**帮助卡片**作点击目标。改法：两层都保留为候选，按「点击目标**自身**标签是否精确等于目标名」判 direct 层；direct 恰好一个才用，否则目标只有一个才用，其余一律 `ambiguous(n)` 失败关闭。不引入角色/resource-id 猜测（缺真机树证据，见边界）。
+2. **P2 「扫码」与「扫一扫」未归一化**：实测旧行为说「打开微信扫码」、界面只有「扫一扫」时，回答 **`打开了微信，但界面上没有找到扫码`**。改法：新增 `AppFeatureAliases`（口语词→功能身份 + 允许的界面标签集，如 扫一扫/扫码/扫描/扫二维码 归一到「扫一扫」，付款码/收付款/收钱码 归一），`SemanticParser` 写入规范化 `feature`，`UiAutomator.featureControl` 增加标签集重载，任一标签命中即可，多候选歧义规则不变。
+3. **P2 扫描与点击之间无窗口再校验**：旧代码点的是**早先那次读取**里的节点对象，改法是不再点旧节点——`featureControlOnce` 在动作边界重读活动窗口并重新解析，点的是**重解析后的新节点**；重解析失败（窗口换了 App / 标签消失 / 候选变多）则拒绝点击并说明「界面又变了」，`verified=false`。
+
+TDD 与实跑数据（`--offline --rerun-tasks`，JDK 17）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 新 `AppFeatureIdentityTest`(10)，生产未改（仅先放 `AppFeatureAliases` 直通骨架以便编译） | **RED 10 tests / 6 failed / 0 errors**，全部 Truth 断言：实得 `FeatureControl(label=扫一扫)`（帮助卡）、实得 feature=`扫码`、实说「没有找到扫码」、三例在窗口已换后仍执行了点击 | `logs/pr4-review40-red.txt`（从测试 XML 抽的真实失败值） |
+| 实现后同组 | **GREEN 10 / 10**，exit=0（同一次定向运行内，未单独留 green1 日志） | `logs/pr4-review40-targeted.txt` |
+| 定向 `ai.closepaw.voice.*` | **343 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊴轮 333，+10） | `logs/pr4-review40-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2433 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**；失败仍是既知两类 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过 | `logs/pr4-review40-full.txt` |
+
+为适配新契约改了既有测试的桩：`featureControl` 变为标签集重载后，4 个测试文件里的 `any()` 需显式 `any<List<String>>()`；`AppFeatureWindowIdentityTest` / `AppFeatureReadCompletenessTest` / `SemanticExecutionTest` 补上 `featureControlOnce` 桩（真实重解析行为由 `AppFeatureIdentityTest` 覆盖）。
+
+边界（必须看清）：
+- 全部为**源码 + JVM 合成树**：真机上帮助卡片/真入口的节点角色、`className`、resource-id、无障碍树结构，以及「扫码」这类口语词在三星设备上的实际映射，**均未验证**。本轮**没有**引入按控件角色识别业务入口的规则，因为那需要真机脱敏只读树做依据；现在的规则是「证明不了就拒绝」，代价是保守。
+- **可用性代价（真实）**：同页面只要有两个不同控件能对上一个标签（含同义词），就拒绝打开。微信这类页面是否频繁撞上，只能真机看。
+- 点击前多一次全树解析（约一次 BFS），页面很大时会增加延迟并更容易触发 `candidates-truncated` 拒绝。
+- 设备矩阵维持历史 4 通过 / 0 失败 / 3 未测；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+- `closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
 ## 第㊴轮：跨单位「或者」时长 + 可点击窗口根 + 功能候选歧义（源码 + JVM，未实机）
 
 本轮处理新复审 `6551563018`（针对 `19f4a9c`）的 1 条 P1 + 1 条 P1/P2 + 1 条 P2，三条全部已修。

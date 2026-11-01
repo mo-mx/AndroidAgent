@@ -164,7 +164,10 @@ object SemanticParser {
             else -> target
         }
         if (featureHit != null && effectiveTarget == Target.APP_FEATURE) {
-            params["feature"] = featureHit
+            // Round 40 (review 6551941593, item 2): the spoken word is normalised to one feature
+            // identity, so 「扫码」 and 「扫一扫」 are the same target instead of two literals that
+            // have to appear verbatim on screen.
+            params["feature"] = AppFeatureAliases.canonical(featureHit)
             params["name"] = t.substringAfter("打开").substringAfter("进入")
                 .substringBefore(featureHit).trim()
         }

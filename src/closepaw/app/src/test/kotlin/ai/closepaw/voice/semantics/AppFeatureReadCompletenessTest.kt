@@ -58,10 +58,15 @@ class AppFeatureReadCompletenessTest {
         mockkObject(VoiceSession, UiAutomator, AppRegistry)
         every { VoiceSession.isCurrent(any()) } returns true
         every { AppRegistry.launch(any(), any()) } returns ToolResult.ok("app", "已打开微信", verified = true)
-        every { UiAutomator.featureControl(any(), any(), any()) } returns
+        every { UiAutomator.featureControl(any<String>(), any<List<String>>(), any<Long>()) } returns
             UiAutomator.FeatureLookup(UiAutomator.FeatureControl(node, "扫一扫"), null)
         // Round 38: the click is `performAction(ACTION_CLICK)` on the bound node only — the old
         // stub `UiAutomator.click(node)` is gone with the parent-climb/coordinate fallback.
+        // Round 40: the click now acts on a control re-resolved at the action boundary, so the
+        // fresh one-shot lookup is stubbed with the same result. The re-resolution itself is
+        // covered against real implementations in AppFeatureIdentityTest.
+        every { UiAutomator.featureControlOnce(any<String>(), any<List<String>>()) } returns
+            UiAutomator.FeatureLookup(UiAutomator.FeatureControl(node, "扫一扫"), null)
         every { node.performAction(any()) } returns true
         every { UiAutomator.foregroundPackage() } returns pkg
     }
@@ -103,7 +108,7 @@ class AppFeatureReadCompletenessTest {
     @Test
     fun `an unreadable screen is not reported as a missing control`() {
         every { UiAutomator.readScreen(any()) } returns read(service = false)
-        every { UiAutomator.featureControl(any(), any(), any()) } returns
+        every { UiAutomator.featureControl(any<String>(), any<List<String>>(), any<Long>()) } returns
             UiAutomator.FeatureLookup(null, "no-window")
 
         val r = AppNavigator.openFeatureResolved(ctx, app, "扫一扫", "unit-test")

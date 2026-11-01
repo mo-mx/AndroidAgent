@@ -120,7 +120,9 @@ class SemanticExecutionTest {
         every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
             texts = listOf("微信", "通讯录"), nodesVisited = 10,
             rootPackage = "com.tencent.mm", serviceAvailable = true)
-        every { UiAutomator.featureControl("com.tencent.mm", "扫一扫", any()) } returns
+        every { UiAutomator.featureControl("com.tencent.mm", "扫一扫", any<Long>()) } returns
+            UiAutomator.FeatureLookup(null, "not-found")
+        every { UiAutomator.featureControlOnce("com.tencent.mm", any<List<String>>()) } returns
             UiAutomator.FeatureLookup(null, "not-found")
         val reply = SemanticRunner.run(ctx, "打开微信扫一扫", 1)
         assertThat(reply).contains("没有找到扫一扫")
