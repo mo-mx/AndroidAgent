@@ -1,5 +1,30 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㊴轮：跨单位「或者」时长 + 可点击窗口根 + 功能候选歧义（源码 + JVM，未实机）
+
+本轮处理新复审 `6551563018`（针对 `19f4a9c`）的 1 条 P1 + 1 条 P1/P2 + 1 条 P2，三条全部已修。
+
+1. **P1 跨单位二选一仍被加成一个数**：`take()` 按单位各自消费一条短语，`RESIDUAL_DURATION` 只看**剩余**文本，所以「一小时或者十分钟」（4200 s）、「五分钟或者半分钟」（330 s）两段都被吃掉、残留为空、和值又像一个合法的复合时长（`一小时十分钟` 确实是 4200 s）。改法：消费前用 `hasChoiceBetweenDurations(text)` 找出全部时长短语的位置，**只在两个短语之间的间隙**里找 `或者/或是/还是/或/二选一`，命中即整句 `null`（追问，不猜）。复合时长间隙为空，不受影响。
+2. **P1/P2 `clickableWithin` 先判可点、后判窗口根**：标签与中间父节点都不可点、而活动窗口根可点时，旧循环把**整个窗口根**当点击目标返回，`openFeatureResolved` 随后对它 `ACTION_CLICK`——既违反「不越过窗口根」的注释契约，也不能证明点到的是用户说的功能。改法：`sameNode(node, root)` 的判断移到 `isClickable` 之前，根节点永不作点击目标。
+3. **P2 `featureControl` 只取 BFS 首个包含匹配**：可能在「扫一扫说明」卡片上点击，也可能因首个命中是不可点标题而直接报 `label-not-clickable`，后面的真按钮根本没被看过。改法：`collectFeatureCandidates` 枚举同包可见候选并区分**精确标签**（text/contentDescription 去空格后全等）与**包含匹配**；有精确标签时只看精确层；可点目标按 `sameNode` 去重后**恰好一个**才点，>1 返回 `ambiguous(n)` 失败关闭，0 个返回 `label-not-clickable`；节点预算/候选上限被截断时返回 `candidates-truncated`，不把部分扫描当全集。`AppNavigator` 为 `ambiguous` 与 `candidates-truncated` 各加独立措辞（「有多个都像X的地方，没有点」「界面太大没数完，没有点」），都 `verified=false`。
+
+TDD 与实跑数据（`--offline --rerun-tasks`，JDK 17，先 `source env.sh`）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 新 `ChineseTimeChoiceUnitTest`(9) + `TimerChoiceUnitArgumentTest`(3) + `AppFeatureControlAmbiguityTest`(6)，生产未改 | **RED 18 tests / 13 failed / 0 errors**，全部 Truth 断言失败：`durationSeconds` 期望 null 实得 **4200 / 330**、`featureControl` 期望 null 实得**根节点/「扫一扫说明」卡片**、歧义路径实得 `FeatureControl` | RED 那次的日志**没有留存**（只有控制台输出与当时的 XML，后续运行已覆盖），如实标注 |
+| 实现后同组 | **GREEN 18 / 18**，exit=0 | `logs/pr4-review39-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **333 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊳轮 315，+18） | `logs/pr4-review39-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2423 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**；失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过，本轮未重跑旧 SHA 基线 | `logs/pr4-review39-full.txt` |
+
+过程中一次编译失败如实记录：三处消息串用了 `$feature的地方`，Kotlin 把 `feature的` 当标识符 → `Unresolved reference`；改成 `${feature}` 后重跑。那是编译错误，不计入 RED。
+
+边界（必须看清）：
+- 全部为**源码 + JVM 合成树**：三星真机上同一页面出现多个同名可点控件的频率、「扫一扫」这类功能的真实标签是精确还是带后缀（`扫一扫，打开相机`）、活动窗口根是否常带 `isClickable=true`，**均未验证**。
+- **可用性代价（真实）**：`featureControl` 现在对大页面更保守——节点预算 600 内数不完候选即拒绝打开。微信这类大树是否经常撞上限，只能真机看。
+- 设备矩阵维持历史 4 通过 / 0 失败 / 3 未测；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+- `closeAlarm` 仍 `BLOCKED`（安全拒绝）；计时器创建/取消对象级终态仍 `UNPROVEN`；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
 ## 第㉞轮：真实回读被终态闸门丢掉——手电/Wi-Fi 从「确认」退回「没法确认」（源码 + JVM，未实机）
 
 本轮无新审查（最新 review `6549082221` 已由第㉜轮处理、第㉝轮已回复 `6549757219`，其后 PR 无新评论），按「无新审查则推进可离线项」处理遗留清单里的 **「手电/Wi-Fi 缺对象级回读」**。查下来不是没有回读，是**回读没交给闸门**。

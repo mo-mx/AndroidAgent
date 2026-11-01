@@ -683,3 +683,40 @@ TDD：每个修复切片先观察对应行为断言失败，再修改生产代�
 
 **未实机**：手电回调时序、baseline 窗口长度、三星时钟是否接受这些秒数都未验证；设备矩阵维持 4 通过 / 0 失败 / 3 未测，实机需用户重新授权。`closeAlarm` 仍 BLOCKED（安全拒绝），计时器对象级终态仍 UNPROVEN，在线 `ToolRouter` 同门禁（阶段 2）未开始。
 
+
+## 第㊴轮：复审 `6551563018`（HEAD `19f4a9c`）——跨单位二选一、可点击窗口根、功能候选歧义
+
+**证据类型：源码 + JVM。未实机。**
+
+### 1. [P1] `ChineseTime.durationSeconds`：跨单位「或者」被加成一个数
+
+`take()` 每个单位各消费一条短语，`RESIDUAL_DURATION` 只检查**剩余**文本；两段都被消费后残留为空，和值又与合法的复合时长看不出区别：
+
+| utterance | 旧结果 | 真相 |
+|---|---|---|
+| 设置一小时或者十分钟的倒计时 | 4200 s | 用户没选，应追问 |
+| 设置五分钟或者半分钟的倒计时 | 330 s | 同上 |
+| 设置一小时十分钟的倒计时 | 4200 s | 合法复合时长，必须保留 |
+
+改法：消费前 `hasChoiceBetweenDurations(text)` 找出全部时长短语的区间，**只在相邻两段之间的间隙**里匹配 `或者|或是|还是|或|二选一`；命中即整句 `null`。复合时长间隙为空，行为不变。
+
+### 2. [P1/P2] `UiAutomator.clickableWithin`：先判可点、后判窗口根
+
+标签与中间父节点都不可点、而活动窗口根 `isClickable=true` 时，旧循环返回**窗口根**并对其 `ACTION_CLICK`。现在 `sameNode(node, root)` 在 `isClickable` **之前**判断，根节点永不作为点击目标。
+
+### 3. [P2] `featureControl`：首个包含匹配，无歧义约束
+
+改为枚举候选（`collectFeatureCandidates`）：精确标签（text/contentDescription 去空格全等）优先于包含匹配；可点目标按 `sameNode` 去重后恰好一个才返回，多个 → `ambiguous(n)`，0 个 → `label-not-clickable`，扫描被节点预算/候选上限截断 → `candidates-truncated`（部分扫描不当全集）。`AppNavigator` 为后两者各加独立措辞，均 `verified=false`，不点击。
+
+### 测试
+
+| 阶段 | 结果 |
+|---|---|
+| 新 18 条测试先写、生产未改 | **RED 18 / 13 failed / 0 errors**（Truth 断言：4200、330、根节点、「扫一扫说明」卡片）；RED 日志未留存，如实标注 |
+| 实现后同组 | **GREEN 18 / 18**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **333 / 0 failed / 0 errors / 0 skipped**，exit=0 |
+| 全量 | **2423 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（`AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5） |
+
+编译期一次失败（`$feature的地方` 被当成标识符）已修，不计 RED。
+
+**未实机**：三星上同名可点控件的实际出现率、功能标签是精确还是带后缀、窗口根是否常可点，全部未验证。`featureControl` 对大页面更保守（600 节点内数不完即拒绝），代价只能在真机上评估。设备矩阵维持 4 通过 / 0 失败 / 3 未测，本 SHA 未构建/未安装/未实测，实机需用户重新授权。`closeAlarm` 仍 BLOCKED，计时器对象级终态仍 UNPROVEN，在线 `ToolRouter` 同门禁（阶段 2）未开始。

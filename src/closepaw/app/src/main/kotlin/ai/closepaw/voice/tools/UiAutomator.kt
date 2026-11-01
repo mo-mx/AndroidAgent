@@ -78,6 +78,7 @@ object UiAutomator {
     fun featureControl(pkg: String, text: String, timeoutMs: Long = 4000): FeatureLookup {
         val deadline = System.currentTimeMillis() + timeoutMs
         var why = "no-window"
+        val wanted = text.trim()
         while (System.currentTimeMillis() < deadline) {
             val r = root()
             val rootPkg = r?.let { runCatching { it.packageName?.toString() }.getOrNull() }
@@ -87,24 +88,95 @@ object UiAutomator {
                 // The app was launched, but something else owns the front window right now.
                 why = "window-not-target($rootPkg)"
             } else {
-                val hit = findFirst(r) { n ->
-                    runCatching { n.packageName?.toString() }.getOrNull() == pkg &&
-                        runCatching { n.isVisibleToUser }.getOrDefault(false) &&
-                        labelOf(n).contains(text.lowercase())
-                }
-                if (hit != null) {
-                    val clickable = clickableWithin(hit, r, pkg)
-                    if (clickable != null) {
-                        return FeatureLookup(FeatureControl(clickable, labelOf(hit)), null)
+                // Round 39 (review 6551563018): the old version took the *first* BFS node whose
+                // label merely contained the name. That clicked a 「扫一扫说明」 card listed above
+                // the real entry, and if the first hit was a non-clickable title it reported
+                // `label-not-clickable` without ever looking at the button below it. Candidates are
+                // now enumerated, an exact label beats a containing one, and two distinct controls
+                // that both answer to the name are refused instead of guessed.
+                val scan = collectFeatureCandidates(r, pkg, wanted)
+                when {
+                    // Same rule as navigation: a candidate set cut short by the node budget is not
+                    // "every candidate", so uniqueness cannot be decided from it.
+                    !scan.complete -> why = "candidates-truncated"
+                    else -> {
+                        val tier = if (scan.exact.isNotEmpty()) scan.exact else scan.loose
+                        if (tier.isEmpty()) {
+                            why = "not-found"
+                        } else {
+                            val targets = ArrayList<FeatureControl>()
+                            for (n in tier) {
+                                val target = clickableWithin(n, r, pkg) ?: continue
+                                if (targets.none { sameNode(it.node, target) }) {
+                                    targets.add(FeatureControl(target, labelOf(n)))
+                                }
+                            }
+                            when {
+                                targets.isEmpty() -> why = "label-not-clickable"
+                                targets.size == 1 -> return FeatureLookup(targets[0], null)
+                                else -> why = "ambiguous(${targets.size})"
+                            }
+                        }
                     }
-                    why = "label-not-clickable"
-                } else {
-                    why = "not-found"
                 }
             }
             Thread.sleep(120)
         }
         return FeatureLookup(null, why)
+    }
+
+    /** Feature-label candidates plus whether the scan is provably exhaustive. */
+    private class FeatureScan(
+        /** Labels that are exactly the asked-for name (text or content-description). */
+        val exact: List<AccessibilityNodeInfo>,
+        /** Labels that merely contain it — only consulted when no exact label exists. */
+        val loose: List<AccessibilityNodeInfo>,
+        val complete: Boolean,
+    )
+
+    /**
+     * Bounded collection of same-package, visible nodes whose label matches [wanted].
+     *
+     * `complete = false` when the node budget or the candidate cap cut the walk short, because an
+     * unfinished walk cannot prove that a second control does not exist further down the tree.
+     */
+    private fun collectFeatureCandidates(
+        root: AccessibilityNodeInfo,
+        pkg: String,
+        wanted: String,
+    ): FeatureScan {
+        val exact = ArrayList<AccessibilityNodeInfo>()
+        val loose = ArrayList<AccessibilityNodeInfo>()
+        var matched = 0
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        var cut = false
+        val needle = wanted.lowercase()
+        while (queue.isNotEmpty()) {
+            if (visited++ >= MAX_NODES) { cut = true; break }
+            val n = queue.removeFirst()
+            val ownPkg = runCatching { n.packageName?.toString() }.getOrNull()
+            val visible = runCatching { n.isVisibleToUser }.getOrDefault(false)
+            if (ownPkg == pkg && visible) {
+                val textLabel = runCatching { n.text?.toString() }.getOrNull()?.trim()?.lowercase()
+                val descLabel = runCatching { n.contentDescription?.toString() }.getOrNull()?.trim()?.lowercase()
+                val isExact = textLabel == needle || descLabel == needle
+                val isLoose = !isExact && (
+                    (textLabel?.contains(needle) == true) || (descLabel?.contains(needle) == true)
+                    )
+                if (isExact || isLoose) {
+                    matched++
+                    if (matched > NAV_MAX_CANDIDATES) { cut = true; break }
+                    if (isExact) exact.add(n) else loose.add(n)
+                }
+            }
+            for (i in 0 until runCatching { n.childCount }.getOrDefault(0)) {
+                runCatching { n.getChild(i) }.getOrNull()?.let { queue.add(it) }
+            }
+        }
+        if (queue.isNotEmpty()) cut = true
+        return FeatureScan(exact, loose, !cut)
     }
 
     private fun labelOf(n: AccessibilityNodeInfo): String =
@@ -114,6 +186,11 @@ object UiAutomator {
     /**
      * The label itself when clickable, else its nearest clickable ancestor, but never anything
      * outside the app's own window ([root]) or outside [pkg].
+     *
+     * Round 39: the root check now runs *before* `isClickable`. Previously a clickable window root
+     * was returned as the click target when neither the label nor its intermediate parents were
+     * clickable — the whole window is not the control the user named, and clicking it is exactly the
+     * blind click the class contract forbids (review 6551563018).
      */
     private fun clickableWithin(
         label: AccessibilityNodeInfo,
@@ -123,13 +200,14 @@ object UiAutomator {
         var cur: AccessibilityNodeInfo? = label
         var hops = 0
         while (cur != null && hops <= NAV_MAX_HOPS) {
-            if (runCatching { cur!!.isClickable }.getOrDefault(false) &&
-                runCatching { cur!!.packageName?.toString() }.getOrNull() == pkg
+            val node = cur
+            if (sameNode(node, root)) return null
+            if (runCatching { node.isClickable }.getOrDefault(false) &&
+                runCatching { node.packageName?.toString() }.getOrNull() == pkg
             ) {
-                return cur
+                return node
             }
-            if (sameNode(cur!!, root)) return null
-            cur = runCatching { cur!!.parent }.getOrNull()
+            cur = runCatching { node.parent }.getOrNull()
             hops++
         }
         return null

@@ -68,6 +68,12 @@ object ChineseTime {
         // patterns would otherwise eat the "30分" of a time. Remove them before looking for a
         // duration.
         var work = text.replace(" ", "").replace(CLOCK_TIME_IN_TEXT, "")
+        // Round 39 (review 6551563018): two alternatives in *different* units were summed instead of
+        // refused. `take()` consumes one phrase per unit, so 「一小时或者十分钟」 left nothing for
+        // RESIDUAL_DURATION to see and the sum (4200 s) looked like a legitimate compound duration.
+        // A choice marker between two duration phrases means the user has not decided yet: the whole
+        // utterance fails, the caller asks again. 「一小时十分钟」 has no marker and stays 4200 s.
+        if (hasChoiceBetweenDurations(work)) return null
         var total = 0.0
         var matched = false
         var badNumeral = false
@@ -125,6 +131,35 @@ object ChineseTime {
 
     /** Any duration phrase still sitting in the text after the first one was consumed. */
     private val RESIDUAL_DURATION = Regex("($NUM)个?半?(?:小时|钟头|分钟|分|秒)")
+
+    /**
+     * Any duration *phrase* in the text, unit included, used only to locate phrases for the
+     * choice-marker check in [hasChoiceBetweenDurations]. Values are not read here.
+     */
+    private val DURATION_TOKEN = Regex(
+        "($NUM)个?半?(?:小时|钟头|分钟|分|秒)|半(?:个)?(?:小时|钟头|分钟|分)"
+    )
+
+    /** Words that turn two candidate numbers into a choice the user has not made yet. */
+    private val CHOICE_MARKER = Regex("或者|或是|还是|或|二选一")
+
+    /**
+     * True when a choice marker sits *between* two duration phrases — 「一小时或者十分钟」.
+     *
+     * Two phrases with no marker between them (「一小时十分钟」) are a compound duration and must
+     * stay parseable, so the test is on the gap text, not on the number of phrases.
+     */
+    private fun hasChoiceBetweenDurations(text: String): Boolean {
+        val spans = DURATION_TOKEN.findAll(text).map { it.range }.toList()
+        if (spans.size < 2) return false
+        for (i in 0 until spans.size - 1) {
+            val start = spans[i].last + 1
+            val end = spans[i + 1].first
+            if (start >= end) continue
+            if (CHOICE_MARKER.containsMatchIn(text.substring(start, end))) return true
+        }
+        return false
+    }
 
     /** Arabic or Chinese numeral, decimals included ("1.5"), for [durationSeconds]. */
     private fun num(raw: String): Double? = raw.toDoubleOrNull() ?: number(raw)?.toDouble()

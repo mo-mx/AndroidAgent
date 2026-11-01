@@ -161,11 +161,29 @@ object AppNavigator {
         if (control == null) {
             val clipped = before.textsTruncated || before.nodesTruncated
             val windowLost = lookup.why?.startsWith("window-not-target") == true
+            val ambiguous = lookup.why?.startsWith("ambiguous") == true
+            val candidatesTruncated = lookup.why == "candidates-truncated"
             return when {
                 windowLost -> ToolResult(
                     ToolStatus.DEVICE_UNAVAILABLE, "app_feature",
                     "点之前${app.label}的界面被另一个窗口盖住了，没有点$feature",
                     "app=${app.packageName} window=${lookup.why} ($why)", false
+                )
+                // More than one same-package control answers to the name: the name does not identify
+                // a target, so picking one would be a guess (review 6551563018).
+                ambiguous -> ToolResult(
+                    ToolStatus.DEVICE_UNAVAILABLE, "app_feature",
+                    "打开了${app.label}，但界面上有多个都像${feature}的地方，没法确定点哪一个，没有点",
+                    "app=${app.packageName} control-ambiguous(${lookup.why}) read=${readFacts(before)} ($why)",
+                    false
+                )
+                // The candidate walk hit its budget: uniqueness cannot be decided from a partial
+                // scan, so this is "could not tell", not "not there".
+                candidatesTruncated -> ToolResult(
+                    ToolStatus.DEVICE_UNAVAILABLE, "app_feature",
+                    "打开了${app.label}，但界面太大没数完，没法确认${feature}在哪，没有点",
+                    "app=${app.packageName} candidates-truncated read=${readFacts(before)} ($why)",
+                    false
                 )
                 // A clipped read is a sample: "not in the part I read" is not "not there".
                 clipped -> ToolResult(
