@@ -1,5 +1,17 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第53轮：无新审查，把「7 条 Python 失败」的归因用 POSIX 实跑闭合（源码 + Python 双平台，未实机）
+
+PR #4 无新审查（最新复审仍是 `6556347173`，针对 `fafe365`，已由第52轮评论 `IC_kwDOVdfNwc8AAAABhsyBgg`（HEAD `fc2cef5`）处理；其后只有我自己的评论）。按「无新审查推进可离线项」，本轮做第52轮自己标注为未完成的一件事：**7 条 Python 失败逐条归因 + 「POSIX 上是否转绿未验证」**。复审 B3 要求的就是这种可独立复核的证据，本轮不扩项、不碰 bridge 去留（仍待用户拍板）。
+
+- **方法**：整份 `tools/termux-bridge` 复制到 WSL Ubuntu 原生文件系统，源文件 sha256 与仓库逐一同（同源码）；WSL 无 pytest，用 Windows 侧 venv 的纯 Python `site-packages` 经 `PYTHONPATH` 注入（pytest 9.2.0，无 C 扩展，不是依赖变更）。
+- **结果（真跑）**：Windows **21 passed / 7 failed / 1 skipped**；WSL（修前，同源码）**28 passed / 1 failed**；WSL（修后）**29 passed / 0 failed**；Windows（修后）失败项名称不变。
+- **归因闭合**：7 条里 **6 条确认为宿主语义**（`Popen.pid` 怪癖、`~` 走 `USERPROFILE`、WSAEACCES 10013、无 POSIX 进程组），**1 条是测试缺陷**：`test_client_disconnect_kills_process_group_and_releases_exec_lock` 手写的 HTTP 请求**不带 `Authorization`**，第51轮加鉴权后必得 401，命令从未启动 → POSIX 上也红。实证：WSL 下无 token 请求得 `401 Unauthorized` 且 pidfile 不存在；带 token 后同一测试全绿。Windows 上它被另一层假象掩盖（命令里传的是 Windows 路径，`bash -c` 吃掉反斜杠写成一个字面文件名，probe 直接复现）。
+- **改了什么**：只改测试——那条手写请求补 `Authorization: Bearer {TOKEN}`，**断言一条未改**、未放宽鉴权、生产代码零改动。仓库内唯一改动文件 `src/closepaw/tools/termux-bridge/tests/test_closepaw_bridge.py`。
+- **边界**：本轮**没有 Kotlin 改动，因此没有跑 Gradle**（第51轮的全量 2528 / 6 failed / 8 skipped 仍是最近一次 Kotlin 数字，未重跑）；真实 Android/Termux 上跑这套测试仍未验证；Windows 侧 7 条仍红，第 7 条的 Windows 归因是本次 probe 实证，其余 6 条以「POSIX 全绿」为判定依据。
+- 设备矩阵维持 **4 通过 / 0 失败 / 3 未测**（旧 APK/旧 SHA），本 SHA 未构建/未安装/未实测，实机需用户**重新授权**。`closeAlarm` 仍安全 BLOCKED；计时器对象级终态仍 UNPROVEN；阶段 2（在线 `ToolRouter` 同门禁）未开始；Issue #6 未并入。
+- **仍待用户决定**（第51/52轮提出，本轮不代拍）：①把 `tools/termux-bridge` 与 `copyClosePawBridge` 移出阶段 1；②授权限定 POSIX/真机环境验收；③另立后续 Issue。
+
 ## 第52轮：冻结复审判定「两轮停止」后的自伤回归修复（源码 + Python 实跑，未实机）
 
 复审 `6556347173`（HEAD `fafe365a`，阶段 1 冻结收口）判定两轮修复用尽、**不指派第三轮**，并保留一条 BLOCKER **B3**：第51轮给 `/v1/health` 加 token 鉴权后，`health_is_bridge()` 仍发**不带 Authorization** 的 GET（`closepaw_bridge.py:82-91`），必然收到 401，`kill_old_bridge()` 因此把合法旧 daemon 判成「不是我们」→ `port_in_use` 退出。复审据此指出：`test_live_old_bridge_is_health_probed_then_replaced` 的失败**不是**环境问题，`TEST_RESULTS.md` 把它归为「POSIX 语义依赖」是错误归因。

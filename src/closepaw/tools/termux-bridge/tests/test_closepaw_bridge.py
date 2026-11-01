@@ -381,10 +381,15 @@ def test_client_disconnect_kills_process_group_and_releases_exec_lock(bridge_ser
     child_pid_file = bridge_server.home / "closepaw" / "workspace" / "disconnect_child.pid"
     command = f"sleep 30 & echo $! > {shlex.quote(str(child_pid_file))}; wait"
     payload = json.dumps({"command": command}).encode()
+    # This request is hand-rolled so the socket can be abandoned mid-exec. It therefore has to
+    # carry the same Authorization header the daemon has required since bridge version 2 —
+    # without it the daemon answers 401 before it ever spawns the command, the pidfile below is
+    # never written, and the failure looks like "disconnect handling is broken" on every host.
     request = (
         b"POST /v1/exec HTTP/1.1\r\n"
         + f"Host: {HOST}:{bridge_server.port}\r\n".encode()
         + b"Content-Type: application/json\r\n"
+        + f"Authorization: Bearer {TOKEN}\r\n".encode()
         + f"Content-Length: {len(payload)}\r\n\r\n".encode()
         + payload
     )

@@ -3,6 +3,45 @@
 更新：2026-10-31　维护方式：每次真机验证后**追加**一条，写清"测什么/怎么测/结果/证据在哪"。
 规则：没有真机日志的项目只能写"未验证"，不得写"通过"。---
 
+## 2026-11-01 第53轮（Python 双平台实跑：Windows + WSL Ubuntu，未实机）
+
+测什么：第52轮遗留的「7 条 Python 失败**逐条归因未闭环**」（复审 `6556347173` 的 B3 要求，第52轮自己写明 5/6/7 未逐行确证、且「POSIX 上是否转绿未验证」）。本轮补的是**证据**，不是新功能。
+
+怎么测：把 `src/closepaw/tools/termux-bridge` 原样复制到 WSL Ubuntu 的**原生文件系统**（`~/bridge-test`，避开 `/mnt/c` 的 drvfs 语义），复制前后 `closepaw_bridge.py`、`tests/conftest.py`、`tests/test_bridge_auth.py`、`tests/test_closepaw_bridge.py`、`pytest.ini` 的 sha256 **逐一相同**（`cf92bb2c…` / `6a243868…` / `1dbc0b6b…` / `9c9622d3…` / `e69d42a2…`），即两侧跑的是同一份源码。WSL 侧没有 pytest，用 Windows 侧 venv 的纯 Python `site-packages` 以 `PYTHONPATH` 注入（pytest 9.2.0 及依赖均无 C 扩展），不是项目依赖变更。
+
+实际结果：
+
+| 环境 | 时间点 | 结果 |
+|---|---|---|
+| Windows 11 / CPython 3.11.15 / pytest 9.2.0 | 修前（HEAD `fc2cef5`） | **21 passed / 7 failed / 1 skipped**（exit=1） |
+| WSL Ubuntu / CPython 3.12.3 / Linux 6.18 WSL2 / 原生 fs | 修前（同一份源码） | **28 passed / 1 failed**（exit=1） |
+| WSL Ubuntu（同上） | 修后 | **29 passed / 0 failed**（exit=0） |
+| Windows 11（同上） | 修后 | **21 passed / 7 failed / 1 skipped**（exit=1，失败项名称不变） |
+
+**结论（实测，不是分析）**：7 条 Windows 失败里 **6 条是宿主语义**（在 POSIX 上全绿），**1 条是测试缺陷**——`test_client_disconnect_kills_process_group_and_releases_exec_lock` 在 POSIX 上也失败，原因不是环境。
+
+逐条归因（本轮有实跑支撑，替换第52轮的「未确证」）：
+
+| # | 测试 | Windows | POSIX | 归因 |
+|---|---|---|---|---|
+| 1 | `test_stale_daemon_pidfile_is_overwritten_by_new_daemon` | fail | **pass** | 宿主：`Popen.pid ≠ 子进程 os.getpid()`（第52轮已实证） |
+| 2 | `test_live_old_bridge_is_health_probed_then_replaced` | fail | **pass** | 同上 |
+| 3 | `test_cwd_is_constrained_to_resolved_workspace` | fail | **pass** | 宿主：`~` 在 Windows 读 `USERPROFILE`，fixture 只改 `HOME` |
+| 4 | `test_port_in_use_exits_non_zero_and_reports_error` | fail | **pass** | 宿主：WSAEACCES 10013，`errno` 不是 `EADDRINUSE` |
+| 5 | `test_exec_timeout_kills_process_group` | fail | **pass** | 宿主：Windows 无 POSIX 进程组 |
+| 6 | `test_busy_exec_returns_http_409_without_waiting` | fail | **pass** | 宿主：同上（标志文件由 shell 子进程产出） |
+| 7 | `test_client_disconnect_kills_process_group_and_releases_exec_lock` | fail | **修前也 fail** | **测试缺陷**：手写 HTTP 请求**不带 `Authorization`**，daemon 直接 401、命令根本没有启动 |
+
+第 7 条的证据链（真跑）：
+
+- WSL 下用同一 fixture 起 daemon，手写请求**不带** token → `HTTP/1.1 401 Unauthorized`，`disconnect_child.pid` **不存在**；
+- 带 `Authorization: Bearer <TOKEN>` 发同一命令 → 命令真的执行（进程组被杀、锁释放，测试全绿）；
+- 因此第51轮加鉴权时漏改了这一条手写请求，而它在 Windows 上又被路径问题掩盖：命令里的 pidfile 参数是 Windows 路径 `C:\Users\...\disconnect_child.pid`，`bash -c` 吃掉反斜杠后写成一个**字面文件名** `C:UsersAquaAppDataLocalTemppid.pid`（本机 probe 直接复现：`bash -c 'sleep 30 & echo $! > C:\Users\...\win.pid'` 后目录里只有 `C:UsersAqua…win.pid`），所以断言找不到 `child_pid_file`。
+
+修了什么：只改测试——那条手写请求补上 `Authorization: Bearer {TOKEN}`（`TOKEN` 本来就是 conftest 写进 `~/.closepaw/token` 的值），**没有改任何断言**、没有放宽鉴权、没有动生产代码。Windows 侧该条仍红，原因是上面的路径转义，属宿主语义，不修。
+
+未验证：真实 Android/Termux 上跑同一套测试（无实机、未装包）；Windows 侧 7 条仍红，其中第 7 条的 Windows 归因是**本次 probe 实证**，其余 6 条以「POSIX 全绿」作为宿主语义的判定依据（未逐条给出 Windows 内核层面的直接证据）。
+
 ## 2026-11-01 第52轮（仅 Python 本地 + 接管脚本，未实机；修的是第51轮自己引入的回归）
 
 测什么：复审 `6555767212`→ 之后冻结复审（评论 `6556347173`，HEAD `fafe365a`）的 **B3 测试归因**。该复审指认：第51轮给 `/v1/health` 加 token 鉴权后，`health_is_bridge()` 仍发**不带 Authorization** 的 GET，必然 401，于是「旧 daemon 是合法的」永远判不出来 —— 因此 `test_live_old_bridge_is_health_probed_then_replaced` 的失败**不是**环境问题，而是本轮改动引入。
