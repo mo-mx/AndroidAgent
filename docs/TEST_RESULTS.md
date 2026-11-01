@@ -2,8 +2,19 @@
 
 更新：2026-10-31　维护方式：每次真机验证后**追加**一条，写清"测什么/怎么测/结果/证据在哪"。
 规则：没有真机日志的项目只能写"未验证"，不得写"通过"。
-
 ---
+
+## 2026-11-01 第㊼轮（仅 JVM，未实机）
+
+测什么：`queryTimers` 兜底分支播「页面上至少能看到 N 个倒计时在运行」时，N 是怎么来的。它来自 `visibleTimerCards`（纯文本计数：任一时长文本 + 任一卡片控件 + `取消` 个数），既把**暂停**卡片（显示 `继续`、保留冻结读数）算成运行中，也完全不看树来自哪个窗口。`cancelTimer` 已在第㊻轮收紧到 `cardRunningState`，查询路径没有。
+
+怎么测：仓库根 `source env.sh` → `cd src/closepaw` → `./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.voice.semantics.TimerQueryRunningBoundTest' --rerun-tasks --console=plain`（新测试先写、生产未改，取 RED）；实现后再跑同组 + `TimerCountShapeTest`/`TimerCancel*`/`TimerPausedFrozenReadoutTest`，然后 `--tests 'ai.closepaw.voice.*'`，最后全量同任务不带 `--tests`。
+
+实际结果：新 `TimerQueryRunningBoundTest`(6) 首跑 **RED 6 tests / 5 failed / 0 errors**，其中 1 条是我自己的断言写错（`doesNotContain("倒计时在运行")` 把诚实的兜底句「没法确认现在有几个倒计时在运行」也判失败），改为 `doesNotContain("至少能看到")` 后重跑 **RED 6 / 4 failed / 0 errors**，以第二跑为准；2 条控制组（截断读、明示表头）两次都通过。实得值：两张暂停卡 → `SUCCESS` + 「页面上至少能看到2个倒计时在运行，但没法确认一共有几个」（期望 `DEVICE_UNAVAILABLE`）；运行卡+暂停卡 → 播 2（期望 1）；绑定树属于 `ai.closepaw` → 仍 `SUCCESS` 并播运行中计数（期望拒绝）；纯读数卡 → 状态已拒绝但 detail 无状态事实。实现后同组 **GREEN**（exit=0）；定向 `ai.closepaw.voice.*` **400 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊻轮 397，新测试 +6、`TimerCountShapeTest` 下界 4 条改 1 条 −3）；全量 **2490 tests / 6 failed / 0 errors / 8 skipped**（Gradle exit=1，**不是全绿**，失败仍是既有 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，未重跑旧 SHA 基线）。
+
+未验证：三星真实定时器卡片是否同时暴露 `暂停`/`继续` 与 `初始时长/总时长`、暂停态控件是 `text` 还是 `contentDescription`、虚拟化列表未加载卡片的真实比例——全部**未实机**；本轮未构建/安装 APK、未操作手机。可用性代价：真实卡片不给状态专属控件时，查询只能答「没法确认现在有几个倒计时」（本轮之前会给一个可能错的数字）；下界仍不是总数，不参与「那个倒计时没了」的判断。
+
+证据：本机 gitignored `logs/pr4-round47-{red,red2,green1,targeted,full}.txt`，不入库。
 
 ## 2026-11-01 第㊺轮（仅 JVM，未实机）
 

@@ -17,13 +17,14 @@ import org.junit.Test
  *      `N 个定时器正在运行` header or an explicit empty sentence. A viewport scan of cards is a
  *      lower bound, never a total: the list can scroll, and cards can leave the visible tree while
  *      still running. `添加定时器` is only a create entry point, so it is not empty-state proof.
- *   2. The lower bound lives in `visibleTimerCards`, which is safe to speak as "at least N".
+ *   2. A lower bound ("at least N") is no longer derived from a flat text list at all: round 47
+ *      removed `visibleTimerCards` because a paused card keeps the same readout. The bound is now
+ *      counted per card, from the verified clock tree — see `TimerQueryRunningBoundTest`.
  *
  * Anything unrecognised stays -1 (unknown) in both cases.
  */
 class TimerCountShapeTest {
     private fun count(vararg texts: String) = ClockControl.timerCountFrom(texts.toList())
-    private fun lowerBound(vararg texts: String) = ClockControl.visibleTimerCards(texts.toList())
 
     // ── totals: only a statement counts ──
 
@@ -67,23 +68,21 @@ class TimerCountShapeTest {
         assertThat(count()).isEqualTo(-1)
     }
 
-    // ── lower bounds: safe to speak as "at least N" ──
+    // ── lower bounds: not derivable from a flat text list ──
 
-    @Test fun `one fully attributed card is a lower bound of one`() {
-        assertThat(lowerBound("定时器", "30 分钟", "29 分钟 41 秒钟", "取消", "暂停")).isEqualTo(1)
-    }
+    /*
+     * Round 47 removed `visibleTimerCards`, the flat-text lower bound these two cases used to pin.
+     * One of them asserted that `5 分钟 …取消 暂停` + `10 分钟 …取消 继续` is "a lower bound of two" —
+     * but the second card shows `继续`, i.e. it is *paused*, so the assertion itself encoded a running
+     * count taken from paused cards. The bound is now counted per card from the verified clock tree
+     * (`ClockControl.runningBound`, covered end-to-end by TimerQueryRunningBoundTest), which is why
+     * the expectations below are about the state of such a card rather than about a flat count.
+     */
 
-    @Test fun `two fully attributed cards are a lower bound of two`() {
-        assertThat(lowerBound("5 分钟", "4 分钟 10 秒钟", "取消", "暂停",
-            "10 分钟", "9 分钟 01 秒钟", "取消", "继续")).isEqualTo(2)
-    }
-
-    @Test fun `cancel buttons without any duration marker have no lower bound`() {
-        assertThat(lowerBound("取消", "暂停")).isEqualTo(-1)
-    }
-
-    @Test fun `an empty or unrecognised viewport has no lower bound`() {
-        assertThat(lowerBound("小时", "分钟", "秒", "开始")).isEqualTo(-1)
-        assertThat(lowerBound()).isEqualTo(-1)
+    @Test fun `a paused card is not running evidence`() {
+        assertThat(ClockControl.cardRunningState(listOf("10 分钟", "9 分钟 01 秒钟", "取消", "继续"))).isFalse()
+        assertThat(ClockControl.cardRunningState(listOf("5 分钟", "4 分钟 10 秒钟", "取消", "暂停"))).isTrue()
+        // Text that both a running and a paused card carry decides nothing.
+        assertThat(ClockControl.cardRunningState(listOf("5 分钟", "4 分 50 秒", "取消"))).isNull()
     }
 }

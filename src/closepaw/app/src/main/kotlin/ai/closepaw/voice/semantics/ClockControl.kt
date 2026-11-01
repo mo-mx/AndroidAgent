@@ -312,21 +312,99 @@ object ClockControl {
     }
 
     /**
-     * Lower bound on the running timers visible in one read, or -1 when the shape is unreadable.
+     * Round 47: the flat-text "at least N running timers" count is gone.
      *
-     * This is safe to speak as "at least N": every counted card carries both an original-duration
-     * marker and its own cancel/pause control in this very read. It is deliberately *not* a total —
-     * cards below the fold are simply not seen — so callers must never hand it to a completion
-     * claim about a specific object.
+     * It counted one `取消` per card while accepting `继续`/`重置` as generic card controls, so a
+     * viewport of *paused* timers spoke "页面上至少能看到2个倒计时在运行" — the same error round 46 fixed
+     * on the cancel path. It also never looked at a node, so a tree from another app answered with
+     * the same sentence. A bound is now counted per card from the verified clock tree
+     * ([runningBound]): only a state-specific control proves a card is running.
      */
-    internal fun visibleTimerCards(texts: List<String>, truncated: Boolean = false): Int {
-        if (truncated) return -1
-        val trimmed = texts.map { it.trim() }
-        val hasDuration = trimmed.any { Regex("\\d+\\s*(分钟|秒钟|小时)").containsMatchIn(it) }
-        val cancels = trimmed.count { it == "取消" }
-        val hasCardControl = trimmed.any { it == "暂停" || it == "继续" || it == "重置" }
-        if (hasDuration && hasCardControl && cancels > 0) return cancels
-        return -1
+
+    /** A card tree bound from one read, with the facts needed to know what that binding covers. */
+    private data class TimerBinding(
+        val cards: List<BoundTimerCard>,
+        val texts: List<String>,
+        val buttons: List<android.view.accessibility.AccessibilityNodeInfo>,
+        val complete: Boolean,
+        val scrollable: Boolean,
+    )
+
+    /**
+     * Bind every timer card in [root] once: the smallest subtree holding exactly one
+     * original-duration label and exactly one cancel control, plus every text below it.
+     *
+     * Shared by [cancelTimer] (which clicks one of them) and [runningBound] (which counts the ones
+     * that prove they are running), so a count and a click cannot disagree about what a card is.
+     * `complete` only means the walk stayed inside its node budget: a scrollable list can still hold
+     * cards this walk never loaded.
+     */
+    private fun bindTimerCards(root: android.view.accessibility.AccessibilityNodeInfo?): TimerBinding {
+        val candidates = ArrayList<BoundTimerCard>()
+        val boundTexts = ArrayList<String>()
+        var visited = 0
+        var complete = true
+        var scrollable = false
+        fun scan(n: android.view.accessibility.AccessibilityNodeInfo?): TimerScan {
+            if (n == null || ++visited > 800) { complete = false; return TimerScan(emptyList(), emptyList(), emptyList()) }
+            if (n.isScrollable) scrollable = true
+            val text = listOfNotNull(n.text?.toString(), n.contentDescription?.toString())
+            boundTexts.addAll(text)
+            val buttons = ArrayList<android.view.accessibility.AccessibilityNodeInfo>()
+            if (text.any { it.trim() == "取消" }) buttons.add(n)
+            val durations = ArrayList<Int>()
+            text.filter { it.trim().startsWith("初始时长") || it.trim().startsWith("总时长") }
+                .mapNotNull { ai.closepaw.voice.tools.ChineseTime.durationSeconds(it) }.distinct().let { durations.addAll(it) }
+            var childBound = false
+            for (i in 0 until n.childCount) {
+                val before = candidates.size
+                val sub = scan(n.getChild(i))
+                buttons.addAll(sub.buttons); durations.addAll(sub.durations)
+                if (candidates.size > before) childBound = true
+            }
+            // A bound card carries every text below it, so the caller can tell a running card from a
+            // paused one instead of comparing a running header with all cards.
+            val texts = textsUnder(n)
+            // Do not bind a global container or widen an already-bound card to a sibling.
+            if (n != root && !childBound && buttons.size == 1 && durations.size == 1)
+                candidates.add(BoundTimerCard(buttons.single(), durations.single(), texts))
+            return TimerScan(buttons, durations, texts)
+        }
+        val buttons = scan(root).buttons
+        return TimerBinding(candidates, boundTexts, buttons, complete, scrollable)
+    }
+
+    /** Facts behind an "at least N are running" answer. [count] is -1 when even that is unproven. */
+    private data class RunningBound(val count: Int, val why: String)
+
+    /**
+     * Lower bound on *running* timers, counted only over cards that prove their own state.
+     *
+     * Round 47: the query path answered "at least N" from a flat text list. A paused Samsung card
+     * keeps its frozen readout and shows `继续`, so text both populations carry cannot decide
+     * membership — and the flat count never looked at the window, so a tree from another app
+     * produced the same sentence. A count of cards that each carry running-only evidence is a real
+     * lower bound (each one *is* a running timer, and cards below the fold are simply absent from
+     * it), and it is still never a total.
+     *
+     * Refused (count = -1) when the read was clipped, the tree cannot be confirmed as the clock
+     * window, the clock is not on the timer tab, or the walk hit its node budget. There is no
+     * coordinate, click or mutation on this path.
+     */
+    private fun runningBound(ctx: Context, truncated: Boolean): RunningBound {
+        if (truncated) return RunningBound(-1, "running=-1 why=truncated")
+        val window = runCatching { verifiedClockWindow(ctx, "定时器") }.getOrNull()
+            ?: return RunningBound(-1, "running=-1 why=window-unreadable")
+        if (!window.confirmable) return RunningBound(-1, "running=-1 why=window-not-clock")
+        if (window.selected == false) return RunningBound(-1, "running=-1 why=timer-tab-not-selected")
+        val tree = runCatching { bindTimerCards(window.root) }.getOrNull()
+            ?: return RunningBound(-1, "running=-1 why=bind-failed")
+        if (!tree.complete) return RunningBound(-1, "running=-1 why=walk-incomplete")
+        val states = tree.cards.map { cardRunningState(it.texts) }
+        val running = states.count { it == true }
+        val stopped = states.count { it == false }
+        val unproven = states.size - running - stopped
+        return RunningBound(running, "running=$running stopped=$stopped unproven=$unproven cards=${states.size}")
     }
 
     fun queryTimers(ctx: Context): ToolResult {
@@ -341,21 +419,23 @@ object ClockControl {
         }
         val truncated = read.textsTruncated || read.nodesTruncated
         val n = timerCountFrom(read.texts, truncated)
-        // A viewport scan is only ever a lower bound: safe to speak as "at least N", never as a
-        // total, and never as the basis for "that timer is gone".
-        val floor = if (n >= 0) n else visibleTimerCards(read.texts, truncated)
+        // A scan is only ever a lower bound, and only the cards that *prove* they are running may be
+        // counted (round 47): a paused card keeps the same readout, so text cannot decide membership,
+        // and the count has to come from the tree that was verified to be the clock. Never a total,
+        // never the basis for "that timer is gone".
+        val bound = if (n >= 0) RunningBound(0, "running=0 header") else runningBound(ctx, truncated)
         return when {
             n > 0 -> ToolResult.ok("timer_query", "现在有${n}个倒计时在运行", verified = true,
                 detail = "count=$n ${describe(read, reach)}")
             n == 0 -> ToolResult.ok("timer_query", "现在没有正在运行的倒计时", verified = true, detail = describe(read, reach))
-            floor > 0 -> ToolResult.ok(
-                "timer_query", "页面上至少能看到${floor}个倒计时在运行，但没法确认一共有几个",
-                detail = "lowerBound=$floor count=unparsed ${describe(read, reach)}",
+            bound.count > 0 -> ToolResult.ok(
+                "timer_query", "页面上至少能看到${bound.count}个正在运行的倒计时，但没法确认一共有几个",
+                detail = "lowerBound=${bound.count} count=unparsed ${bound.why} ${describe(read, reach)}",
             )
             else -> ToolResult(
                 ToolStatus.DEVICE_UNAVAILABLE, "timer_query",
                 "打开了时钟的定时器页面，但没法确认现在有几个倒计时在运行",
-                describe(read, reach) + " count=unparsed truncated=$truncated"
+                describe(read, reach) + " count=unparsed truncated=$truncated ${bound.why}"
             )
         }
     }
@@ -489,37 +569,14 @@ object ClockControl {
                 "window=clock tab=not-selected attempts=${window.attempts}")
         }
         val root = window.root
-        val candidates = ArrayList<BoundTimerCard>()
-        val boundTexts = ArrayList<String>()
-        var visited = 0
-        var complete = true
-        var scrollable = false
-        fun scan(n: android.view.accessibility.AccessibilityNodeInfo?): TimerScan {
-            if (n == null || ++visited > 800) { complete = false; return TimerScan(emptyList(), emptyList(), emptyList()) }
-            if (n.isScrollable) scrollable = true
-            val text = listOfNotNull(n.text?.toString(), n.contentDescription?.toString())
-            boundTexts.addAll(text)
-            val buttons = ArrayList<android.view.accessibility.AccessibilityNodeInfo>()
-            if (text.any { it.trim() == "取消" }) buttons.add(n)
-            val durations = ArrayList<Int>()
-            text.filter { it.trim().startsWith("初始时长") || it.trim().startsWith("总时长") }
-                .mapNotNull { ai.closepaw.voice.tools.ChineseTime.durationSeconds(it) }.distinct().let { durations.addAll(it) }
-            var childBound = false
-            for (i in 0 until n.childCount) {
-                val before = candidates.size
-                val sub = scan(n.getChild(i))
-                buttons.addAll(sub.buttons); durations.addAll(sub.durations)
-                if (candidates.size > before) childBound = true
-            }
-            // Round 44: a bound card carries every text below it, so the caller can tell a running
-            // card from a paused one instead of comparing a running header with all cards.
-            val texts = textsUnder(n)
-            // Do not bind a global container or widen an already-bound card to a sibling.
-            if (n != root && !childBound && buttons.size == 1 && durations.size == 1)
-                candidates.add(BoundTimerCard(buttons.single(), durations.single(), texts))
-            return TimerScan(buttons, durations, texts)
-        }
-        val allButtons = scan(root).buttons
+        // Round 47: one binding helper, shared with `runningBound`, so the count the query speaks and
+        // the card the cancel clicks can never disagree about what a card is.
+        val tree = bindTimerCards(root)
+        val candidates = tree.cards
+        val boundTexts = tree.texts
+        val allButtons = tree.buttons
+        val complete = tree.complete
+        val scrollable = tree.scrollable
         val matching = candidates.filter { seconds == null || it.duration == seconds }
         // Round 41: `complete` only means the walk stayed inside its node budget. A scrollable
         // container can hold timer cards this walk never loaded, so the bound set is a *viewport*,

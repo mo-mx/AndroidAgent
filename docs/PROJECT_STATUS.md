@@ -1,5 +1,38 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㊼轮：无新审查，推进离线项「查询倒计时的『至少 N 个在运行』」（源码 + JVM，未实机）
+
+本轮开工时 PR #4 最新评论是 `6554195052`（第㊻轮回帖，06:01:19Z），处理的是复审 `6553705515`；其后无新评论，因此无新审查。按「无新审查则推进可离线项」修**同一错误在查询路径上的残留**。
+
+### 缺陷
+
+`cardRunningState` 的收紧只落在 `cancelTimer` 上。`queryTimers` 的兜底仍用 `visibleTimerCards`——纯文本计数：有任一时长文本 + 任一卡片控件（`暂停`/`继续`/`重置`）+ 至少一个 `取消`，就把 `取消` 个数播成「在运行的倒计时下限」。于是（1）两张**暂停**卡 → 「页面上至少能看到2个倒计时在运行」；（2）计数不看节点，树来自 `ai.closepaw` 也照样播出运行中数量。
+
+### 改法
+
+- `bindTimerCards(root)`：抽出唯一的卡片绑定（最小子树 = 恰好一个原始时长标签 + 恰好一个 `取消`，连同子树全部文本）。`cancelTimer` 与 `runningBound` 共用它，播报计数与点击卡片不会对「什么是一张卡」有分歧。
+- `runningBound(ctx, truncated)`：只数 `cardRunningState == true` 的卡片。截断 / 窗口不可确认 / 不在定时器页 / 行走超出预算 → `running=-1`，不下结论。
+- 删除 `visibleTimerCards`（契约错误，留着即是下一个误用点），并把 `TimerCountShapeTest` 中针对它的 4 条改写成 1 条 `cardRunningState` 断言——原「two fully attributed cards are a lower bound of two」本身就把 `继续` 的暂停卡当运行中，属改错为正，不是放宽。
+
+### TDD 与实跑数字（`--offline --rerun-tasks`，JDK 17）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TimerQueryRunningBoundTest`(6)，生产未改 | 首跑 **RED 6 / 5 failed**，含 1 条我自己的断言写错（`doesNotContain("倒计时在运行")` 误伤诚实兜底句）；改断言后 **RED 6 / 4 failed / 0 errors**，以此为准。实得：暂停卡视口 → `SUCCESS` + 「至少能看到2个倒计时在运行」；运行+暂停 → 播 2（应为 1）；树属于自身包 → 仍 `SUCCESS`；读数卡 → 无 `running=` 事实 |
+| 实现后同组（+`TimerCountShapeTest`/`TimerCancel*`/`TimerPausedFrozenReadoutTest`） | **GREEN**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **400 / 0 failed / 0 errors / 0 skipped**，exit=0（㊻ 397，+6−3） |
+| 全量 `:app:testDebugUnitTest` | **2490 / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（`AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过、未重跑旧 SHA 基线） |
+
+### 边界
+
+- 全部为源码 + JVM 合成树；三星真实卡片是否暴露状态专属控件、暂停态控件在 `text` 还是 `contentDescription`，**未实机**。
+- 可用性代价：真实卡片不给状态控件时，「现在有几个倒计时」只能答「没法确认」——本轮之前会给出一个可能错的数字。
+- 下界仍不是总数，不参与「那个倒计时没了」的判断。
+- 设备矩阵维持 **4 通过 / 0 失败 / 3 未测**；本 SHA 未构建、未安装、未实测，实机需用户**重新授权**。
+- 未解：`closeAlarm` 仍 BLOCKED；计时器创建/取消对象级终态仍 UNPROVEN；阶段 2（在线 `ToolRouter` 同门禁）未开始；Issue #6 未并入。
+- 未 push main、未合并、未装 APK、未操作手机、未调用付费 API、未 delegate、未改受保护规则。
+
+
 ## 第㊹轮：复审 `6553305508`(针对 `57b2741`) 3 条处理（源码 + JVM，未实机）
 
 本轮开工读到 PR #4 新复审 `6553305508`（2026-11-01T04:16:49Z，审的是当前 HEAD `57b2741`）：1 条 P1（撤销已下发但 TIMEOUT 仍可重放）+ 1 条 P1/P2（可滚动计时器的「覆盖总数」混用运行总数与卡片总数）+ 1 条 P2（撤销记忆无时效）。三条都**先在 JVM 上跑出实证再改**，没有把审查描述当事实直接采信。
