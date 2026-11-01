@@ -48,6 +48,10 @@ class TorchLateRegistrationAttributionTest {
         val r = TorchControl.outcome(
             on = true, cameraId = "0", observed = t.postState,
             unavailable = t.unavailable, confirmed = t.confirmed, baseline = t.baseline,
+            // Round 49: the production caller passes the tracker's own flag; omitting it made this
+            // fixture declare a *late* report as pre-request, which is the opposite of what the test
+            // models. The assertions below are unchanged.
+            baselinePreRequest = t.baselinePreRequest,
         )
 
         assertThat(r.verified).isNotEqualTo(true)

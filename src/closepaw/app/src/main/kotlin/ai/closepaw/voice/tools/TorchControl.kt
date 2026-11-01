@@ -104,6 +104,15 @@ object TorchControl {
             // we have not issued yet. Waiting for it first is what keeps a still-in-flight initial
             // event from landing after setTorchMode and being graded as our outcome.
             baselineLatch.await(BASELINE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            // Round 49 review B1/B2: if the camera reported the requested state *before* the request
+            // existed, there is nothing to switch and nothing to undo — issue no `setTorchMode` at
+            // all and answer with the observation. (The old path issued the request anyway, got a
+            // same-state callback, called it confirmed and recorded an undoable memory, so "撤销"
+            // switched off a lamp the user had turned on by hand.)
+            if (alreadyAtTarget(on, tracker.baseline, tracker.baselinePreRequest)) {
+                Log.i(TAG, "set(on=$on) already at target: baseline=${tracker.baseline}, not issuing")
+                return alreadySatisfied(on, cam.id, tracker.baseline)
+            }
             tracker.markRequested()
             cm.setTorchMode(cam.id, on)
             issued = true
@@ -250,6 +259,14 @@ object TorchControl {
                 "onTorchModeUnavailable after request (camera in use)",
                 dispatched = true,
             )
+            // Round 49 review B1/B2: the camera already reported this state *before* the request
+            // was issued, so this turn changed nothing. Calling that a success produced an undoable
+            // ENABLE/TORCH memory for a lamp the user had switched on by hand — and "撤销" then
+            // turned it off. The state is still reported (it is a real observation), but the request
+            // is not a transition: `dispatched = false`, and no memory is recorded. It is checked
+            // *after* the contradiction branch: a post-request event naming the other state is the
+            // newer fact.
+            alreadyAtTarget(on, baseline, baselinePreRequest) && confirmed -> alreadySatisfied(on, cameraId, baseline)
             // A post-request event named this camera and reported the state we asked for: that is
             // evidence of the promised state, so it has to be reported as such. Until round 34 it
             // was not, and `TerminalState` — which needs structured evidence for `on:TORCH` /
@@ -280,6 +297,32 @@ object TorchControl {
                 dispatched = true,
             )
         }
+
+    /**
+     * Was the camera already in the requested state, as reported by a *trustworthy* pre-request
+     * baseline? A baseline that arrived after the request (`baselinePreRequest = false`) cannot
+     * answer this either way — it may be our own request's state (round 48).
+     */
+    internal fun alreadyAtTarget(on: Boolean, baseline: Boolean?, baselinePreRequest: Boolean): Boolean =
+        baseline != null && baselinePreRequest && baseline == on
+
+    /**
+     * The answer for "you asked for a state the camera was already in": a real observation of the
+     * state, and explicitly *not* a change this turn made (`dispatched = false`), so it can never be
+     * remembered as an undoable ENABLE/DISABLE of the torch.
+     */
+    internal fun alreadySatisfied(on: Boolean, cameraId: String, baseline: Boolean?): ToolResult = ToolResult.ok(
+        "torch",
+        if (on) "手电筒本来就是开着的，没有再切换" else "手电筒本来就是关着的，没有再切换",
+        verified = true,
+        detail = "camera=$cameraId baseline=$baseline already-at-target pre-request (no change attributed)",
+        observed = ObservedState(
+            identity = IDENTITY,
+            state = if (on) "on" else "off",
+            source = "camera2:torch-callback:baseline",
+        ),
+        dispatched = false,
+    )
 
     // ── process-wide state watcher ──
     // There is no synchronous "is the torch on?" API. A single long-lived callback fills this

@@ -179,7 +179,16 @@ object IntentActions {
         RUNNING_TIMERS.find(text)?.groupValues?.get(1)?.toIntOrNull() == 0
 
     // ── alarms ──
-    fun setAlarm(ctx: Context, hour: Int, minute: Int, label: String? = null): ToolResult {
+    fun setAlarm(
+        ctx: Context,
+        hour: Int,
+        minute: Int,
+        label: String? = null,
+        // Injected so the bounded wait can be tested without spending six real seconds.
+        now: () -> Long = { System.nanoTime() / 1_000_000L },
+        pause: (Long) -> Unit = { Thread.sleep(it) },
+        alarmWaitMs: Long = ALARM_WAIT_MS,
+    ): ToolResult {
         val i = Intent(AlarmClock.ACTION_SET_ALARM)
             .putExtra(AlarmClock.EXTRA_HOUR, hour)
             .putExtra(AlarmClock.EXTRA_MINUTES, minute)
@@ -188,7 +197,7 @@ object IntentActions {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (!resolvable(ctx, i)) return ToolResult.unavailable("alarm", "这台手机没有闹钟应用")
 
-        val before = nextAlarm(ctx)
+        val before = nextAlarmProbe(ctx).info
         val sent = runCatching { ctx.startActivity(i); true }.getOrElse {
             Log.e(TAG, "setAlarm failed", it); false
         }
@@ -197,33 +206,38 @@ object IntentActions {
         // Samsung's clock may open a confirmation screen; give it a beat, then read the system
         // truth: AlarmManager.nextAlarmClock.triggerTime. Deriving hour/minute from the trigger
         // timestamp avoids relying on AlarmClockInfo accessors and works on every API level.
-        val deadline = System.currentTimeMillis() + 6000
-        var trigger: Long? = null
-        while (System.currentTimeMillis() < deadline) {
-            trigger = nextAlarm(ctx)?.triggerTime
-            if (trigger != null) break
-            Thread.sleep(300)
-        }
+        val wait = awaitNextAlarm({ nextAlarmProbe(ctx) }, alarmWaitMs, now, pause)
+        val trigger = wait.trigger
         val cal = trigger?.let { Calendar.getInstance().apply { timeInMillis = it } }
         val gotH = cal?.get(Calendar.HOUR_OF_DAY)
         val gotM = cal?.get(Calendar.MINUTE)
         val hhmm = String.format(Locale.CHINA, "%d点%02d分", hour, minute)
         val exact = gotH == hour && gotM == minute
+        val why = "reads=${wait.reads} nextKnown=${wait.lastKnown} why=${wait.why}"
         return when {
             exact -> ToolResult.sentWithoutProof(
                 "alarm",
                 "已发出${hhmm}的闹钟请求，但无法确认本次是否新增或更新，请在时钟里核对",
-                "before=${before?.triggerTime} next=$trigger; matching next alarm is not creation proof"
+                "before=${before?.triggerTime} next=$trigger; matching next alarm is not creation proof; $why"
             )
             trigger != null -> ToolResult.sentWithoutProof(
                 "alarm",
                 "已发出${hhmm}的闹钟请求，但无法确认本次结果；系统下一个闹钟为${gotH}点${gotM}分，不能据此判断目标是否已创建",
-                "next=${gotH}:${gotM} (mismatch)"
+                "next=${gotH}:${gotM} (mismatch); $why"
+            )
+            // Round 49: an unreadable AlarmManager is not "nothing was registered". The old answer
+            // ("已经打开闹钟界面，可能还需要你按一下保存") asserted two things nothing had observed:
+            // the alarm registration, and a save UI — the intent is sent with EXTRA_SKIP_UI=true,
+            // so on most clocks there is no UI at all.
+            !wait.lastKnown -> ToolResult.sentWithoutProof(
+                "alarm",
+                "已发出${hhmm}的闹钟请求，但读不到系统的闹钟状态，没能确认它是否创建成功",
+                "next=null nextKnown=false; $why"
             )
             else -> ToolResult.sentWithoutProof(
                 "alarm",
-                "已经打开闹钟界面，可能还需要你按一下保存",
-                "no nextAlarm registered"
+                "已发出${hhmm}的闹钟请求，但系统里没有登记下一个闹钟，没能确认它是否创建成功",
+                "next=null; $why"
             )
         }
     }
@@ -232,6 +246,61 @@ object IntentActions {
 
     /** What `AlarmManager.nextAlarmClock` said, and whether it could be read at all. */
     internal data class NextAlarm(val info: AlarmManager.AlarmClockInfo?, val known: Boolean)
+
+    /** One bounded wait for a registered next alarm: the trigger it saw and why it stopped. */
+    internal data class AlarmWait(
+        val trigger: Long?,
+        val lastKnown: Boolean,
+        val reads: Int,
+        val why: String,
+    )
+
+    private const val ALARM_WAIT_MS = 6_000L
+    private const val ALARM_STEP_MS = 300L
+
+    /**
+     * Wait, bounded, for the system to register a next alarm, and report both what was seen and
+     * whether the last read was readable at all.
+     *
+     * Round 49: two facts the old loop merged. (a) `deadline = System.currentTimeMillis() + 6000` is
+     * not a bound — a backwards clock correction keeps `now` below it (in the limit the window is
+     * unbounded, and the loop spins on `Thread.sleep`), a forward jump ends it early. The deadline
+     * is now taken from the injected monotonic source (default `System.nanoTime()`), the same
+     * contract round 48 gave `LocalCapabilities.awaitState`, and the loop carries a hard read cap so
+     * a frozen clock cannot become a spin. (b) The old loop read through `nextAlarm(ctx)`, which
+     * drops `NextAlarm.known`, so an `AlarmManager` that threw was indistinguishable from a healthy
+     * system with no alarm — the caller then spoke as if a save UI were waiting. [AlarmWait.why]
+     * separates `found` / `timeout` (readable, nothing registered) / `read-failed` (nothing was
+     * observed) / `read-cap` (bounded stop).
+     */
+    internal fun awaitNextAlarm(
+        probe: () -> NextAlarm,
+        timeoutMs: Long = ALARM_WAIT_MS,
+        now: () -> Long = { System.nanoTime() / 1_000_000L },
+        pause: (Long) -> Unit = { Thread.sleep(it) },
+    ): AlarmWait {
+        val deadline = now() + timeoutMs
+        val maxReads = (timeoutMs / ALARM_STEP_MS).toInt() + 2
+        var reads = 0
+        var last = probe()
+        reads++
+        while (true) {
+            last.info?.triggerTime?.let { return AlarmWait(it, true, reads, "found") }
+            val known = last.known
+            // "Nothing was readable" outranks *why* the loop stopped: the caller needs that fact
+            // whichever bound ended the wait.
+            if (!known) {
+                if (reads >= maxReads || now() >= deadline) return AlarmWait(null, false, reads, "read-failed")
+            } else if (reads >= maxReads) {
+                return AlarmWait(null, true, reads, "read-cap")
+            } else if (now() >= deadline) {
+                return AlarmWait(null, true, reads, "timeout")
+            }
+            pause(ALARM_STEP_MS)
+            last = probe()
+            reads++
+        }
+    }
 
     /**
      * `nextAlarmClock == null` and "the call failed" are different facts that `runCatching{}.getOrNull()`

@@ -53,8 +53,11 @@ object ActionMemory {
      */
     fun recordResult(action: Action, target: Target, params: Map<String, String>, result: ToolResult) {
         if (!action.mutates || target == Target.LAST_ACTION) return
-        last = if (result.ok && result.verified == true && target == Target.TORCH &&
-            action in setOf(Action.ENABLE, Action.DISABLE)) {
+        // Round 49 review B1/B2: a result that was never handed to the system (`dispatched = false`)
+        // cannot be the change this turn made — "手电筒本来就是开着的" is a state observation, not a
+        // transition, so it must not become an undoable ENABLE/DISABLE that turns the lamp off.
+        last = if (result.ok && result.verified == true && result.dispatched != false &&
+            target == Target.TORCH && action in setOf(Action.ENABLE, Action.DISABLE)) {
             Entry(action, target, params.toMap(), result.speak)
         } else null
     }
