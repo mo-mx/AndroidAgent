@@ -1,5 +1,33 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㊿轮：复审 `6555456830`（针对 `50a4c6a`）2 个 BLOCKER 处理（源码 + JVM + 干净 clone，未实机）
+
+复审意见：B2/P1「撤销首次发现目标态已由用户手动恢复时，不消费旧记忆」，B3「交付证据不能独立复核」。两条都属可离线处理，本轮全部处理，HEAD 现为 **`5789be4`**。
+
+- **[B2/P1] 撤销记忆的消费条件错了**：`ActionMemory.undo()` 原来按 `dispatched != false` 决定是否消费，把 `dispatched = false` 当成"设备没收到，可安全重试"。但同一标志还覆盖「逆操作目标已成立」——用户自己关了手电再说「撤销」时，`TorchControl.set(false)` 走 `alreadySatisfied(...)`，返回 `SUCCESS + verified=true + dispatched=false`。旧记忆被保留，用户在窗口内再把灯打开并第二次「撤销」，就会下发 `set(false)` 关掉**用户新开的状态**，并把这次变更归到助手更早的动作上。改法把判据从"是否下发"改成"是否成功"：`keepForRetry = !r.ok && r.dispatched == false`，成功（已下发 或 目标已成立）一律消费，只有证明未触达设备的失败才保留重试。开关两向对称。
+- **[B3] 干净检出不可构建**：根 `.gitignore` 的 `*.png` 吃掉了 `res/drawable-*/ic_launcher_foreground.png` 与 `res/mipmap-*/ic_launcher{,_round}.png`（`AndroidManifest` 引用 `@mipmap/ic_launcher`、anydpi-v26 引用 `@drawable/ic_launcher_foreground`），`/src/closepaw/tools/` 吃掉了 `preBuild` 的 `copyClosePawBridge` 输入 `tools/termux-bridge/closepaw_bridge.py`。两处改成精确反向包含（其余图片/工具仍忽略，生成物 `res/raw/closepaw_bridge_py` 仍不入库），并新增 `docs/BUILD_REPRODUCIBILITY.md`。
+
+### TDD 与实跑数字
+
+| 阶段 | 结果 |
+|---|---|
+| 新增 `TorchUndoConsumptionTest` 2 例（实现前） | **RED 7 tests / 2 failed**，两条新用例全红，旧 5 条仍绿 |
+| 实现后同任务 + `TorchUndoDispatchTest` | `BUILD SUCCESSFUL`，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **423 / 0 failed / 0 errors / 0 skipped**，exit=0（㊾ 421，+2） |
+| 全量（本机） | **2513 / 6 failed / 0 errors / 8 skipped**，exit=1，不是全绿（既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5） |
+| 干净 clone `50a4c6a`（修复前） | `:app:processDebugResources` **BUILD FAILED in 3s**，`AAPT: resource drawable/ic_launcher_foreground not found` |
+| 干净 clone `5789be4`（修复后） | `RES_LINK_EXIT=0`；全量 **2513 / 6 failed / 8 skipped**，`TESTS_EXIT=1`，失败名逐条相同 |
+
+即 B3 的"能不能独立复核"现在有答案：从 GitHub 干净 clone 即可复现资源链接与 2513 个 JVM 测试的同一套结果。
+
+### 边界
+
+- 全部 **源码 + JVM**；真实相机回调时序、`alreadySatisfied` 在 `1200 ms` 基线窗口内能否稳定拿到 baseline，**未实机**。
+- 6 项失败"非本 PR 引入"仍是**源码分析 + 同环境旧 SHA(`4d1e78d`) 对照**，未在 `main` 干净检出上复跑——留作下一轮离线项。
+- 未构建 APK、未安装、未操作手机、未调用付费 API。设备矩阵维持 **4 通过 / 0 失败 / 3 未测**（旧 APK/旧 SHA），本 SHA 实机需用户**重新授权**。
+- 未解：`closeAlarm` 仍安全 BLOCKED；计时器对象级终态 UNPROVEN；阶段 2/3 未开始；Issue #6 未并入。
+- 未 push main、未合并、未改受保护规则、未 delegate。
+
 ## 第㊽轮：复审 `6554387042`（针对 `278fdce`）3 条处理（源码 + JVM，未实机）
 
 **更正**：第㊼轮判「无新审查」是错的——该复审 06:22:02Z 到达（早于我 06:37:52Z 的评论），只是我开工时（06:17Z）还没出现。已在其评论下更正。

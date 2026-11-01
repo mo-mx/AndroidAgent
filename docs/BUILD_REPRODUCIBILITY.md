@@ -102,12 +102,15 @@ Termux 上可直接执行；不要用 Windows 编辑器把它改成 CRLF 再提�
 
 归因证据（严格区分"提交者报告"与"独立运行"）：
 
-- 本轮**实跑**：`logs/pr4-round50-full.txt`，2513 / 6 failed / 8 skipped，`EXIT=1`。
+- 本轮**实跑**（本机工作区）：`logs/pr4-round50-full.txt`，2513 / 6 failed / 8 skipped，`EXIT=1`。
+- 本轮**实跑**（`https://github.com/mo-mx/AndroidAgent` 干净 clone，`5789be4`）：`logs/pr4-round50-clean-after.txt`，
+  **2513 / 6 failed / 8 skipped，`TESTS_EXIT=1`，失败名逐条相同**。即从干净检出出发可以完整复现这套结果，
+  不再依赖本机 gitignored 文件。
 - 同一环境（同一台机器、同一 wrapper、同一 SDK）的**旧 SHA 基线**：`4d1e78d` 上 `55 tests / 6 failed`，
   失败名一致（`docs/TEST_RESULTS.md` 第㊿轮）。
 - **未做到**的部分照实写：旧 SHA 位于 main 之后 2 个提交，不是 main 本身；因此"这 6 项不是本 PR 引入"
   仍属**源码分析 + 同环境对照**，不是从 `main` 干净检出跑出来的结论。要完全闭合，需要在 `main` 干净
-  检出上跑同一组 6 个测试——这需要一次独立运行，本轮未做。
+  检出上跑同一组 6 个测试——本轮未做（留作下一轮离线项）。
 
 ## 4. 本轮新增的定向证据（JVM）
 
@@ -117,10 +120,13 @@ Termux 上可直接执行；不要用 Windows 编辑器把它改成 CRLF 再提�
 | GREEN | 同上 + `TorchUndoDispatchTest` | `BUILD SUCCESSFUL`，exit=0 |
 | 定向 | `--tests "ai.closepaw.voice.*"` | **423 / 0 failed / 0 errors / 0 skipped**，exit=0（上轮 421，+2） |
 | 全量 | `:app:testDebugUnitTest` | **2513 / 6 failed / 0 errors / 8 skipped**，exit=1 |
+| 干净 clone 资源链接 | `:app:processDebugResources` | `RES_LINK_EXIT=0`（修复前 `BUILD FAILED`） |
+| 干净 clone 全量 | `:app:testDebugUnitTest` | **2513 / 6 failed / 8 skipped**，`TESTS_EXIT=1`，失败名相同 |
 
 ## 5. 边界
 
 - 以上全部是 **JVM + 静态源码**证据。**本 SHA 没有构建 APK、没有安装、没有实机操作**（需用户重新授权）。
 - 设备矩阵维持历史值：4 通过 / 0 失败 / 3 未测，**不代表当前 HEAD**。
-- "干净检出可构建资源链接"已实跑验证；"干净检出可跑完 2513 个 JVM 测试"同样已实跑验证（见 §3 日志）。
-  未验证的是 `assembleDebug` 全流程（需本机 SDK build-tools 成功打包），属可选项，未执行。
+- 已验证：干净检出可完成资源链接、可跑完全部 2513 个 JVM 测试并复现同样的 6 项失败。
+- 未验证：`assembleDebug` 全流程（需本机 SDK build-tools 实际打包成 APK），本轮未执行；
+  真机行为一律未测。

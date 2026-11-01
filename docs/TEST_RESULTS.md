@@ -3,6 +3,40 @@
 更新：2026-10-31　维护方式：每次真机验证后**追加**一条，写清"测什么/怎么测/结果/证据在哪"。
 规则：没有真机日志的项目只能写"未验证"，不得写"通过"。---
 
+## 2026-11-01 第㊿轮（仅 JVM + 干净 clone，未实机）
+
+测什么：复审 `6555456830`（HEAD `50a4c6a`）的 **B2/P1** 与 **B3**。
+
+- **B2/P1**：`ActionMemory.undo()` 只在 `dispatched != false` 时消费记忆。但 `dispatched == false` 同时覆盖两种相反事实：①设备在**下发前**拒绝（相机不可用）；②逆操作的**目标已经成立**（用户自己把手电关了，`TorchControl.set(false)` 走 `alreadySatisfied`，`SUCCESS + verified=true + dispatched=false`）。第②种情况下旧 Entry 被保留，越过 120 s 窗口前用户再把灯打开并第二次说「撤销」，就会下发 `set(false)` 关掉用户新开的状态，并把这次变更归到助手更早的动作上。开/关两个方向对称。
+- **B3**：干净检出无法复现构建/测试。根 `.gitignore` 的 `*.png` 把启动图标（`res/drawable-*/ic_launcher_foreground.png`、`res/mipmap-*/ic_launcher{,_round}.png`）一并忽略，`/src/closepaw/tools/` 把 `copyClosePawBridge` 需要的 `tools/termux-bridge/closepaw_bridge.py` 一并忽略。
+
+怎么测：仓库根 `source env.sh` → `cd src/closepaw` → 新测试先写，`./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.voice.tools.TorchUndoConsumptionTest' --rerun-tasks`（取 RED），实现后同任务 + `TorchUndoDispatchTest`（取 GREEN），再 `--tests 'ai.closepaw.voice.*'`，最后全量。B3 用两次真实 clone（`https://github.com/mo-mx/AndroidAgent`）验证：`50a4c6a`（修复前）与 `5789be4`（修复后）。
+
+实际结果：
+
+| 阶段 | 结果 |
+|---|---|
+| `TorchUndoConsumptionTest` RED | **7 tests / 2 failed / 0 errors**，两条新用例全红（旧 5 条仍绿） |
+| 实现后同任务 + `TorchUndoDispatchTest` | `BUILD SUCCESSFUL`，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **423 / 0 failed / 0 errors / 0 skipped**，exit=0（第㊾轮 421，+2） |
+| 全量（本机） | **2513 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿** |
+| 干净 clone `50a4c6a` `:app:processDebugResources` | **`BUILD FAILED in 3s`**，`AAPT: error: resource drawable/ic_launcher_foreground not found`（`ic_launcher.xml:4`、`ic_launcher_round.xml:4`） |
+| 干净 clone `5789be4` 资源链接 | **`RES_LINK_EXIT=0`**，且 `res/raw/closepaw_bridge_py` 由 `preBuild` 生成（14109 B） |
+| 干净 clone `5789be4` 全量 | **2513 / 6 failed / 8 skipped**，`TESTS_EXIT=1`，失败名逐条相同 |
+
+修复：`ActionMemory.undo` 的消费条件从"是否下发"改为"是否成功"——`keepForRetry = !r.ok && r.dispatched == false`；
+成功的逆操作（已下发 或 目标已成立）一律消费记忆，只有**证明未触达设备**的失败才保留以便诚实重试。
+`.gitignore` 两处改为精确反向包含（`*.png` 仍忽略其它所有图片；`/src/closepaw/tools/*` 只放行 `termux-bridge/`），
+新增 `docs/BUILD_REPRODUCIBILITY.md` 记录复现步骤、修复前的真实失败、以及 6 项失败的归因边界。
+
+未验证：真实相机在"用户手动改变状态后助手再撤销"时的回调时序；`alreadySatisfied` 在真机上是否总能在
+1200 ms 基线窗口内拿到 baseline——**均未实机**。6 项失败的"非本 PR 引入"仍是源码分析 + 同环境旧 SHA 对照，
+**没有在 `main` 干净检出上复跑**。未构建 APK、未安装、未操作手机、未调用付费 API。设备矩阵仍 4 通过 /
+0 失败 / 3 未测（属旧 APK/旧 SHA），本 SHA 需用户**重新授权**才能上机。
+
+证据：本机 gitignored `logs/pr4-round50-{green1,targeted,full,clean-before,clean-after}.txt`，不入库。
+RED 那一跑（7/2 failed）只留在终端输出、未落盘，本条记录即为其内容。
+
 ## 2026-11-01 第㊾轮（仅 JVM，未实机）
 
 测什么：复审 `6555010682`（HEAD `8b48f3a`）的 B1/B2 与 B3。**B1/B2**：手电「本来已经是目标状态」仍被记成「本轮打开了灯」——注册回调给出 `baseline=true`，用户说「打开手电筒」，随后同状态回调让 `confirmed && observed == on && baseline != null && baselinePreRequest` 全真 → `SUCCESS + verified=true` → `ActionMemory` 记下可撤销 `ENABLE/TORCH`，「撤销」随后 `TorchControl.set(false)` 关掉用户自己开的灯；关闭方向同理。**B3**：交付证据门槛——全量 6 项失败需给出同环境旧 SHA 基线。同时推进同类的离线项：`IntentActions.setAlarm` 的 6 s 等待用墙上时钟、且 `nextAlarm(ctx)` 丢掉 `known`，把「读不到闹钟状态」说成「没有登记」，并播「已经打开闹钟界面，可能还需要你按一下保存」（请求带 `EXTRA_SKIP_UI=true`，可能根本没有界面）。
