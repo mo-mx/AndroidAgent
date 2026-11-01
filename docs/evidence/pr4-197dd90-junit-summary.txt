@@ -3,6 +3,7 @@
 # source: app/build/test-results/testDebugUnitTest/*.xml summed with xml.etree; console summary not used
 # host: Windows 11, JDK 17.0.20.1+1 (Temurin), Android SDK under repository tools/
 # generated: 2026-11-01T20:32:11
+# sanitized (round 57): only local user/temp paths masked; per-class counts re-verified as 271/2529/0/0/8 by docs/evidence/sanitize_evidence.py
 
 TOTAL classes=271 tests=2529 failures=0 errors=0 skipped=8
 

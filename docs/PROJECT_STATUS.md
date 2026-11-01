@@ -1,4 +1,24 @@
 # PROJECT_STATUS — 当前真实状态
+## 第57轮：处理复审 `6557962727` 的两条 FOLLOW-UP（探针文件不可按发布命令执行 + 证据含本机路径），源码零改动
+
+复审 `6557962727`（`<!-- chatgpt-hourly-review SHA:be6d87b -->`，2026-11-01T12:30:03Z）是第56轮评论之后唯一的新审查。它**没有指认新的代码缺陷**，仍只有 B3 验收门槛，并明确「已达两轮停止条件、不指派第三轮修复」；另给两条**非阻塞 FOLLOW-UP**，都属证据可复现性/隐私，可离线闭合，故本轮只做这两条。
+
+### FOLLOW-UP ①：探针文件名与 `public class Probe` 不匹配，发布的 `javac -d . Probe.java` 无法直接在仓库文件上执行 —— 成立，已修
+
+- `git mv docs/evidence/pr4-a6a498f-platform-probe.java → docs/evidence/pr4-a6a498f-platform-probe/Probe.java`（目录保留 SHA provenance，文件名匹配类名），输出改名为同目录 `output-windows11-jdk17.txt`，并新增该目录 `README.md`，写清度量对象、确切命令、实测 stdout 与不证明什么。
+- **实跑验证命令本身**（Git Bash / Windows 11，仓库自带 JDK `tools/jdk-17.0.20.1+1`）：按 README 逐行执行 exit=0，输出与已提交文件逐行一致（仅临时目录名不同）。即不再需要"另存为 Probe.java"这一步。
+
+### FOLLOW-UP ②：JUnit 汇总与探针输出包含本机 Windows 用户目录 —— 成立，已脱敏且计数未变
+
+- 新增 `docs/evidence/sanitize_evidence.py`，只做两类替换：`<盘>:\Users\<名>\` → `C:\Users\<user>\`，`<盘>:\Users\<user>\AppData\Local\Temp\(junit|probe)<数字>` → `%TEMP%\<kind><n>`；测试类名、计数、断言原文不动。
+- 脚本每次运行都会**重新逐类求和**并与声明总计比对；脱敏后实得：`a6a498f` 汇总 **271/2528/6/0/8 一致**，`197dd90` 汇总 **271/2529/0/0/8 一致**。`--check` 复跑 exit=0（无残留可脱敏项），`grep -rn "Users.Aqua" docs/evidence/` 无命中。
+- 顺带把 `docs/TEST_RESULTS.md` 日志目录里的本机用户名改成 `C:\Users\<user>\`；`docs/phase1-device-report.md`、`docs/phase2-basic-agent-report.md` 中的旧绝对路径未改（属历史设备报告正文，非本次被点名的证据文件）。
+
+### 证据级别（不升级）
+
+- 本轮 `src/`、`app/src/test/` **零 diff**；未跑 Gradle（无源码变化，重跑只会重复 `197dd90` 的 2529/0/0/8）。因此"全量 JVM 全绿"的证据仍是第56轮 `197dd90` 的实跑记录，**不是本轮新测**。
+- 探针仍只证明本机（Windows 11 / JDK 17.0.20.1+1）的机制；Linux/POSIX JVM 与真机仍未测。B3 验收边界、独立 CI、真机验收三条仍待用户决定。
+
 ## 第56轮：无新审查，把 6 项「历史红」真正修绿——全量 JVM 首次 `exit=0`（未实机）
 
 PR #4 自第55轮评论（`6557526960`，11:49:13Z）后**没有新审查**；最新复审仍是 `6557244443`（`a6a498f`），该复审已宣布两轮停止、不指派第三轮修复。因此本轮不碰它的判定，只处理它反复写进 UNVERIFIED 的那条尾巴：**全量始终 `exit=1`，6 项失败只能「归因」不能「消掉」**。
@@ -46,7 +66,7 @@ PR #4 自第55轮评论（`6557526960`，11:49:13Z）后**没有新审查**；�
 
 ### 6 项失败的性质：从「同名」推进到「机制级实证」
 
-前几轮只能写「与旧 SHA 同名 + 源码机制推断」。本轮用 JDK 自身 API 做了一次真实探针（源码 `docs/evidence/pr4-a6a498f-platform-probe.java`，输出同目录 `.txt`，Windows 11 / JDK 17.0.20.1+1）：
+前几轮只能写「与旧 SHA 同名 + 源码机制推断」。本轮用 JDK 自身 API 做了一次真实探针（源码 `docs/evidence/pr4-a6a498f-platform-probe/Probe.java`，输出同目录 `output-windows11-jdk17.txt`，Windows 11 / JDK 17.0.20.1+1；第57轮改名+脱敏+重跑复现）：
 
 | 探针 | 实得 |
 |---|---|

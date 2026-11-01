@@ -4,12 +4,14 @@
 # 被测 HEAD：a6a498f2dcd434b781230c4c797f7ebb8a55cbe5（feat/semantic-gate）
 # 工具链：JDK 17.0.20.1+1，仓库自带 Gradle wrapper，--offline
 # 总计：tests=2528 failures=6 errors=0 skipped=8 classes=271
+# 脱敏说明（第57轮）：仅把本机用户目录/临时目录名替换为 C:\Users\<user>\ 与 %TEMP%\...<n>，
+# 测试类名、计数、断言消息原文未变；脱敏后重算逐类合计仍为 271/2528/6/0/8（脚本 docs/evidence/sanitize_evidence.py）。
 
 ## 失败明细（逐条，含断言消息原文）
 ### ai.closepaw.agent.cognition.skills.AgentSkillCatalogTest :: entry filePath points to SKILL md  (time=0.076s)
 value of            : getFilePath()
 expected to end with: my-skill/SKILL.md
-but was             : C:\Users\Aqua\AppData\Local\Temp\junit10746600265842532048\my-skill\SKILL.md
+but was             : %TEMP%\junit<n>\my-skill\SKILL.md
 
 ### ai.closepaw.memory.MemoryStoreTest :: append with duplicate heading inserts under last occurrence  (time=0.04s)
 expected to be true

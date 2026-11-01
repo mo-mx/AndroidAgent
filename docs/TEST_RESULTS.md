@@ -54,7 +54,7 @@ ai.closepaw.memory.MemoryStoreTest :: app entries stay inside their target secti
 
 失败断言原文（取自 XML，不是转述）：`AgentSkillCatalogTest` → `expected to end with: my-skill/SKILL.md | but was: C:\...\my-skill\SKILL.md`；`MemoryStoreTest` → 4 条 `expected to be true`，1 条 `expected: 2 | but was: 1`。
 
-平台语义探针（`docs/evidence/pr4-a6a498f-platform-probe.java` / `.txt`，JDK 17 真实执行）：
+平台语义探针（`docs/evidence/pr4-a6a498f-platform-probe/Probe.java` + 同目录 `output-windows11-jdk17.txt`，JDK 17 真实执行；第57轮按复审 follow-up 改名并脱敏）：
 
 ```
 renameTo over EXISTING target = false ; target content = old ; tmp still exists = true
@@ -349,7 +349,7 @@ B3 同环境旧 SHA 基线（**本轮首次真正跑出来**）：`4d1e78d` 上�
 | 网络 | 手机与电脑同 Wi-Fi（局域网 IP 见各报告）；另有 cloudflared 公网隧道用于蜂窝测试 |
 | 模型 | 在线：阿里云百炼 `qwen3.8-flash`（OpenAI 兼容端点）；离线：sherpa-onnx paraformer-zh-small |
 
-**日志位置说明**：原始日志、截图、投屏视频都在本机 `C:\Users\Aqua\AndroidAgent\logs\`
+**日志位置说明**：原始日志、截图、投屏视频都在本机 `C:\Users\<user>\AndroidAgent\logs\`
 与手机端 `inspection-trace/`，**不随仓库分发**（含设备画面与个人信息）。
 仓库只保存结论与可复现命令；需要原始证据时在真机上按命令重跑。
 

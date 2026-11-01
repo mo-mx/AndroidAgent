@@ -33,7 +33,7 @@
 **范围说明**：这是上轮之后唯一的新审查，结论是「无足以另列 B1/B2 的可证明安全回归 + B3 验收门槛未闭合 + 不指派第三轮修复」，因此本轮**没有任何代码改动**（`src/` 零 diff），只做它列出的两条可核对事实。
 
 - ①「第54轮实际跑在父提交 `179f762`」成立 → 本轮在 `a6a498f` 本体重跑：定向 `voice.*` **423 / 0 failed / 0 errors / 0 skipped**（exit=0），全量 **2528 / 6 failed / 0 errors / 8 skipped**（**exit=1**），6 项与旧 SHA 逐条同名，未改未跳。
-- ②「日志在提交者本机 gitignored 目录，审查方无法独立核验」成立 → 新增三份**机器生成**证据入仓库：`docs/evidence/pr4-a6a498f-junit-summary.txt`（271 类逐类计数 + 6 条失败断言原文）、`docs/evidence/pr4-a6a498f-platform-probe.java`、`docs/evidence/pr4-a6a498f-platform-probe.txt`。
+- ②「日志在提交者本机 gitignored 目录，审查方无法独立核验」成立 → 新增三份**机器生成**证据入仓库：`docs/evidence/pr4-a6a498f-junit-summary.txt`（271 类逐类计数 + 6 条失败断言原文）、`docs/evidence/pr4-a6a498f-platform-probe/Probe.java`、同目录 `output-windows11-jdk17.txt`（第57轮改名以匹配 `public class Probe`，并脱敏本机路径）。
 - 6 项失败的性质从「同名」推进到**机制级实证**：JDK 探针实得 `renameTo over EXISTING target = false`（目标内容不变）而 `renameTo over MISSING target = true`、`Files.move(REPLACE_EXISTING) = true`；`getPath()` 用反斜杠且 `endsWith("my-skill/SKILL.md") = false`。这解释了 `MemoryStoreTest` 5 项与 `AgentSkillCatalogTest` 1 项，但不代表 Linux 上已跑通。
 - **仍未验证**：Linux/POSIX JVM（WSL 无 `java`/`curl`/`wget`/`python3`/`unzip`，`sudo` 需密码，本机无 `docker`）、独立 CI（本 SHA 无 workflow run / commit status）、真机（未构建 APK、未装、未操作手机）。
 - 三件待用户决定的事（bridge 去留 / 限定环境或真机验收 / 另立 Issue）本轮继续不代拍；PR #4 不合并、不装包、不动手机。
