@@ -1,7 +1,30 @@
 # TEST_RESULTS — 实机验收记录
 
 更新：2026-10-31　维护方式：每次真机验证后**追加**一条，写清"测什么/怎么测/结果/证据在哪"。
-规则：没有真机日志的项目只能写"未验证"，不得写"通过"。---
+规则：没有真机日志的项目只能写"未验证"，不得写"通过"。
+
+---
+
+## 2026-11-01 第56轮（JVM 全量首次全绿于 `197dd90` 本体 + 6 项历史失败的真实修复，未实机）
+
+测什么：第55轮把 6 项失败定性为「Windows 宿主语义、与本 PR 无关」，但全量始终 `exit=1`。本轮不再只归因——**先补测试再改生产代码**，把这 6 项真正修绿，并让全量在同一 HEAD 上给出 `exit=0`。
+
+怎么测：`source env.sh`（JDK `17.0.20.1+1`、SDK 在仓库 `tools/`），`src/closepaw` 下 `./gradlew --offline :app:testDebugUnitTest --rerun-tasks`；统计读 `app/build/test-results/testDebugUnitTest/*.xml` 求和，不采信控制台摘要。机器生成汇总：`docs/evidence/pr4-197dd90-junit-summary.txt`（271 类逐类计数 + 8 条 skipped 名单）。
+
+| 阶段 | HEAD | 结果 | exit |
+|---|---|---|---|
+| 基线（改动前，两个失败类） | `be6d87b` | 55 tests / **6 failed** / 0 errors / 0 skipped | 1 |
+| 新增回归测试后、生产未改（RED） | `be6d87b`+工作区 | MemoryStoreTest **34 tests / 6 failed**（含新用例 `expected to be true`） | 1 |
+| 修后定向 `ai.closepaw.memory.*` + `ai.closepaw.agent.cognition.skills.*` | 工作区 | **118 tests / 0 failed / 0 errors / 0 skipped** | 0 |
+| **全量 `:app:testDebugUnitTest`** | **`197dd90`** | **2529 tests / 0 failed / 0 errors / 8 skipped**（`BUILD SUCCESSFUL in 7m 5s`） | **0（首次全绿）** |
+
+根因（不是推测，是探针 + 测试实跑）：`MemoryStore.atomicWrite` 用 `File.renameTo` 覆盖已存在目标，Windows 返回 false → 抛 `IOException("Failed to replace …")` → `append()` 返回 false。第55轮的 JDK 探针已经实测过 `renameTo over EXISTING = false`；本轮据此把写法换成 `Files.move(REPLACE_EXISTING[, ATOMIC_MOVE])`（`AtomicMoveNotSupportedException` 才降级，替换本身从不跳过），并把 `AgentSkillCatalogTest` 里硬编码 POSIX 分隔符的 `endsWith("my-skill/SKILL.md")` 换成**更严的全路径相等**。
+
+8 条 skipped 全部是既有 `@Ignore`/环境跳过（`ShellRunnerTest` 4 + `ShellToolExecutionTest` 4，Android shell 依赖），本轮未增未减。
+
+未验证：Linux/POSIX 宿主上仍未跑过（WSL 无 `java`/`curl`/`wget`/`python3`/`unzip`，`sudo` 需密码，无 `docker`）；本 SHA 未构建 APK、未装、未操作手机；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测（旧 APK）。
+
+
 
 ## 2026-11-01 第55轮（JVM 实跑于当前 HEAD `a6a498f` 本体 + JDK 平台语义探针，未实机）
 

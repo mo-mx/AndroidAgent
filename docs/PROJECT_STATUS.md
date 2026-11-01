@@ -1,4 +1,36 @@
 # PROJECT_STATUS — 当前真实状态
+## 第56轮：无新审查，把 6 项「历史红」真正修绿——全量 JVM 首次 `exit=0`（未实机）
+
+PR #4 自第55轮评论（`6557526960`，11:49:13Z）后**没有新审查**；最新复审仍是 `6557244443`（`a6a498f`），该复审已宣布两轮停止、不指派第三轮修复。因此本轮不碰它的判定，只处理它反复写进 UNVERIFIED 的那条尾巴：**全量始终 `exit=1`，6 项失败只能「归因」不能「消掉」**。
+
+### 做了什么（TDD：先补测试 → RED → 改生产 → GREEN）
+
+1. 在生产未改的前提下新增回归测试 `MemoryStoreTest :: append replaces the existing file instead of failing on it`，实跑 **RED**（`MemoryStoreTest` 34 tests / 6 failed，新用例失败消息 `expected to be true`）。
+2. 根因（第55轮 JDK 探针已实测 `renameTo over EXISTING target = false`）：`MemoryStore.atomicWrite` 用 `File.renameTo` 覆盖已存在文件。改为 `Files.move(REPLACE_EXISTING[, ATOMIC_MOVE])`，仅在 `AtomicMoveNotSupportedException` 时降级，替换本身从不跳过；异常链保留原始 cause。
+3. `AgentSkillCatalogTest :: entry filePath points to SKILL md` 原断言 `endsWith("my-skill/SKILL.md")` 把 POSIX 分隔符写死（第55轮探针实测 `endsWith(...) = false`）。改成与 `java.io.File(root,"my-skill/SKILL.md").path` 的**全路径相等**：更严，且与分隔符无关。**没有删除或放宽任何断言。**
+
+### 实跑数据（HEAD = `197dd90cb6ed795f1393abd486ba410a3f787c1e`）
+
+| 任务 | 结果 | exit |
+|---|---|---|
+| 基线（改动前，`be6d87b`，两个失败类） | 55 tests / **6 failed** / 0 errors / 0 skipped | 1 |
+| RED（新增测试后、生产未改） | MemoryStoreTest 34 tests / **6 failed** | 1 |
+| 修后定向 `memory.*` + `cognition.skills.*` | **118 / 0 failed / 0 errors / 0 skipped** | 0 |
+| **全量 `:app:testDebugUnitTest`（`197dd90` 本体）** | **2529 / 0 failed / 0 errors / 8 skipped**，`BUILD SUCCESSFUL in 7m 5s` | **0（首次全绿）** |
+
+统计取自 `app/build/test-results/testDebugUnitTest/*.xml` 求和；机器生成汇总已入仓库 `docs/evidence/pr4-197dd90-junit-summary.txt`（271 类逐类计数 + 8 条 skipped 名单，全部是既有 Android-shell 环境跳过，本轮未增未减）。
+
+### 级别与边界（不升级）
+
+- 这只证明**在本验证宿主（Windows 11 / JDK 17.0.20.1+1）上全量 JVM 测试全绿**。**Linux/POSIX 宿主仍未跑**（WSL 无 `java`/`curl`/`wget`/`python3`/`unzip`，`sudo` 需密码，无 `docker`），所以「跨宿主一致」仍不成立。
+- 生产行为变化面：`MemoryStore` 的写路径（Android 上 POSIX `renameTo` 本就会替换，语义不变；Windows 从「第二次写必失败」变为正常替换）。`SessionStorage`（有 `writeText` 兜底）与 `BundledAgentSkillInstaller`（目录重命名）属同类写法，**本轮未改**，无失败测试作为证据。
+- 真机全部未测：本 SHA 未构建 APK、未安装、未操作手机；设备矩阵维持历史 **4 通过 / 0 失败 / 3 未测**（旧 APK/旧 SHA）。**新一轮实机需用户单独授权。**
+- 复审 B3 的另外两条（独立 CI、真机验收）依旧未闭合，且都需要用户决定；本轮未自行加 `.github/workflows`。
+
+### 仍需用户拍板（第51轮起提出，连续第 6 轮不代拍）
+
+①`tools/termux-bridge` + `copyClosePawBridge` 是否移出阶段 1；②是否授权限定环境（POSIX/Linux JVM 或 CI runner）或新一轮真机验收；③是否另立 Issue 承接阶段 2。在此之前的约束不变：不合并、不装包、不动手机、不 push main。
+
 
 ## 第55轮：复审 `6557244443`（HEAD `a6a498f`）—— 验收阻塞不靠改代码解，改把证据搬到仓库里（JVM 实跑 + JDK 探针，未实机）
 

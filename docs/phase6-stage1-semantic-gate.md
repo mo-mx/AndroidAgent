@@ -2,6 +2,32 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第56轮：无新审查，把「历史红」修绿——`MemoryStore` 覆盖写与路径断言（JVM 全绿，未实机）
+
+**范围说明**：PR #4 在第55轮评论（`6557526960`）之后无新评论；最新复审仍是 `6557244443`（`a6a498f`），已宣布两轮停止。复审把「全量 2528 / 6 failed，exit=1」写进每一轮的 UNVERIFIED，第55轮只能给到「机制级实证」。本轮把这条尾巴收掉：**先写测试 → RED → 改生产 → GREEN**，不新增功能面。
+
+### 缺陷与改法
+
+1. **`MemoryStore.atomicWrite` 无法覆盖已存在文件**：`tmpFile.renameTo(target)` 在目标存在时返回 false（第55轮 JDK 探针已实测），于是 `append()` 的第一次之后的每次写入都抛 `IOException("Failed to replace …")` 并返回 false——磁盘上其实已经写好新内容，只是没换上去。改为 `Files.move(REPLACE_EXISTING, ATOMIC_MOVE)`，仅在 `AtomicMoveNotSupportedException` 时去掉 `ATOMIC_MOVE` 重试一次；失败时仍删除 tmp 并抛出带 cause 的 `IOException`。
+2. **`AgentSkillCatalogTest` 的断言写死 POSIX 分隔符**：`endsWith("my-skill/SKILL.md")` 在 Windows 上必然失败（探针实测 false）。换成与 `java.io.File(tempDir.root, "my-skill/SKILL.md").path` 的全路径相等——**更严**（原来只比后缀），且宿主无关。
+
+### TDD 与实跑（`--offline`，JDK 17.0.20.1+1，统计取自 JUnit XML）
+
+| 阶段 | HEAD | 结果 | exit |
+|---|---|---|---|
+| 基线（两个失败类） | `be6d87b` | 55 tests / **6 failed** / 0 errors / 0 skipped | 1 |
+| 新测试先写、生产未改 | `be6d87b`+工作区 | MemoryStoreTest 34 tests / **6 failed**，新用例消息 `expected to be true` | 1 |
+| 修后定向 `memory.*` + `cognition.skills.*` | 工作区 | **118 / 0 / 0 / 0** | 0 |
+| 全量 `:app:testDebugUnitTest` | **`197dd90`** | **2529 / 0 failed / 0 errors / 8 skipped**，`BUILD SUCCESSFUL in 7m 5s` | **0** |
+
+8 条 skipped 是既有 Android-shell 环境跳过（`ShellRunnerTest` 4 + `ShellToolExecutionTest` 4），本轮未增未减、未跳过任何失败项。机器生成汇总：`docs/evidence/pr4-197dd90-junit-summary.txt`。
+
+### 边界（不升级）
+
+- 仅证明**本宿主（Windows 11）**全量 JVM 全绿；**Linux/POSIX 宿主仍未跑**（WSL 无 JDK/`sudo`/`docker`），跨宿主一致性不成立。
+- 同类写法未改：`SessionStorage` 两处 `renameTo` 后有 `writeText` 兜底，`BundledAgentSkillInstaller` 两处是目录重命名；两者都没有失败测试作为证据。
+- 本 SHA 未构建 APK、未装、未操作手机；设备矩阵仍 4 通过 / 0 失败 / 3 未测（旧 APK）。`closeAlarm` 仍 BLOCKED；计时器对象级终态仍 UNPROVEN；阶段 2 未开始；Issue #6 未并入。
+
 ## 第55轮：复审 `6557244443`（HEAD `a6a498f`）—— 无新代码缺陷，只补它点名的两处证据缺口（JVM，未实机）
 
 **范围说明**：这是上轮之后唯一的新审查，结论是「无足以另列 B1/B2 的可证明安全回归 + B3 验收门槛未闭合 + 不指派第三轮修复」，因此本轮**没有任何代码改动**（`src/` 零 diff），只做它列出的两条可核对事实。
