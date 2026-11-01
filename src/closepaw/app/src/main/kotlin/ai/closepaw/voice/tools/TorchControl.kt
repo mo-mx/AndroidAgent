@@ -160,6 +160,17 @@ object TorchControl {
         @Volatile var requested: Boolean = false
             private set
 
+        /**
+         * Has this callback ever reported anything? The *first* report a fresh `TorchCallback`
+         * receives is, by the framework's contract, the camera's current mode at registration —
+         * not the outcome of a request. Round 46 review P1/P2: when the baseline window expired
+         * with no event, `set()` marked the request and issued `setTorchMode` before that report
+         * arrived, so it was graded as post-request evidence, `confirmLatch` released, and the
+         * caller reported "手电筒已打开" plus an undoable ENABLE/TORCH for a torch it never touched.
+         */
+        @Volatile var sawReport: Boolean = false
+            private set
+
         val confirmed: Boolean get() = postState == on
 
         fun markRequested() {
@@ -172,10 +183,14 @@ object TorchControl {
             // Before the request is issued, an event is only a report of the *current* mode —
             // typically the initial event CameraService delivers on register. Recording it as the
             // post-request state made "it was already on" look like "I turned it on".
-            if (!requested) {
-                if (baseline == null) baseline = enabled
+            if (!sawReport) {
+                // However late it lands (after markRequested, even after setTorchMode), the first
+                // report describes the mode that existed before this request: keep it as baseline.
+                sawReport = true
+                baseline = enabled
                 return false
             }
+            if (!requested) return false
             postState = enabled
             return enabled == on
         }
@@ -222,7 +237,7 @@ object TorchControl {
             // evidence of the promised state, so it has to be reported as such. Until round 34 it
             // was not, and `TerminalState` — which needs structured evidence for `on:TORCH` /
             // `off:TORCH` — hedged a torch that had really come on into "请求已经发出，但没能确认结果".
-            confirmed && observed == on -> ToolResult.ok(
+            confirmed && observed == on && baseline != null -> ToolResult.ok(
                 "torch",
                 if (on) "手电筒已打开" else "手电筒已关闭",
                 verified = true,

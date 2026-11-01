@@ -52,11 +52,12 @@ class TimerCancelViewportCompletenessTest {
      *
      * Round 44 added a third thing a card in a *scrollable* list has to carry: evidence that it is
      * running ([ClockControl.cardRunningState]). The header total counts running timers, so a card
-     * that does not say it is running cannot be compared against it. These fixtures therefore state
-     * `剩余 …`, which is what a running card shows; the assertions below are unchanged.
+     * that does not say it is running cannot be compared against it. Round 46 tightened what counts:
+     * a remaining readout is also kept by a paused card, so these fixtures carry the state-specific
+     * `暂停` control, which only exists while a timer runs; the assertions below are unchanged.
      */
     private fun card(duration: String, cancel: AccessibilityNodeInfo) =
-        node("", node(duration), node("剩余 4 分 50 秒"), cancel)
+        node("", node(duration), node("暂停"), node("剩余 4 分 50 秒"), cancel)
 
     private fun cancelControl(): AccessibilityNodeInfo =
         node("取消").also { every { it.isClickable } returns true }

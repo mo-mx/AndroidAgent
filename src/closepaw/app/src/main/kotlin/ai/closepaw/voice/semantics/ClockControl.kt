@@ -276,8 +276,12 @@ object ClockControl {
     private val stoppedTimerMarkers =
         listOf("已暂停", "暂停中", "已结束", "已响铃", "已完成", "已停止", "剩余 0 秒")
 
-    /** A remaining-time readout ("4 分 32 秒") — the shape a running card shows. */
-    private val remainingTimePattern = Regex("\\d+\\s*分(?:钟)?\\s*\\d+\\s*秒")
+    /** Card control labels that only exist in one state. */
+    private const val PAUSE_CONTROL = "暂停"
+    private const val RESUME_CONTROL = "继续"
+
+    /** Explicit statements that the timer is counting down. */
+    private val runningTimerMarkers = listOf("正在运行", "计时中", "倒计时中")
 
     /**
      * Does this bound card *state* that its timer is running? `true` running, `false` stopped,
@@ -289,15 +293,21 @@ object ClockControl {
      * proved nothing: one running card plus one paused card covers a stated total of 2 while a
      * running twin of the requested duration sits below the fold.
      *
-     * `初始时长` / `总时长` are original-duration evidence, not running evidence, and are excluded
-     * before looking for a readout. A card that only says "5 分钟" is unproven, not running.
+     * Round 46 review P1: round 44 then took *any* remaining-time text as running evidence. A paused
+     * Samsung card keeps its frozen readout and shows `继续` rather than an `已暂停` marker, so it was
+     * counted as running and the same false equality came back. Text that both populations carry
+     * cannot decide membership: only a state-specific control (`暂停` / `继续`) or an explicit
+     * running marker does. Readout-only cards are therefore `null` — unproven — and an unproven card
+     * makes the set incomparable, which fails closed. `初始时长` / `总时长` are original-duration
+     * evidence, never running evidence.
      */
     internal fun cardRunningState(texts: List<String>): Boolean? {
         val t = texts.map { it.trim() }.filter { it.isNotEmpty() }
         if (t.any { s -> stoppedTimerMarkers.any { s.contains(it) } }) return false
-        if (t.any { it.contains("剩余") || it.contains("倒计时") }) return true
-        val readout = t.filterNot { it.startsWith("初始时长") || it.startsWith("总时长") }
-        if (readout.any { remainingTimePattern.containsMatchIn(it) }) return true
+        // A resume control exists only while the timer is paused; a pause control only while it runs.
+        if (t.any { it == RESUME_CONTROL }) return false
+        if (t.any { it == PAUSE_CONTROL }) return true
+        if (t.any { s -> runningTimerMarkers.any { s.contains(it) } }) return true
         return null
     }
 

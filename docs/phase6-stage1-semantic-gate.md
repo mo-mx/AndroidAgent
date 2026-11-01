@@ -2,6 +2,54 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第㊻轮：复审 `6553705515`（针对 `b1355f0`）3 条全部处理（离线源码 + JVM，未实机）
+
+需要复审；审查未关闭。**先更正上一轮的判断**：第㊺轮写「本轮无新审查、最新复审仍是 `6553305508`」是错的——`6553705515`（针对 `b1355f0`，2026-11-01T05:04:05Z）在第㊺轮评论（05:21:58Z）之前就已发出，是我读评论时的去重窗口算错（只查了 `> 04:40:49Z` 之后「有评论」，而那条评论本身就是我上一轮的回帖）。本轮按 `6553705515` 处理。
+
+### P1 暂停卡片的冻结读数被当成"正在运行"
+
+`cardRunningState` 把任何含「剩余/倒计时」或 `4 分 32 秒` 形状的文本判为 `true`。三星暂停中的计时器卡片保留冻结读数，按钮文字是「继续」而不是「已暂停」，于是它被算进 `runningProven`，页头总数（只数运行中）与 `candidates.size` 又对上了，集合判为可比 → 点掉视口里那张，视口外还有一张同时长运行卡片。
+
+改法：**文本存在不能证明状态**，两类卡片都带剩余读数。只有状态专属证据才算数：
+
+| 卡片证据 | 判定 |
+|---|---|
+| 含「已暂停 / 暂停中 / 已结束 / 已响铃 / 已完成 / 已停止 / 剩余 0 秒」 | `false` |
+| 存在**精确**「继续」控件（只在暂停时出现） | `false` |
+| 存在**精确**「暂停」控件（只在运行时出现） | `true` |
+| 含「正在运行 / 计时中 / 倒计时中」 | `true` |
+| 只有剩余读数 / 只有 `初始时长`、`总时长` | `null`（未证明） |
+
+`null` 卡片使 `comparableSet=false`，页头总数不再能推导全集 → `BLOCKED` + 零点击。**可用性代价**：可滚动列表里若真实卡片既不暴露「暂停/继续」也没有运行中字样，取消会被一律拒绝；`viewportComplete`（不可滚动且读取未截断）路径不受影响，仍可取消。
+
+### P1/P2 基线超时后的注册回调被当成本次确认（并生成可撤销记忆）
+
+`set()` 的顺序是 `registerTorchCallback` → `baselineLatch.await(1200ms)` → `markRequested()` → `setTorchMode()`。1200 ms 内没有事件时，`markRequested()` 之后的**迟到注册回调**会被 `onModeChanged` 记成 post-request；只要状态等于目标，`confirmLatch` 放行，`outcome` 报 `verified=true`，`ActionMemory` 记下 `ENABLE/TORCH`——之后「撤销」会把用户原本就开着的灯关掉。
+
+改法：`RequestTracker` 新增 `sawReport`。**回调收到的第一条事件，无论多晚（markRequested 之后、setTorchMode 之后）都是注册时的当前模式**，一律记为 `baseline`，不参与确认；只有其后的第二条事件才能归属本次请求。`outcome` 的成功分支再加 `baseline != null` 硬条件：没有基线就没有归属，不许 `verified=true`、不许 `observed`。`ActionMemory.recordResult` 本来就只认 `verified == true`，所以这条路径现在既不报成功也不产生撤销记忆。
+
+### P2 撤销时效用了可被校时改变的墙上时钟
+
+`Entry.at` 与 `undo(now)` 都取 `System.currentTimeMillis()`，且只判 `now - at > 120_000`。时间被向后拨时 age 为负 → 通过检查 → 老记忆重新有效。改法：改用**单调时钟** `System.nanoTime()`（ART 与 JVM 都单调，校时无效，且不需要 Robolectric 影子），并把 `age < 0` 与超窗同等对待——负年龄说明两个读数不在同一条时间线上，它不能证明记忆是新的。
+
+### TDD 与实跑数字（`--offline --rerun-tasks`，JDK 17）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TorchLateRegistrationAttributionTest`(5) + `TimerPausedFrozenReadoutTest`(6) + `UndoMonotonicClockTest`(4)，生产未改 | **RED 15 tests / 9 failed / 0 errors**（全为 Truth 断言失败，非编译错误）。实得：迟到注册回调后 `baseline` 仍 null、`postState` 被写成 true 且 `outcome` 报 `verified=true`；`outcome(confirmed=true, baseline=null)` 也报成功；`cardRunningState(["继续","剩余 4 分 50 秒"])` 实得 `true`、纯读数实得 `true`、暂停卡片端到端实得 `SUCCESS` 并真的点了取消；未来时间戳 `undo(at-600000)` 实得执行了 `TorchControl.set`；`at` 仍是墙上时钟 | 
+| 实现后同组 | **GREEN 15 / 15**，exit=0 |
+| 定向 `ai.closepaw.voice.tools.*` + `ai.closepaw.voice.semantics.*` | **397 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊺轮 382，+15） |
+| 全量 `:app:testDebugUnitTest` | **2487 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败仍是既知两类 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过） |
+
+旧夹具按新规则**收紧**而非放宽：`TimerCancelRunningSetTest` 与 `TimerCancelViewportCompletenessTest` 的“正在运行”控制组原先只给 `剩余 4 分 50 秒`，现在补上状态专属的「暂停」控件文字——它们证明的是“能取消”这条路径仍然可达，不是把断言改松。
+
+### 边界（必须看清）
+
+- 全部为**源码 + JVM 合成无障碍树 / MockK 回调**。三星时钟暂停卡片真实节点结构（是否暴露「继续」、是否同时暴露「已暂停」、控件是文字还是 contentDescription）**未实机**。如果真实卡片两者都不给，可滚动列表上的计时器取消会一律安全拒绝。
+- 手电真实 CameraService 回调时序（注册事件是否总在 `setTorchMode` 之前到达、迟到多久）**未实机**。若某设备根本不下发注册事件，现在第一事件会被永远当成基线，手电结果只能停在「已下发、未确认」——宁可不可用，也不假确认。
+- `System.nanoTime()` 不含深度睡眠时间，`SystemClock.elapsedRealtime()` 含；对 120 s 撤销窗口而言差异方向是**偏宽松**（真实墙钟时间可能略超窗口而 age 仍在内）。要绝对严格需换 `elapsedRealtime`，但 JVM 单测就要加 Robolectric 影子；这一取舍记录在此，不作隐式处理。
+- 设备矩阵维持 4 通过 / 0 失败 / 3 未测；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+
 ## 第㊺轮：无新审查，推进离线项「蓝牙开关缺对象级回读」（离线源码 + JVM，未实机）
 
 需要复审；审查未关闭。本轮 PR #4 **无新审查**（最新复审 `6553305508` 已由第㊹轮评论 `6553509252` 回复，其后无新评论），按「无新审查则推进可离线项」取遗留清单里和三处开关回读同一类的最后一块：`LocalCapabilities.btSet`。

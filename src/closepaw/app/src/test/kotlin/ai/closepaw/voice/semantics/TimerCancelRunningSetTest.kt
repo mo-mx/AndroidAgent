@@ -47,9 +47,13 @@ class TimerCancelRunningSetTest {
         return n
     }
 
-    /** One timer card: an original-duration label, an optional state readout, its own cancel control. */
-    private fun card(duration: String, state: String?, cancel: AccessibilityNodeInfo) =
-        node("", *listOfNotNull(node(duration), state?.let { node(it) }, cancel).toTypedArray())
+    /**
+     * One timer card: an original-duration label, its state texts (control label and/or readout),
+     * its own cancel control. Round 46: a remaining readout alone is no longer running evidence, so
+     * the positive controls below carry the state-specific `暂停` control too.
+     */
+    private fun card(duration: String, state: String?, cancel: AccessibilityNodeInfo, state2: String? = null) =
+        node("", *listOfNotNull(node(duration), state?.let { node(it) }, state2?.let { node(it) }, cancel).toTypedArray())
 
     private fun cancelControl(): AccessibilityNodeInfo =
         node("取消").also { every { it.isClickable } returns true }
@@ -145,8 +149,8 @@ class TimerCancelRunningSetTest {
             scrollable = true,
             header = "2 个定时器正在运行",
             cards = arrayOf(
-                card("初始时长：5分钟", "剩余 4 分 50 秒", five),
-                card("初始时长：10分钟", "剩余 9 分 30 秒", ten),
+                card("初始时长：5分钟", "暂停", five, state2 = "剩余 4 分 50 秒"),
+                card("初始时长：10分钟", "暂停", ten, state2 = "剩余 9 分 30 秒"),
             ),
         )
 

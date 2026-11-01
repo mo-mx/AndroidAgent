@@ -17,17 +17,35 @@ object ActionMemory {
     /** How long a recorded mutation stays replayable as "刚才的操作". */
     const val MAX_AGE_MS: Long = 120_000L
 
+    /**
+     * Age stamp for the undo window, on a **monotonic** clock.
+     *
+     * Round 46 review P2: `at` and `undo(now)` both used `System.currentTimeMillis()`, and the only
+     * check was `now - at > MAX_AGE_MS`. A wall clock can be moved (user, NTP, timezone tooling), and
+     * a backwards correction makes the age negative — which passes the one-sided check, so a memory
+     * older than the window became replayable and its inverse ran against an object whose state
+     * nobody knows any more. `System.nanoTime()` is monotonic on both ART and the JVM, so 校时 cannot
+     * re-open the window, and unit tests need no Robolectric shadow for it.
+     */
+    private fun monotonicMs(): Long = System.nanoTime() / 1_000_000L
+
     data class Entry(
         val action: Action,
         val target: Target,
         val params: Map<String, String>,
         val speech: String,
-        val at: Long = System.currentTimeMillis(),
+        val at: Long = monotonicMs(),
     )
 
     @Volatile
     var last: Entry? = null
         private set
+
+    /** Test hook: the object is process-wide, so the JVM test class boundary is not enough. */
+    @androidx.annotation.VisibleForTesting
+    internal fun clearForTest() {
+        last = null
+    }
 
     /** Single memory boundary. An attempted mutation invalidates older undo state.
      * Clock intents expose no newly-created object ID and no identity-bound inverse API.
@@ -53,15 +71,18 @@ object ActionMemory {
      * off by hand). An inverse that did **not** run (device unavailable, no inverse) leaves the
      * entry in place, so an honest retry is still possible.
      */
-    fun undo(ctx: Context, now: Long = System.currentTimeMillis()): ToolResult {
+    fun undo(ctx: Context, now: Long = monotonicMs()): ToolResult {
         val e = last ?: return ToolResult.unavailable("undo", "无法确认刚才变更的具体对象，不能安全撤销", "no verified identity-bound inverse")
         // Round 44 review P2: `at` was recorded but never read, so a "撤销刚才的操作" said hours later
         // still ran the inverse of an old remembered state. The torch can be switched by hand or by
         // another app in between, which turns that inverse into a *new* mutation. Outside the window
         // the entry is refused and dropped; inside it nothing about an external change is known
         // either, which is why the result stays unverified.
+        // Round 46 review P2: a *negative* age is not "fresh". It only appears when the two readings
+        // did not come from the same timeline (a wall clock moved backwards); the age then says
+        // nothing about how old the memory is, so it cannot pass the window either.
         val age = now - e.at
-        if (age > MAX_AGE_MS) {
+        if (age < 0 || age > MAX_AGE_MS) {
             if (last === e) last = null
             Log.i(TAG, "undo(${e.action}/${e.target}) refused age=${age}ms > ${MAX_AGE_MS}ms")
             return ToolResult.unavailable(
