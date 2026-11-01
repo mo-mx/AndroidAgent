@@ -139,6 +139,7 @@ object LocalCapabilities {
             )
         }
         // Android 13+ blocks enable()/disable() for non-system apps; one attempt only.
+        var toggleError: Throwable? = null
         val accepted = try {
             if (on) a.enable() else a.disable()
         } catch (e: SecurityException) {
@@ -152,8 +153,20 @@ object LocalCapabilities {
                 "SecurityException on ${if (on) "enable" else "disable"}: ${e.message}; before=$before"
             )
         } catch (e: Throwable) {
+            // Round 48 review P2: this used to become `false`, i.e. the same value the API returns
+            // when it refuses — and that branch speaks "Android 不允许普通应用直接切换蓝牙". A dead
+            // service, a crashed binder or an OEM-specific exception is not a platform limitation,
+            // so the refusal wording stays reserved for an actual `false` return.
             Log.w(TAG, "bt toggle threw", e)
+            toggleError = e
             false
+        }
+        toggleError?.let { e ->
+            return ToolResult.error(
+                "bt",
+                "切换蓝牙时出错了，没能确认状态",
+                "toggle threw ${e.javaClass.simpleName}: ${e.message}; before=$before",
+            )
         }
 
         // `enable()` returning true only means the *process* has begun, so a single immediate
@@ -200,16 +213,30 @@ object LocalCapabilities {
     /**
      * Waits a bounded time for `isEnabled` to reach [want], returning the number of reads that
      * produced it (0 = never seen). Read-only: it never re-issues the toggle.
+     *
+     * Round 48 review P2: the deadline used `System.currentTimeMillis()`, so a backwards wall-clock
+     * correction made the 1.2 s window longer (in principle unbounded) and a forward jump made it
+     * shorter. It now runs on a monotonic source (`System.nanoTime()` by default), injected here so
+     * the window can be tested without waiting for real time, and the loop additionally has a hard
+     * read cap: a clock that never advances must not turn into a spin.
      */
-    private fun awaitState(a: BluetoothAdapter, want: Boolean): Int {
-        val deadline = System.currentTimeMillis() + SETTLE_TIMEOUT_MS
+    internal fun awaitState(
+        a: BluetoothAdapter,
+        want: Boolean,
+        // Nanoseconds are converted to milliseconds here: the window below is in ms.
+        now: () -> Long = { System.nanoTime() / 1_000_000L },
+        pause: (Long) -> Unit = { Thread.sleep(it) },
+    ): Int {
+        val deadline = now() + SETTLE_TIMEOUT_MS
+        val maxReads = (SETTLE_TIMEOUT_MS / SETTLE_STEP_MS).toInt() + 2
         var reads = 0
-        while (true) {
+        while (reads < maxReads) {
             reads++
             if (runCatching { a.isEnabled }.getOrNull() == want) return reads
-            if (System.currentTimeMillis() >= deadline) return 0
-            Thread.sleep(SETTLE_STEP_MS)
+            if (now() >= deadline) return 0
+            pause(SETTLE_STEP_MS)
         }
+        return 0
     }
 
     private fun stateWord(on: Boolean) = if (on) "on" else "off"

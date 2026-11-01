@@ -2,6 +2,45 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第㊽轮：复审 `6554387042`（针对 `278fdce`）3 条处理（离线源码 + JVM，未实机）
+
+**先更正第㊼轮的判断**：第㊼轮开工时（06:17Z）PR 最新评论是 `6554195052`，`> 06:01:19Z` 为空，据此判为「无新审查」；但复审 `6554387042` 于 **06:22:02Z** 到达（在我提交第㊼轮评论 06:37:52Z 之前），所以第㊼轮评论里「本轮无新审查」的说法是错的。本轮按 `6554387042` 处理，并已在该评论下更正。
+
+### [P1] 迟到/丢失的注册回调被当成请求前基线
+
+`RequestTracker.onModeChanged` 把**收到的第一条事件**无条件记成 `baseline`，并不检查它是否早于 `markRequested()`。`set()` 的基线等待只有 1200 ms：超时后照常 `markRequested()` + `setTorchMode()`，此时到来的第一条事件可能**已经是本次请求之后**的状态，被记成"基线"后，下一条匹配事件就会走 `confirmed && observed == on && baseline != null` → `verified=true`，并由 `ActionMemory` 记下可撤销的 `ENABLE/TORCH`；反向情况（只有一条真实的事后事件）会被吞成基线，变成假超时。
+
+改法：`RequestTracker` 新增 `baselinePreRequest`——记录第一条事件到达时 `requested` 是否仍为 false。`outcome` 的成功分支再加该硬条件：**基线必须早于请求**，否则 `verified` 保持 null（未证明），`detail` 标 `late-baseline`。`set()` 把该标志传进 `outcome`。
+
+### [P2] 蓝牙等待窗口用墙上时钟
+
+`awaitState` 的 `deadline = System.currentTimeMillis() + 1200`：系统时间向后拨会让 1.2 s 窗口无限延长，向前跳会提前结束。改为**单调源**（默认 `System.nanoTime() / 1_000_000`，毫秒），并加**硬读数上限**（`1200/150 + 2 = 10` 次）：时钟卡住时不会变成自旋。时钟源做成可注入参数，才能在 JVM 上测窗口而不真的等 1.2 s。
+
+### [P2] 蓝牙异常被说成平台限制
+
+`enable()/disable()` 抛非 `SecurityException` 异常时被 `runCatching` 吞成 `false`，而 `false` 正是「API 拒绝」分支 → 播报「Android 不允许普通应用直接切换蓝牙」。服务故障/binder 崩溃不是平台限制。改法：单独捕获 `toggleError`，走 `ToolResult.error("bt", "切换蓝牙时出错了，没能确认状态", "...threw <类名>")`；`SYSTEM_RESTRICTED` 措辞只保留给 API 真正返回 `false` 的情况。
+
+### TDD 与实跑数字（`--offline --rerun-tasks`，JDK 17）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TorchLateBaselineTest`(4) + `BluetoothSettleClockTest`(5)，生产未改（只有保持旧行为的脚手架：`baselinePreRequest` 恒 true、`outcome` 多一个默认 true 的参数） | **RED 9 tests / 3 failed / 0 errors**。实得：迟到基线后 `baselinePreRequest` 仍是 `true`、`verified` 实得 **`true`**（应为 null）；两次命中态回调后 `verified` 实得 **`true`**、`observed` 非空（即旧代码会报成功并写出可撤销记忆）；蓝牙 `enable()` 抛 `IllegalStateException` 实得 **`SYSTEM_RESTRICTED`** 且播报含「不允许普通应用」 |
+| 实现后 `ai.closepaw.voice.tools.*` | **GREEN**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **409 tests / 0 failed / 0 errors / 0 skipped**，exit=0（㊼ 400，+9） |
+| 全量 `:app:testDebugUnitTest` | **2499 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（`AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过、未重跑旧 SHA 基线） |
+
+**过程中被抓到的自造缺陷（如实）**：`awaitState` 默认时钟先写成了 `System.nanoTime()` 裸值，却和毫秒窗口比较——1200 ns 立刻超时，既有控制组 `turn on accepted and settled …` 与 `bluetooth evidence is what the terminal gate needs to confirm` 因此变红（`verified` 实得 null）。改成 `/1_000_000` 后转绿。这是我自己在本轮引入又由既有测试抓住的错误，不是旧缺陷。
+
+P2 的时钟修复**没有真正的 RED**：改之前无法在 JVM 上模拟校时（没有注入点），所以注入点与实现同批提交，测试断言的是「注入的单调时钟被用于 deadline（前跳立即结束）」「时钟不走时由读数上限兜底」「正常 settle 仍返回读次数」。默认时钟源从 `currentTimeMillis` 换成 `nanoTime` 属**源码审查**证据，不是行为测试证据。
+
+### 边界（必须看清）
+
+- 全部为**源码 + JVM**：`BluetoothAdapter`、`CameraManager` 均为 mock；真实 CameraService 是否总在 `setTorchMode` 前送注册事件、迟到多久、蓝牙 `enable()` 在目标机上到底返回 false 还是抛异常，**均未实机**。
+- **可用性代价（真实）**：若某设备的注册事件根本不到，基线永远缺失 → 手电结果只能停在「已下发、未确认」，不再报成功（宁可不可用，不假确认）；蓝牙异常路径现在报「出错了」，不会再引导用户去设置里点开关。
+- 设备矩阵维持 **4 通过 / 0 失败 / 3 未测**；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+- 未解：`closeAlarm` 仍 BLOCKED；计时器创建/取消对象级终态仍 UNPROVEN；阶段 2（在线 `ToolRouter` 同门禁）未开始；Issue #6 未并入。
+
+
 ## 第㊼轮：无新审查，推进离线项「查询倒计时的『至少 N 个在运行』」（离线源码 + JVM，未实机）
 
 **去重说明**：本轮开工时 PR #4 最新评论是 `6554195052`（第㊻轮的回帖，2026-11-01T06:01:19Z），它处理的是复审 `6553705515`；`created_at > 06:01:19Z` 的评论为空，因此本轮无新审查，按「无新审查 → 推进明确未完成技术项」处理遗留清单里**同类问题在查询路径上的剩余一半**。

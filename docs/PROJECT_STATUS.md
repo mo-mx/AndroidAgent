@@ -1,5 +1,33 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第㊽轮：复审 `6554387042`（针对 `278fdce`）3 条处理（源码 + JVM，未实机）
+
+**更正**：第㊼轮判「无新审查」是错的——该复审 06:22:02Z 到达（早于我 06:37:52Z 的评论），只是我开工时（06:17Z）还没出现。已在其评论下更正。
+
+- **[P1] 手电基线归属**：`RequestTracker` 把第一条事件无条件当基线，不管它是否早于 `markRequested()`。基线窗口（1200 ms）超时后照常下发请求，迟到事件就可能是**请求后**状态被记成基线 → 下一条匹配事件判 `verified=true` 并写出可撤销 `ENABLE/TORCH`；反向则吞掉真实事后事件导致假超时。改法：新增 `baselinePreRequest`（记录第一条事件时 `requested` 仍为 false），`outcome` 成功分支加此硬条件，否则 `verified=null` + `detail` 标 `late-baseline`。
+- **[P2] 蓝牙窗口时钟**：`awaitState` 的 deadline 原用 `System.currentTimeMillis()`（校时可使 1.2 s 窗口延长/缩短）。改为单调源 `System.nanoTime()/1_000_000` 毫秒（可注入）+ 硬读数上限 10 次防自旋。
+- **[P2] 蓝牙异常误报平台限制**：非 `SecurityException` 异常原被吞成 `false` → 播「Android 不允许普通应用直接切换蓝牙」。改为单独捕获并 `ToolResult.error(..., "…threw <类名>")`；`SYSTEM_RESTRICTED` 只留给 API 真返回 `false`。
+
+### TDD 与实跑数字
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TorchLateBaselineTest`(4) + `BluetoothSettleClockTest`(5)，旧行为脚手架 | **RED 9 / 3 failed / 0 errors**：迟到基线后 `verified` 实得 `true`、`baselinePreRequest` 实得 `true`；两次命中回调后 `verified` 实得 `true`；蓝牙抛 `IllegalStateException` 实得 `SYSTEM_RESTRICTED` |
+| 实现后 `ai.closepaw.voice.tools.*` | **GREEN**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **409 / 0 failed / 0 errors / 0 skipped**，exit=0（㊼ 400，+9） |
+| 全量 | **2499 / 6 failed / 0 errors / 8 skipped**，exit=1，不是全绿（既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5） |
+
+**自造缺陷（如实）**：`awaitState` 默认时钟先写成裸 `System.nanoTime()`（纳秒）却与毫秒窗口比较 → 立即超时；既有控制组两例因此变红（`verified` 实得 null），改成 `/1_000_000` 后转绿。P2 时钟修复**没有真正的 RED**（改前无注入点、无法在 JVM 模拟校时），注入点与实现同批提交，默认源改 `nanoTime` 属源码审查证据。
+
+### 边界
+
+- 全部源码 + JVM（`BluetoothAdapter`/`CameraManager` 均 mock）；真实注册事件时序、迟到时长、`enable()` 在目标机是返回 false 还是抛异常，**未实机**。
+- 可用性代价：注册事件不到的设备上，手电只能报「已下发、未确认」，不再报成功。
+- 设备矩阵维持 **4 通过 / 0 失败 / 3 未测**；本 SHA 未构建、未安装、未实测，实机需用户**重新授权**。
+- 未解：`closeAlarm` 仍 BLOCKED；计时器创建/取消对象级终态仍 UNPROVEN；阶段 2 未开始；Issue #6 未并入。
+- 未 push main、未合并、未装 APK、未操作手机、未调用付费 API、未 delegate、未改受保护规则。
+
+
 ## 第㊼轮：无新审查，推进离线项「查询倒计时的『至少 N 个在运行』」（源码 + JVM，未实机）
 
 本轮开工时 PR #4 最新评论是 `6554195052`（第㊻轮回帖，06:01:19Z），处理的是复审 `6553705515`；其后无新评论，因此无新审查。按「无新审查则推进可离线项」修**同一错误在查询路径上的残留**。

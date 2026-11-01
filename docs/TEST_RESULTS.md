@@ -1,8 +1,21 @@
 # TEST_RESULTS — 实机验收记录
 
 更新：2026-10-31　维护方式：每次真机验证后**追加**一条，写清"测什么/怎么测/结果/证据在哪"。
-规则：没有真机日志的项目只能写"未验证"，不得写"通过"。
----
+规则：没有真机日志的项目只能写"未验证"，不得写"通过"。---
+
+## 2026-11-01 第㊽轮（仅 JVM，未实机）
+
+测什么：复审 `6554387042` 的 1 条 P1 + 2 条 P2。P1：手电 `RequestTracker` 把收到的第一条回调无条件当基线，不看它是否早于 `markRequested()`；基线窗口超时后下发请求，迟到事件可能已是请求后状态 → 被记成基线 → 下一条匹配事件判 `verified=true` 并写出可撤销 `ENABLE/TORCH`（反向则吞掉真实事后事件 → 假超时）。P2：蓝牙 `awaitState` 的 1.2 s 窗口用 `System.currentTimeMillis()`，校时可延长/缩短；P2：蓝牙 `enable()`/`disable()` 抛非 `SecurityException` 异常被吞成 `false`，落进「API 拒绝」分支播「Android 不允许普通应用直接切换蓝牙」。
+
+怎么测：仓库根 `source env.sh` → `cd src/closepaw` → `./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.voice.tools.TorchLateBaselineTest' --tests 'ai.closepaw.voice.tools.BluetoothSettleClockTest' --rerun-tasks --console=plain`（新测试先写、生产仅旧行为脚手架，取 RED）；实现后跑 `--tests 'ai.closepaw.voice.tools.*'`，再 `--tests 'ai.closepaw.voice.*'`，最后全量同任务不带 `--tests`。
+
+实际结果：新 `TorchLateBaselineTest`(4) + `BluetoothSettleClockTest`(5) **RED 9 tests / 3 failed / 0 errors**（Truth 断言失败，非编译错误；6 条控制组/时钟用例本就通过）。实得：迟到基线后 `baselinePreRequest` 实得 `true`、`verified` 实得 **`true`**（期望 null）；两次命中态回调后 `verified` 实得 **`true`** 且 `observed` 非空；蓝牙 `enable()` 抛 `IllegalStateException` 实得 **`SYSTEM_RESTRICTED`** 且播报含「不允许普通应用」。实现后 `ai.closepaw.voice.tools.*` **GREEN**（exit=0）；定向 `ai.closepaw.voice.*` **409 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊼轮 400，+9）；全量 **2499 tests / 6 failed / 0 errors / 8 skipped**（Gradle exit=1，**不是全绿**，失败仍是既有 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，未重跑旧 SHA 基线）。
+
+过程问题（如实）：`awaitState` 默认时钟先写成裸 `System.nanoTime()`（纳秒）却与毫秒窗口比较，1.2 s 窗口变成 1.2 µs；既有控制组 `turn on accepted and settled …`、`turn off accepted and settled …`、`bluetooth evidence is what the terminal gate needs to confirm` 因此变红（`verified` 实得 null）。改成 `System.nanoTime() / 1_000_000` 后转绿——是我本轮引入又被既有测试抓住的错误。另：P2 的时钟修复**没有真正的 RED**，因为改前没有注入点、无法在 JVM 模拟校时；注入点与实现同批提交，测试断言「注入的单调时钟驱动 deadline（前跳立即结束）」「时钟不前进时由 10 次读数上限兜底」「正常 settle 仍返回读次数」，而默认源从 `currentTimeMillis` 换成 `nanoTime` 只有源码审查证据。
+
+未验证：真实 CameraService 是否总在 `setTorchMode` 之前送注册事件、迟到多久、注册事件丢失时设备行为；目标机（SM-F731U1 / Android 17）上蓝牙 `enable()` 是返回 false 还是抛异常、`BLUETOOTH_CONNECT` 是否已授予——全部**未实机**。可用性代价：注册事件不到的设备上，手电结果只能停在「已下发、未确认」，不再报成功。本轮未构建/安装 APK、未操作手机。
+
+证据：本机 gitignored `logs/pr4-round48-{red,green1,green2,targeted,full}.txt`，不入库。
 
 ## 2026-11-01 第㊼轮（仅 JVM，未实机）
 

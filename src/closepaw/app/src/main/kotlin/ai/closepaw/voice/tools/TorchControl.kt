@@ -119,7 +119,7 @@ object TorchControl {
             outcome(
                 on = on, cameraId = cam.id, observed = tracker.postState,
                 unavailable = tracker.unavailable, confirmed = confirmed && tracker.confirmed,
-                baseline = tracker.baseline,
+                baseline = tracker.baseline, baselinePreRequest = tracker.baselinePreRequest,
             )
         } catch (e: CameraAccessException) {
             Log.e(TAG, "setTorchMode failed", e)
@@ -171,6 +171,19 @@ object TorchControl {
         @Volatile var sawReport: Boolean = false
             private set
 
+        /**
+         * Was the first report seen *before* the request was issued?
+         *
+         * Round 48 review P1: the tracker used to promote *any* first event to baseline, however
+         * late it arrived. A registration event that is delayed past `markRequested()` (or dropped
+         * and replaced by the post-request event) then became a "baseline" that was really our own
+         * request's state, so the next matching event confirmed it and an undoable memory was
+         * recorded for a change nobody could attribute. A baseline is only a baseline when it
+         * predates the request; without that the verdict must stay unproven.
+         */
+        @Volatile var baselinePreRequest: Boolean = true
+            private set
+
         val confirmed: Boolean get() = postState == on
 
         fun markRequested() {
@@ -188,6 +201,9 @@ object TorchControl {
                 // report describes the mode that existed before this request: keep it as baseline.
                 sawReport = true
                 baseline = enabled
+                // Only a report that predates the request can say what the camera looked like
+                // before we asked it to change (round 48 review P1).
+                baselinePreRequest = !requested
                 return false
             }
             if (!requested) return false
@@ -224,6 +240,7 @@ object TorchControl {
         unavailable: Boolean,
         confirmed: Boolean,
         baseline: Boolean?,
+        baselinePreRequest: Boolean = true,
     ): ToolResult =
         when {
             // A camera that went unavailable after the request is not a success, whatever an
@@ -237,7 +254,7 @@ object TorchControl {
             // evidence of the promised state, so it has to be reported as such. Until round 34 it
             // was not, and `TerminalState` — which needs structured evidence for `on:TORCH` /
             // `off:TORCH` — hedged a torch that had really come on into "请求已经发出，但没能确认结果".
-            confirmed && observed == on && baseline != null -> ToolResult.ok(
+            confirmed && observed == on && baseline != null && baselinePreRequest -> ToolResult.ok(
                 "torch",
                 if (on) "手电筒已打开" else "手电筒已关闭",
                 verified = true,
@@ -256,8 +273,9 @@ object TorchControl {
             else -> ToolResult(
                 ToolStatus.TIMEOUT, "torch",
                 if (on) "手电筒请求发出去了，但没等到确认" else "关闭请求发出去了，但没等到确认",
-                "no post-request TorchCallback matching requested=$on within ${VERIFY_TIMEOUT_MS}ms" +
-                    " (baseline=$baseline)",
+                "no attributed post-request TorchCallback matching requested=$on within" +
+                    " ${VERIFY_TIMEOUT_MS}ms (baseline=$baseline baselinePreRequest=$baselinePreRequest" +
+                    " post=$observed" + (if (baseline != null && !baselinePreRequest) " late-baseline" else "") + ")",
                 null,
                 dispatched = true,
             )
