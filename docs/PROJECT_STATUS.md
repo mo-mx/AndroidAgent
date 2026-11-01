@@ -1,5 +1,32 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第51轮：复审 `6555767212`（针对 `5789be4`）B2 安全入口 + B3 归因（源码 + JVM + Python + 干净 clone，未实机）
+
+复审意见：B2/P1「新纳入版本控制并打包的 Termux bridge 允许未经认证的本地进程执行任意 shell 命令」，B3「阶段验收归因仍未闭合」。两条都离线处理；**同时接受审查的停止条件：不再扩项，B2 的处理方式（加认证而不是删除功能）需用户确认，若要改为「交付版本不含该入口」可整体回退本轮的 `tools/termux-bridge` 打包改动。**
+
+- **[B2/P1] 问题成立**：`closepaw_bridge.py` 的 `/v1/exec` 没有任何调用方鉴别，任何能访问设备 loopback 的本地进程 `POST {"command": ...}` 即以 Termux 权限执行 shell；`--host` 还能绑到 `0.0.0.0`；`cwd` 限定到 workspace 不是沙箱。改法（三条一起才有意义）：①所有端点要求 `Authorization: Bearer <token>`，token 由 App 生成并写入 Termux 私有目录 `~/.closepaw/token`（`umask 077`、`chmod 600`）；②**fail closed**——没有 token 文件或长度 < 32 时 daemon 打印 `token_missing` 退出，`--host` 非回环则 `host_not_allowed` 退出；③`BRIDGE_VERSION` 由 `1` 升到 `2`，App 侧 401 映射为 `HealthProbe.Unauthorized` → 视作 `BRIDGE_OUTDATED` 重新部署，`TermuxShellTool` 无 token 时本地拒绝、401 时报 `bridge_auth_rejected`。
+- **[B3] 审查给的基线方法在 `main` 上不可行**：真实干净 clone `main`（`580261f`）后只补 5789be4 的构建输入（launcher PNG、`tools/termux-bridge`、生成 `res/raw`），`:app:compileDebugKotlin` **53 处 `Unresolved reference`** 直接失败——`ai.closepaw.voice.tools` 整个包在 `main` 树上不存在（`git ls-tree` 为 0 项）。`main` 只有 2 个提交、是源码不完整的协作快照，因此「从 main 干净检出跑同一组 6 个测试」这条路当前走不通。
+- **[B3] 改用机制归因（比对照 SHA 更强）**：6 项失败的两处根因都是**Windows 宿主语义**，不是 PR 代码——①`AgentSkillCatalogTest` 断言 `endsWith("my-skill/SKILL.md")`，Windows 路径分隔符是 `\`；②`MemoryStoreTest` 5 项都走 `MemoryStore.atomicWrite` 的 `File.renameTo(target)`，Windows 上**覆盖已存在文件返回 false**（实测探针：`renameTo over existing target = false`，目标仍是旧内容），于是除首次建档外的每次 append 都抛 `IOException` 返回 `false`，表现为「expected to be true」「expected: 2 but was: 1」。**这 5 个文件（`MemoryStore.kt`/`MemorySchema.kt`/`MemoryStoreTest.kt`/`AgentSkillCatalog.kt`/`AgentSkillCatalogTest.kt`）在 `main` 与 HEAD 的 blob SHA 完全相同**，且本 PR 对 `memory`/`skills` 目录的 diff 为 0。本 PR 未改、未跳过这些测试。
+
+### 实跑数字
+
+| 阶段 | 结果 |
+|---|---|
+| 新 Python `test_bridge_auth.py`(9)（生产未改） | **RED 5 failed / 3 errors / 1 passed** |
+| Python 全套（改后） | **20 passed / 7 failed / 1 skipped**（7 条为既有用例的 POSIX 依赖，逐条列在 `TEST_RESULTS.md`） |
+| Python 全套（改前，同机） | **1 passed / 7 failed / 11 errors**（未隔离 `CLOSEPAW_HOME`，worker 共用真实 `~/.closepaw/bridge.pid` 互相 kill） |
+| Kotlin `ai.closepaw.termux.*` + `TermuxShellToolTest` | **52 / 0 failed**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **423 / 0 failed / 0 errors / 0 skipped**，exit=0 |
+| 全量 | **2528 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**；6 项即上面两个宿主语义缺陷 |
+
+### 边界（未验证）
+
+- 全部 **源码 + JVM + Python(Windows)**，`CameraManager`/`AlarmManager` 与真实 Termux 都是 mock/模拟。**没有构建 APK、没有安装、没有操作手机**。
+- 真实 Termux 是否允许 `chmod 600 ~/.closepaw/token`、`RUN_COMMAND` 下 `umask 077` 是否生效、Android 上跨应用能否访问另一应用的 loopback 端口（威胁模型前提）、旧 daemon 被 401 后重新部署的端到端链路：**均未实机**。设备矩阵仍是 **4 通过 / 0 失败 / 3 未测（旧 APK/旧 SHA）**，本 SHA 实机需用户**重新授权**。
+- **残余风险（未消除）**：token 作为部署命令的一部分出现在 Termux 侧一次性 `bash` 进程的 argv 里。Android 对 `/proc/<pid>/cmdline` 的跨 uid 读取限制（hidepid）理论上挡住其它应用，**未在本机/真机验证**；同 uid 的 Termux 进程可读，属同一信任域。要彻底消除需改为 stdin 传 token（会改动 RUN_COMMAND 的 stdin 协议，未做）。
+- 若用户决定「该危险入口不应出现在交付版本」，正确做法是把 `tools/termux-bridge` 与 `copyClosePawBridge` 一并移出 PR（bridge 仅是 B3 构建输入的副产品），而不是继续加认证——这要用户拍板，我不擅自删除功能。
+- `closeAlarm` 仍安全 BLOCKED；计时器对象级终态仍 UNPROVEN；阶段 2（在线 `ToolRouter` 同门禁）未开始；Issue #6 未并入。
+
 ## 第㊿轮：复审 `6555456830`（针对 `50a4c6a`）2 个 BLOCKER 处理（源码 + JVM + 干净 clone，未实机）
 
 复审意见：B2/P1「撤销首次发现目标态已由用户手动恢复时，不消费旧记忆」，B3「交付证据不能独立复核」。两条都属可离线处理，本轮全部处理，HEAD 现为 **`5789be4`**。

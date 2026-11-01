@@ -2,6 +2,29 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第51轮：复审 `6555767212`（针对 `5789be4`）Termux bridge 认证 + 失败归因（离线源码 + JVM + Python，未实机）
+
+**范围说明**：本轮只处理这两条 BLOCKER，不扩项。审查已宣布「两轮停止条件」，因此本轮的目标是**把危险入口变成不可达/需凭证**并把失败归因做实，而不是继续追新问题。
+
+### B2/P1 — 未认证的 loopback shell 入口
+
+审查描述成立，且比描述更宽：`/v1/exec` 与 `/v1/health` 都不看调用方身份，`parse_args` 还允许 `--host 0.0.0.0`。改动分四层，缺一层都不算收口：
+
+1. **服务端 fail closed**：`main()` 先 `read_token()`，没有 `<closepaw_dir>/token` 或长度 < 32 就 `token_missing` 退出；`--host` 不在 `{127.0.0.1, ::1, localhost}` 则 `host_not_allowed` 退出；`Handler.authorized()` 用 `hmac.compare_digest` 比对 `Authorization: Bearer …`，GET/POST 都先验。
+2. **凭证来源**：App 生成 32 字节 base64url token（`SecureRandom`，`TermuxBridgeToken`），部署命令前置 `umask 077 && mkdir -p ~/.closepaw && printf '%s' '<token>' > ~/.closepaw/token && chmod 600 ~/.closepaw/token`，再 `&&` 接原来的 payload 安装（仍是 stdin 传 base64，token 不进 stdin）。
+3. **版本闸门**：`BRIDGE_VERSION` `1`→`2`，`BRIDGE_VERSION_EXPECTED` 同步；老 daemon 会被 app 判 `BridgeOutdated` 从而重新部署（否则新 App 会一直 401）。
+4. **调用侧**：`HttpTermuxHealthProbe` 带 token，401 → `HealthProbe.Unauthorized`（新枚举值），manager 视作 `BRIDGE_OUTDATED`/重新 bootstrap；`TermuxShellTool` 无 token 时**本地**拒绝（`bridge_auth_unavailable`，一个请求都不发），401 报 `bridge_auth_rejected`。
+
+另：测试夹具引入 `CLOSEPAW_HOME` 覆盖（生产默认仍是 `~/.closepaw`），否则所有 pytest worker 共用真实 `~/.closepaw/bridge.pid` 互相 kill —— 这也是改动前 Python 全套 11 errors 的原因。
+
+### B3 — 归因
+
+审查要求的「从 `main` 干净检出跑同一组 6 个测试」**做不到**：`main` 上 `ai.closepaw.voice.tools` 整个包不存在，`compileDebugKotlin` 53 处 `Unresolved reference`。改走机制归因（见 `PROJECT_STATUS.md` 第51轮与 `TEST_RESULTS.md`）：1 项是 Windows 路径分隔符断言，5 项是 `File.renameTo` 在 Windows 无法覆盖已存在文件导致 `MemoryStore.append` 恒返回 false；相关 5 个文件的 blob SHA 在 `main` 与 HEAD 相同，本 PR 对这些目录 diff 为 0。
+
+### 数字与边界
+
+Python：auth 用例 RED 5 failed / 3 errors → 实现后 **20 passed / 7 failed / 1 skipped**（7 条既有用例的 POSIX 依赖）。Kotlin：`ai.closepaw.termux.*`+`TermuxShellToolTest` **52/0**；`ai.closepaw.voice.*` **423/0/0/0**；全量 **2528 / 6 failed / 8 skipped**，exit=1。全部未实机；真实 Termux 的目录权限、`chmod` 是否被 SELinux 允许、跨应用 loopback 可达性均未验证。Kotlin 侧测试与实现同批写、未单独取 RED（只有 Python 侧测试先行）。
+
 ## 第㊾轮：复审 `6555010682`（针对 `8b48f3a`）B1/B2 + B3 证据（离线源码 + JVM，未实机）
 
 **范围说明**：本轮按冻结清单只处理 B1/B2（手电「本来就是目标状态」→ 错误的撤销记忆）与 B3（交付证据门槛）。B3 不是业务代码修改：它要的是「同一 HEAD 的可复现结果」+「6 项失败的同环境旧 SHA 基线」，见下面的实测。

@@ -125,6 +125,39 @@ Termux 上可直接执行；不要用 Windows 编辑器把它改成 CRLF 再提�
 
 ## 5. 边界
 
+### 5.1 第51轮补充：`main` 不是可用基线（实测）
+
+审查要求「从 `main` 干净检出跑同一组 6 个测试」。本轮真的做了，结论是**当前 `main` 无法编译**：
+
+```
+git clone --depth 1 --branch main https://github.com/mo-mx/AndroidAgent.git
+# 仅补 5789be4 的构建输入：launcher PNG、tools/termux-bridge、生成 res/raw
+source env.sh && cd src/closepaw && ./gradlew --offline --rerun-tasks :app:testDebugUnitTest \
+  --tests 'ai.closepaw.agent.cognition.skills.AgentSkillCatalogTest' \
+  --tests 'ai.closepaw.memory.MemoryStoreTest'
+# => BUILD FAILED in 16s
+#    :app:compileDebugKotlin — 53 处 "Unresolved reference"（ai.closepaw.voice.tools 等）
+```
+
+`git ls-tree -r origin/main -- src/closepaw/app/src/main/kotlin/ai/closepaw/voice/tools` 返回 **0 项**：
+`main`（仅 2 个提交）是源码不完整的协作快照，`SemanticRunner.kt` 引用的整个 `voice/tools` 包不在树上。
+因此「从 main 跑基线」在这条分支上不可行，`docs/PROJECT_STATUS.md` 第51轮记录的是**机制归因**（Windows
+路径分隔符 + `File.renameTo` 无法覆盖已存在文件）以及 5 个相关文件在 `main`/`HEAD` 的 **blob SHA 相同**，
+不是"再跑一次旧 SHA"的重复。
+
+### 5.2 第51轮补充：bridge 现在**必须**有 token 才能启动
+
+干净检出后若要手动起 bridge（`python3 tools/termux-bridge/closepaw_bridge.py`），先准备凭证，否则
+daemon 会打印 `token_missing` 退出（这是 B2 安全修复的 fail-closed 行为，不是配置错误）：
+
+```
+python3 -c "import secrets,base64;print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip('='))" > ~/.closepaw/token
+chmod 600 ~/.closepaw/token
+```
+
+`--host` 只接受 `127.0.0.1` / `::1` / `localhost`；其它值退出码 1、stderr `host_not_allowed`。
+pytest 用 `CLOSEPAW_HOME` 把 `~/.closepaw` 指向临时目录（见 `tests/conftest.py`），不会碰真实 Termux 目录。
+
 - 以上全部是 **JVM + 静态源码**证据。**本 SHA 没有构建 APK、没有安装、没有实机操作**（需用户重新授权）。
 - 设备矩阵维持历史值：4 通过 / 0 失败 / 3 未测，**不代表当前 HEAD**。
 - 已验证：干净检出可完成资源链接、可跑完全部 2513 个 JVM 测试并复现同样的 6 项失败。

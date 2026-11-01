@@ -3,6 +3,33 @@
 更新：2026-10-31　维护方式：每次真机验证后**追加**一条，写清"测什么/怎么测/结果/证据在哪"。
 规则：没有真机日志的项目只能写"未验证"，不得写"通过"。---
 
+## 2026-11-01 第51轮（仅 JVM + Python + 干净 clone，未实机）
+
+测什么：复审 `6555767212`（针对 HEAD `5789be4`）的两条 BLOCKER —— **B2/P1 Termux bridge 未认证 exec**、**B3 失败归因仍不能独立复核**。
+
+怎么测（Python 侧）：`src/closepaw/tools/termux-bridge` 下 `python -m pytest -q`。本机 Hermes venv 无 pytest，用 `uv venv` 建临时环境再 `uv pip install pytest`（9.2.0），不是项目依赖变更。
+
+怎么测（Kotlin 侧）：仓库根 `source env.sh` → `cd src/closepaw` → `./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.termux.*' --tests 'ai.closepaw.tool.impl.TermuxShellToolTest'`，再定向 `ai.closepaw.voice.*`，最后全量 `--rerun-tasks`。
+
+实际结果：
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `tests/test_bridge_auth.py`(9)，生产未改 | **RED：5 failed / 3 errors / 1 passed**（无 token 也能 exec、无 token 也能 health、version 仍是 `1`、`--host 0.0.0.0` 照收、缺 token 文件照启动） |
+| 实现后 Python 全套 | **20 passed / 7 failed / 1 skipped**。9 条 auth 用例全绿（1 条 POSIX 文件权限用例在 Windows 上 skip）；7 条失败全部是既有用例的 **POSIX 语义**依赖，见下 |
+| 改动前同机 Python 全套（`git archive HEAD` 到临时目录跑） | **1 passed / 7 failed / 11 errors**：`CLOSEPAW_HOME` 未隔离时所有 worker 共用真实 `~/.closepaw/bridge.pid`，互相 kill，fixture 直接报错 |
+| Kotlin 定向 `ai.closepaw.termux.*` + `TermuxShellToolTest` | **52 tests / 0 failed**，BUILD SUCCESSFUL，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **423 / 0 failed / 0 errors / 0 skipped**，exit=0（与第㊿轮持平，本轮未改 voice） |
+| 全量 `:app:testDebugUnitTest`（`--rerun-tasks`） | **2528 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（第㊿轮 2513，新测试 +15）；6 项失败名与第㊿轮完全一致 |
+| `main` 干净 clone + 仅构建输入（第 5789be4 的 PNG、`tools/termux-bridge`、生成 `res/raw`）跑两个失败类 | **BUILD FAILED in 16s**，`:app:compileDebugKotlin` **53 处 `Unresolved reference`**（`ai.closepaw.voice.tools` 包在 `main` 树上根本不存在） |
+| 6 项失败的归因取证 | 失败类的生产/测试文件 `git rev-parse origin/main:<path>` 与 `HEAD:<path>` **完全相同（5/5 文件）**；`renameTo` 探针在 Windows 11 上 `renameTo` 覆盖已存在文件返回 **false**、目标仍是旧内容 |
+
+7 条 Python 失败逐条（**均为 POSIX 语义依赖，不是本轮引入**）：`test_exec_timeout_kills_process_group`、`test_client_disconnect_kills_process_group_and_releases_exec_lock`（进程组信号语义）、`test_cwd_is_constrained_to_resolved_workspace`（`Path.home()` 在 Windows 读 `USERPROFILE`、不读 `HOME`）、`test_port_in_use_exits_non_zero_and_reports_error`（Windows 抛 WSAEACCES 10013 而不是 `EADDRINUSE`）、`test_stale_daemon_pidfile_is_overwritten_by_new_daemon`、`test_live_old_bridge_is_health_probed_then_replaced`、`test_busy_exec_returns_http_409_without_waiting`。
+
+修复（B2）：bridge 只接受 `Authorization: Bearer <token>`，token 由 App 生成（32 字节 base64url）、部署时写入 `~/.closepaw/token`（`umask 077` + `chmod 600`，Termux 私有目录）；**没有 token 文件或长度 < 32 时 daemon 直接 `token_missing` 退出**，`--host` 只接受回环地址（否则 `host_not_allowed` 退出）；`BRIDGE_VERSION` 升到 `2`，App 的 health 探针 401 → `HealthProbe.Unauthorized` → 按 `BRIDGE_OUTDATED` 重新部署；`TermuxShellTool` 无 token 时本地拒绝（`bridge_auth_unavailable`），401 报 `bridge_auth_rejected`。
+
+未验证（照实写）：真实 Termux 上 `~/.closepaw` 目录权限、`chmod` 是否被 `com.termux` 的 SELinux 域允许、Android 跨应用 loopback 可达性（这既是威胁模型也是未实测前提）、老 daemon 被 401 触发重新部署的完整链路 —— **全部未实机**。Kotlin 侧测试是与实现同批写的，**没有单独取 RED**（只有 Python 侧做了测试先行 RED→GREEN）。
+
 ## 2026-11-01 第㊿轮（仅 JVM + 干净 clone，未实机）
 
 测什么：复审 `6555456830`（HEAD `50a4c6a`）的 **B2/P1** 与 **B3**。

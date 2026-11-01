@@ -15,6 +15,18 @@ import pytest
 
 HOST = "127.0.0.1"
 BRIDGE_SCRIPT = Path(__file__).resolve().parents[1] / "closepaw_bridge.py"
+TOKEN = "test-bridge-token-0123456789abcdef0123456789abcdef"
+USE_STORED_TOKEN = object()
+
+
+def write_token(home, token=TOKEN):
+    """Creates the Termux-private token file the daemon requires at startup."""
+    root = Path(home) / ".closepaw"
+    root.mkdir(parents=True, exist_ok=True)
+    path = root / "token"
+    path.write_text(token)
+    os.chmod(path, 0o600)
+    return path
 
 
 @dataclass
@@ -28,12 +40,15 @@ class BridgeProcess:
     port: int
     home: Path
     process: subprocess.Popen
+    token: str = TOKEN
 
-    def get_json(self, path, timeout=5):
-        return request_json(self.port, "GET", path, timeout=timeout)
+    def get_json(self, path, timeout=5, token=USE_STORED_TOKEN):
+        return request_json(self.port, "GET", path, timeout=timeout, token=token)
 
-    def post_json(self, path, payload, timeout=10):
-        return request_json(self.port, "POST", path, payload=payload, timeout=timeout)
+    def post_json(self, path, payload, timeout=10, token=USE_STORED_TOKEN):
+        return request_json(
+            self.port, "POST", path, payload=payload, timeout=timeout, token=token
+        )
 
 
 @pytest.fixture
@@ -47,16 +62,24 @@ def free_port():
 def bridge_factory():
     processes = []
 
-    def start_bridge(port, home, idle_timeout_sec=0, watchdog_tick_sec=None, extra_env=None):
+    def start_bridge(
+        port,
+        home,
+        idle_timeout_sec=0,
+        watchdog_tick_sec=None,
+        extra_env=None,
+        token=TOKEN,
+    ):
         proc = start_process(
             port,
             home,
             idle_timeout_sec=idle_timeout_sec,
             watchdog_tick_sec=watchdog_tick_sec,
             extra_env=extra_env,
+            token=token,
         )
         processes.append(proc)
-        bridge = BridgeProcess(port=port, home=home, process=proc)
+        bridge = BridgeProcess(port=port, home=home, process=proc, token=token)
         wait_for_health(bridge)
         return bridge
 
@@ -72,9 +95,21 @@ def bridge_server(tmp_path, free_port, bridge_factory):
     return bridge_factory(free_port, tmp_path)
 
 
-def start_process(port, home, idle_timeout_sec=0, watchdog_tick_sec=None, extra_env=None):
+def start_process(
+    port,
+    home,
+    idle_timeout_sec=0,
+    watchdog_tick_sec=None,
+    extra_env=None,
+    token=TOKEN,
+):
+    if token is not None:
+        write_token(home, token)
     env = os.environ.copy()
     env["HOME"] = str(home)
+    # Same directory the app uses in production (~/.closepaw), pointed at the test home so
+    # the token file and pidfile never touch the developer's real Termux directory.
+    env["CLOSEPAW_HOME"] = str(Path(home) / ".closepaw")
     env["PYTHONUNBUFFERED"] = "1"
     if extra_env:
         env.update(extra_env)
@@ -131,9 +166,13 @@ def wait_for_health(bridge):
     raise AssertionError(f"bridge did not become healthy on port {bridge.port}: {last_error!r}")
 
 
-def request_json(port, method, path, payload=None, timeout=5):
+def request_json(port, method, path, payload=None, timeout=5, token=USE_STORED_TOKEN):
     data = None
     headers = {}
+    if token is USE_STORED_TOKEN:
+        token = TOKEN
+    if token is not None:
+        headers["Authorization"] = f"Bearer {token}"
     if payload is not None:
         data = json.dumps(payload, separators=(",", ":")).encode()
         headers["Content-Type"] = "application/json"

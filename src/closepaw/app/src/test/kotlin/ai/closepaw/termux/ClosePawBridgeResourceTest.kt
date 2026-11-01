@@ -69,7 +69,8 @@ class ClosePawBridgeResourceTest {
 
     private companion object {
         const val BRIDGE_SOURCE_PATH = "tools/termux-bridge/closepaw_bridge.py"
-        const val EXPECTED_BRIDGE_VERSION_LINE = "BRIDGE_VERSION = \"1\""
+        // Version 2 requires the shared token; the app refuses to talk to a version 1 daemon.
+        const val EXPECTED_BRIDGE_VERSION_LINE = "BRIDGE_VERSION = \"2\""
         const val TEST_CONFIG_PATH = "com/android/tools/test_config.properties"
         const val RAW_RESOURCE_PATH = "res/raw/closepaw_bridge_py"
     }

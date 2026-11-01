@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """ClosePaw Termux bridge daemon."""
-BRIDGE_VERSION = "1"
+BRIDGE_VERSION = "2"
 import argparse
 import errno
+import hmac
 import json
 import os
 import select
@@ -19,6 +20,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 IDENTITY = "closepaw-bridge"
 DEFAULT_HOST, DEFAULT_PORT = "127.0.0.1", 18422
+LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
+TOKEN_MIN_LEN = 32
 DEFAULT_TIMEOUT_MS = MAX_TIMEOUT_MS = 120_000
 DEFAULT_OUTPUT_BYTES = 65536
 POLL_SEC = 0.25
@@ -26,9 +29,23 @@ exec_lock = threading.Lock()
 class InvalidRequest(Exception): pass
 class WorkspaceEscape(Exception): pass
 def closepaw_dir():
-    path = Path.home() / ".closepaw"
+    override = os.environ.get("CLOSEPAW_HOME")
+    path = Path(os.path.expanduser(override)) if override else Path.home() / ".closepaw"
     path.mkdir(parents=True, exist_ok=True)
     return path
+def token_path():
+    return closepaw_dir() / "token"
+def read_token():
+    """The shared secret the app writes into Termux-private storage before starting us.
+
+    Anything that can reach 127.0.0.1:18422 could otherwise run shell commands as the
+    Termux user; only a caller holding this token may reach subprocess.Popen.
+    """
+    try:
+        token = token_path().read_text().strip()
+    except OSError:
+        return None
+    return token if len(token) >= TOKEN_MIN_LEN else None
 def workspace_root():
     raw = os.environ.get("CLOSEPAW_WORKSPACE") or "~/closepaw/workspace"
     path = Path(os.path.expanduser(raw)).resolve()
@@ -271,13 +288,14 @@ def run_command(request, spec):
     }, disconnected
 class BridgeServer(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, address, handler, idle_timeout_sec, watchdog_tick_sec):
+    def __init__(self, address, handler, idle_timeout_sec, watchdog_tick_sec, token):
         super().__init__(address, handler)
         self.started_at = time.monotonic()
         self.last_request_at = self.started_at
         self.last_request_lock = threading.Lock()
         self.idle_timeout_sec = idle_timeout_sec
         self.watchdog_tick_sec = watchdog_tick_sec
+        self.token = token
     def touch_request(self):
         with self.last_request_lock:
             self.last_request_at = time.monotonic()
@@ -290,6 +308,15 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     def log_message(self, fmt, *args):
         return
+    def authorized(self):
+        """Fails closed: no token configured means no caller is authorized."""
+        expected = getattr(self.server, "token", None)
+        if not expected:
+            return False
+        header = self.headers.get("Authorization", "")
+        if not header.startswith("Bearer "):
+            return False
+        return hmac.compare_digest(header[len("Bearer "):].strip(), expected)
     def send_error(self, code, message=None, explain=None):
         self.send_json(code, {"error": "http_error"})
     def send_json(self, status, body):
@@ -318,6 +345,9 @@ class Handler(BaseHTTPRequestHandler):
         return data
     def do_GET(self):
         self.server.touch_request()
+        if not self.authorized():
+            self.send_json(401, {"error": "unauthorized"})
+            return
         if self.path.split("?", 1)[0] != "/v1/health":
             self.send_json(404, {"error": "not_found"})
             return
@@ -330,6 +360,9 @@ class Handler(BaseHTTPRequestHandler):
         })
     def do_POST(self):
         self.server.touch_request()
+        if not self.authorized():
+            self.send_json(401, {"error": "unauthorized"})
+            return
         if self.path.split("?", 1)[0] != "/v1/exec":
             self.send_json(404, {"error": "not_found"})
             return
@@ -369,11 +402,20 @@ def parse_args():
     return parser.parse_args()
 def main():
     args = parse_args()
+    if args.host not in LOOPBACK_HOSTS:
+        # The exec endpoint is a shell; binding it to a routable address would expose
+        # it to the whole network, not just this device.
+        print("host_not_allowed", file=sys.stderr)
+        return 1
+    token = read_token()
+    if token is None:
+        print("token_missing", file=sys.stderr)
+        return 1
     pidfile = closepaw_dir() / "bridge.pid"
     kill_old_bridge(pidfile)
     try:
         server = BridgeServer((args.host, args.port), Handler,
-                              args.idle_timeout_sec, args.watchdog_tick_sec)
+                              args.idle_timeout_sec, args.watchdog_tick_sec, token)
     except OSError as exc:
         if exc.errno == errno.EADDRINUSE:
             print("port_in_use", file=sys.stderr)

@@ -1,6 +1,7 @@
 package ai.closepaw.tool.impl
 
 import ai.closepaw.test.FakeAndroidPlatform
+import ai.closepaw.termux.TermuxBridgeToken
 import ai.closepaw.tool.ToolExecutionContext
 import ai.closepaw.tool.ToolExecutionResult
 import com.google.common.truth.Truth.assertThat
@@ -16,12 +17,26 @@ import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.json.JSONObject
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class TermuxShellToolTest {
+
+    // The tool refuses to call the bridge without the shared secret (B2, review 6555767212),
+    // so every test that expects a request needs one published first.
+    @Before
+    fun publishToken() {
+        TermuxBridgeToken.publish("unit-test-token-0123456789abcdef0123456789")
+    }
+
+    @After
+    fun clearToken() {
+        TermuxBridgeToken.clear()
+    }
 
     @Test
     fun `missing command returns invalid request failure`() = runTest {

@@ -24,12 +24,13 @@ class TermuxBridgeManager internal constructor(
     private val healthProbe: TermuxHealthProbe,
     private val termuxInstallProbe: TermuxInstallProbe,
     private val bridgePayloadBase64: suspend () -> String,
-    private val managerScope: CoroutineScope
+    private val managerScope: CoroutineScope,
+    private val tokenStore: TermuxTokenStore = InMemoryTokenStore()
 ) {
     companion object {
         private const val TAG = "TermuxBridgeManager"
         private const val BRIDGE_IDENTITY = "closepaw-bridge"
-        private const val BRIDGE_VERSION_EXPECTED = "1"
+        private const val BRIDGE_VERSION_EXPECTED = "2"
         private const val HEALTH_URL = "http://127.0.0.1:18422/v1/health"
         private const val PROBE_TIMEOUT_MS = 10_000L
         private const val INSTALL_TIMEOUT_MS = 180_000L
@@ -80,13 +81,26 @@ class TermuxBridgeManager internal constructor(
     private val mutex = Mutex()
     private val inFlightLock = Any()
     private val inFlightJobs = mutableMapOf<OperationKind, Deferred<TermuxBridgeStatus>>()
+    // Loaded eagerly: the health probe and every exec call must carry it, including probes that
+    // run before the first deploy in this process.
+    private val bridgeToken: String = TermuxBridgeToken.ensure(tokenStore)
+
+    /** Writes the shared secret next to the daemon before the payload is installed. */
+    private fun deployCommand(): String =
+        "${TermuxBridgeToken.tokenInstallCommand(bridgeToken)} && $DEPLOY_BRIDGE_COMMAND"
 
     constructor(context: Context) : this(
         commandRunner = AndroidTermuxCommandRunner(context.applicationContext),
-        healthProbe = HttpTermuxHealthProbe(HEALTH_URL, BRIDGE_IDENTITY, BRIDGE_VERSION_EXPECTED),
+        healthProbe = HttpTermuxHealthProbe(
+            HEALTH_URL,
+            BRIDGE_IDENTITY,
+            BRIDGE_VERSION_EXPECTED,
+            tokenProvider = { TermuxBridgeToken.current() }
+        ),
         termuxInstallProbe = AndroidTermuxInstallProbe(context.applicationContext.packageManager),
         bridgePayloadBase64 = suspend { loadBridgePayloadBase64(context.applicationContext) },
-        managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        tokenStore = PreferencesTokenStore(context.applicationContext)
     )
 
     suspend fun setup(): TermuxBridgeStatus =
@@ -192,7 +206,7 @@ class TermuxBridgeManager internal constructor(
         val deploy =
             try {
                 commandRunner.runShell(
-                    DEPLOY_BRIDGE_COMMAND,
+                    deployCommand(),
                     stdinBase64 = bridgePayloadBase64(),
                     timeoutMs = DEPLOY_TIMEOUT_MS
                 )
@@ -216,7 +230,9 @@ class TermuxBridgeManager internal constructor(
             StartResult.Started ->
                 when (waitForReadyHealth()) {
                     HealthProbe.Ready -> TermuxBridgeStatus.Ready
-                    HealthProbe.BridgeOutdated -> doBootstrap()
+                    // A daemon holding another token is as stale as an old version: redeploy.
+                    HealthProbe.BridgeOutdated,
+                    HealthProbe.Unauthorized -> doBootstrap()
                     HealthProbe.InvalidIdentity,
                     HealthProbe.Unavailable -> needsSetup(NeedsSetupReason.HEALTH_TIMEOUT)
                 }
@@ -233,7 +249,7 @@ class TermuxBridgeManager internal constructor(
         val health = fetchHealth()
         if (health == HealthProbe.Ready) return emit(TermuxBridgeStatus.Ready)
         unavailableInstallStatus()?.let { return emit(it) }
-        if (health == HealthProbe.BridgeOutdated) {
+        if (health == HealthProbe.BridgeOutdated || health == HealthProbe.Unauthorized) {
             return emit(needsSetup(NeedsSetupReason.BRIDGE_OUTDATED))
         }
 
@@ -303,7 +319,8 @@ class TermuxBridgeManager internal constructor(
             while (true) {
                 when (val health = fetchHealth()) {
                     HealthProbe.Ready,
-                    HealthProbe.BridgeOutdated -> return@withTimeoutOrNull health
+                    HealthProbe.BridgeOutdated,
+                    HealthProbe.Unauthorized -> return@withTimeoutOrNull health
                     HealthProbe.InvalidIdentity,
                     HealthProbe.Unavailable -> delay(250)
                 }
@@ -343,7 +360,8 @@ class TermuxBridgeManager internal constructor(
     private fun HealthProbe.toPassiveStatus(): TermuxBridgeStatus =
         when (this) {
             HealthProbe.Ready -> TermuxBridgeStatus.Ready
-            HealthProbe.BridgeOutdated -> needsSetup(NeedsSetupReason.BRIDGE_OUTDATED)
+            HealthProbe.BridgeOutdated,
+            HealthProbe.Unauthorized -> needsSetup(NeedsSetupReason.BRIDGE_OUTDATED)
             HealthProbe.InvalidIdentity,
             HealthProbe.Unavailable -> needsSetup(NeedsSetupReason.HEALTH_TIMEOUT)
         }
@@ -351,7 +369,8 @@ class TermuxBridgeManager internal constructor(
     private fun HealthProbe.toStartupStatus(): TermuxBridgeStatus =
         when (this) {
             HealthProbe.Ready -> TermuxBridgeStatus.Ready
-            HealthProbe.BridgeOutdated -> needsSetup(NeedsSetupReason.BRIDGE_OUTDATED)
+            HealthProbe.BridgeOutdated,
+            HealthProbe.Unauthorized -> needsSetup(NeedsSetupReason.BRIDGE_OUTDATED)
             HealthProbe.InvalidIdentity,
             HealthProbe.Unavailable -> needsSetup(NeedsSetupReason.HEALTH_TIMEOUT)
         }

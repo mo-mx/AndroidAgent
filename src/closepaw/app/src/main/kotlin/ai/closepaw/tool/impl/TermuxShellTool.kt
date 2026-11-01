@@ -1,5 +1,6 @@
 package ai.closepaw.tool.impl
 
+import ai.closepaw.termux.TermuxBridgeToken
 import ai.closepaw.tool.ToolExecutionContext
 import ai.closepaw.tool.ToolExecutionResult
 import ai.closepaw.tool.ToolInvocation
@@ -27,6 +28,7 @@ import kotlin.coroutines.resumeWithException
 class TermuxShellTool(
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val bridgeBaseUrl: String = DEFAULT_BRIDGE_BASE_URL,
+    private val tokenProvider: () -> String? = { TermuxBridgeToken.current() },
 ) : ToolSpec {
     override val name: String = "termux_shell"
 
@@ -127,7 +129,8 @@ class TermuxShellTool(
             validationErrors = validationErrors,
             params = invocationParams,
             httpClient = httpClient,
-            bridgeBaseUrl = bridgeBaseUrl.trimEnd('/')
+            bridgeBaseUrl = bridgeBaseUrl.trimEnd('/'),
+            tokenProvider = tokenProvider
         )
     }
 
@@ -170,6 +173,7 @@ class TermuxShellTool(
         override val params: JSONObject,
         private val httpClient: OkHttpClient,
         private val bridgeBaseUrl: String,
+        private val tokenProvider: () -> String?,
     ) : ToolInvocation {
         override val toolName: String = "termux_shell"
 
@@ -186,7 +190,16 @@ class TermuxShellTool(
                 return ToolExecutionResult.Cancelled("Cancelled before execution")
             }
 
-            val request = buildRequest()
+            val token = tokenProvider()
+            if (token == null) {
+                // Sending without the secret would only earn a 401; refuse locally instead of
+                // letting an unauthenticated request leave the process.
+                return failure(
+                    reason = "bridge_auth_unavailable",
+                    message = "Termux bridge token is not loaded; run bridge setup first."
+                )
+            }
+            val request = buildRequest(token)
             val client = clientForTimeout()
 
             return withContext(Dispatchers.IO) {
@@ -210,7 +223,7 @@ class TermuxShellTool(
             }
         }
 
-        private fun buildRequest(): Request {
+        private fun buildRequest(token: String): Request {
             val bodyJson = JSONObject().apply {
                 put("command", command)
                 cwd?.let { put("cwd", it) }
@@ -219,6 +232,7 @@ class TermuxShellTool(
             }
             return Request.Builder()
                 .url("$bridgeBaseUrl/v1/exec")
+                .header("Authorization", "Bearer $token")
                 .post(bodyJson.toString().toRequestBody(JSON_MEDIA_TYPE))
                 .build()
         }
@@ -241,6 +255,14 @@ class TermuxShellTool(
                 return failure(
                     reason = "bridge_busy",
                     message = "Bridge is executing another command. Try again shortly."
+                )
+            }
+            if (response.code == 401) {
+                // The daemon refuses callers without the shared secret. Never report this as a
+                // generic HTTP error: the fix is to re-run bridge setup, not to retry blindly.
+                return failure(
+                    reason = "bridge_auth_rejected",
+                    message = "Bridge rejected the stored token; bridge setup needs to run again."
                 )
             }
 
