@@ -36,6 +36,17 @@ import java.util.Locale
 object LocalCapabilities {
     private const val TAG = "LocalCaps"
 
+    /** Must equal `Target.BLUETOOTH.name.lowercase()`, the identity the parser declares. */
+    private const val BT_IDENTITY = "bluetooth"
+
+    /**
+     * How long an accepted `enable()` / `disable()` is given to show up in `isEnabled`.
+     * The adapter reports "process begun" long before the state flips, so one immediate read is
+     * not an answer. Bounded because the voice turn cannot wait for the platform.
+     */
+    private const val SETTLE_TIMEOUT_MS = 1_200L
+    private const val SETTLE_STEP_MS = 150L
+
     // ── battery ──
     fun battery(ctx: Context): ToolResult {
         val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
@@ -120,25 +131,103 @@ object LocalCapabilities {
         val a = btAdapter(ctx) ?: return ToolResult.unavailable("bt", "这台设备没有蓝牙")
         val before = runCatching { a.isEnabled }.getOrNull()
         if (before == on) {
-            return ToolResult.ok("bt", if (on) "蓝牙已经是开着的" else "蓝牙已经是关着的", verified = true)
+            // Nothing was issued: this is a read, not a mutation. Saying "已经是开着的" is the
+            // honest answer to "打开蓝牙", and the state it read is exactly the promised one.
+            return stateResult(
+                if (on) "蓝牙已经是开着的" else "蓝牙已经是关着的",
+                on, "already ${stateWord(on)}", dispatched = false,
+            )
         }
-        // Android 13+ blocks enable()/disable() for non-system apps; one attempt, then be honest.
-        val attempted = runCatching {
+        // Android 13+ blocks enable()/disable() for non-system apps; one attempt only.
+        val accepted = try {
             if (on) a.enable() else a.disable()
-        }.getOrElse { Log.w(TAG, "bt toggle threw", it); false }
-        val after = runCatching { a.isEnabled }.getOrNull()
-        if (after == on) return ToolResult.ok("bt", if (on) "蓝牙已打开" else "蓝牙已关闭", verified = true)
-        runCatching {
+        } catch (e: SecurityException) {
+            // Round 45: a missing permission used to fall into the "platform does not allow it"
+            // branch below, which told the user about a system limitation instead of about the
+            // permission they can actually grant.
+            Log.w(TAG, "bt toggle needs permission", e)
+            return ToolResult.denied(
+                "bt",
+                "切换蓝牙需要蓝牙权限，还没授权",
+                "SecurityException on ${if (on) "enable" else "disable"}: ${e.message}; before=$before"
+            )
+        } catch (e: Throwable) {
+            Log.w(TAG, "bt toggle threw", e)
+            false
+        }
+
+        // `enable()` returning true only means the *process* has begun, so a single immediate
+        // `isEnabled` read can still see the old value. Round 45: the old code read once and then
+        // spoke "Android 不允许普通应用直接切换蓝牙" — a claim about the platform drawn from one
+        // sample that was still settling.
+        val settled = if (accepted) awaitState(a, on) else 0
+        if (accepted && settled > 0) {
+            return stateResult(
+                if (on) "蓝牙已打开" else "蓝牙已关闭",
+                on, "attempted=true before=$before settled after ${settled} read(s)", dispatched = true,
+            )
+        }
+
+        val opened = runCatching {
             ctx.startActivity(
                 Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            true
+        }.getOrDefault(false)
+
+        if (accepted) {
+            // The request really was handed over, but the state never showed up in the window we
+            // watched. That is "unknown", not "the platform refused it" and not "it failed".
+            return ToolResult(
+                ToolStatus.SUCCESS,
+                "bt",
+                if (opened) "已经请求${if (on) "打开" else "关闭"}蓝牙，但没能在 ${SETTLE_TIMEOUT_MS / 1000} 秒内看到状态变化，已经打开蓝牙设置，你可以点一下确认"
+                else "已经请求${if (on) "打开" else "关闭"}蓝牙，但没能在 ${SETTLE_TIMEOUT_MS / 1000} 秒内看到状态变化，请在设置里确认",
+                "dispatched accepted=true before=$before settled=false timeout=${SETTLE_TIMEOUT_MS}ms panel=$opened",
+                null,
+                null,
+                dispatched = true,
             )
         }
         return ToolResult.restricted(
             "bt",
-            "Android 不允许普通应用直接切换蓝牙，我已经打开蓝牙设置，点一下开关就行",
-            "attempted=$attempted before=$before after=$after"
+            if (opened) "Android 不允许普通应用直接切换蓝牙，我已经打开蓝牙设置，点一下开关就行"
+            else "Android 不允许普通应用直接切换蓝牙，请在设置里手动${if (on) "打开" else "关闭"}",
+            "attempted=false before=$before panel=$opened"
         )
     }
+
+    /**
+     * Waits a bounded time for `isEnabled` to reach [want], returning the number of reads that
+     * produced it (0 = never seen). Read-only: it never re-issues the toggle.
+     */
+    private fun awaitState(a: BluetoothAdapter, want: Boolean): Int {
+        val deadline = System.currentTimeMillis() + SETTLE_TIMEOUT_MS
+        var reads = 0
+        while (true) {
+            reads++
+            if (runCatching { a.isEnabled }.getOrNull() == want) return reads
+            if (System.currentTimeMillis() >= deadline) return 0
+            Thread.sleep(SETTLE_STEP_MS)
+        }
+    }
+
+    private fun stateWord(on: Boolean) = if (on) "on" else "off"
+
+    /**
+     * A switch position that was actually read back. Round 45: `btSet` already read `isEnabled`
+     * and set `verified = true`, but handed the gate no [ObservedState] — and the parser declares
+     * `on:BLUETOOTH` / `off:BLUETOOTH`, so a bluetooth switch that really flipped was spoken as
+     * "请求已经发出，但没能确认结果". Same hole round 34 fixed for Wi-Fi and the torch.
+     */
+    private fun stateResult(speak: String, on: Boolean, detail: String, dispatched: Boolean?) = ToolResult.ok(
+        "bt",
+        speak,
+        verified = true,
+        detail = detail,
+        observed = ObservedState(BT_IDENTITY, stateWord(on), "bluetooth-adapter:isEnabled"),
+        dispatched = dispatched,
+    )
 
     // ── network ──
     private enum class Transport { WIFI, CELLULAR, ETHERNET, OTHER, NONE }

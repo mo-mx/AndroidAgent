@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-11-01 第㊺轮（仅 JVM，未实机）
+
+测什么：蓝牙开关的**回读是否进了终态闸门**，以及「一次立即读」是否被当成平台的最终答复。`LocalCapabilities.btSet` 本来就读 `isEnabled` 后置 `verified=true`，但 `observed` 为空；解析器为「打开蓝牙」声明 `on:BLUETOOTH` + 身份 `bluetooth`，所以真翻了的开关会被判 `UNPROVEN` 并改写为「请求已经发出，但没能确认结果」。另一条：`BluetoothAdapter.enable()` 返回 true 只代表**流程已开始**，紧接着读 `isEnabled` 仍可能是旧值，旧代码据此播「Android 不允许普通应用直接切换蓝牙」——把一次未稳定的采样说成平台限制；`SecurityException`（缺 `BLUETOOTH_CONNECT`）也落进同一分支，权限问题被说成平台不允许。
+
+怎么测：仓库根 `source env.sh` → `cd src/closepaw` → `./gradlew :app:testDebugUnitTest --offline --rerun-tasks --tests "ai.closepaw.voice.tools.BluetoothReadbackEvidenceTest"`（新测试先写、生产未改，取 RED）；实现后再跑同组，然后 `--tests "ai.closepaw.voice.*"`，最后全量同任务不带 `--tests`。
+
+实际结果：新 `BluetoothReadbackEvidenceTest`(9) **RED 9 tests / 7 failed / 0 errors**（Truth 断言失败，非编译错误；2 条控制组本就通过）。实得值：`打开蓝牙` 端到端判 `NOT_APPLICABLE`（因为旧代码返回 `SYSTEM_RESTRICTED`）、permission 用例实得 `SYSTEM_RESTRICTED`（期望 `PERMISSION_DENIED`）、`observed` 实得 `null`、`states=[false,false,true]` 实得 `SYSTEM_RESTRICTED` 且播报含「不允许」、未稳定用例 `verified` 实得 `false`（期望 `null`）→ 实现后 **GREEN 9 / 9**（exit=0）；定向 `ai.closepaw.voice.*` **382 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊹轮 373，+9）；全量 **2472 tests / 6 failed / 0 errors / 8 skipped**（Gradle exit=1，**不是全绿**，失败仍是既有 `AgentSkillCatalogTest > entry filePath points to SKILL md` 1 + `MemoryStoreTest` 5，本轮未改未跳过，未重跑旧 SHA 基线）。
+
+未验证：`BluetoothAdapter.enable()/disable()` 在目标机（SM-F731U1 / Android 17）上是否被平台直接拒绝、蓝牙真实开关的稳定时间是否落在 1200 ms 窗口内、`BLUETOOTH_CONNECT` 是否已授予、`Settings.ACTION_BLUETOOTH_SETTINGS` 跳转是否成功——全部**未实机**；夹具是 MockK 合成的 adapter，只证明 `btSet` 内部契约。可用性代价：接受请求但未在窗口内稳定时，改为 `SUCCESS + verified=null + dispatched=true` 并明确说「没能看到状态变化」，不再替平台下结论。本轮未构建/安装 APK、未操作手机。
+
+证据：本机 gitignored `logs/pr4-round45-{red,green,targeted,full}.txt`，不入库。
+
 ## 2026-11-01 第㊱轮（仅 JVM，未实机）
 
 测什么：打开 App 内功能时，「界面有没有变」这个结论是否还从**被截断的读屏**里推出来。`AppNavigator.openFeatureResolved` 用的是 `UiAutomator.screenTexts(120)`（`readScreen` 的投影，丢掉 `textsTruncated`/`nodesTruncated`/`serviceAvailable`）：截断样本的集合差既不能证明「变了」，也不能证明「没变」，无障碍服务不可用时的空投影还被播成「界面上没有找到X」。

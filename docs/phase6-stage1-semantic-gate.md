@@ -2,6 +2,47 @@
 
 > 轮次索引：第㉑–㉔轮（导航候选集与选中态、引用身份/候选完整性、选中态入口矩阵、`expectedState` 终态校验）只在 PR #4 评论里留有完整记录（评论 `6545163487` / `6545988295` / `6545632590` / `6546401957`），本文件未补写，避免二次转述失真。
 
+## 第㊺轮：无新审查，推进离线项「蓝牙开关缺对象级回读」（离线源码 + JVM，未实机）
+
+需要复审；审查未关闭。本轮 PR #4 **无新审查**（最新复审 `6553305508` 已由第㊹轮评论 `6553509252` 回复，其后无新评论），按「无新审查则推进可离线项」取遗留清单里和三处开关回读同一类的最后一块：`LocalCapabilities.btSet`。
+
+### 缺陷 1 — 读回了，却没交给闸门
+
+`btSet` 读 `a.isEnabled` 并通过后置 `verified = true`，但 `observed` 一直是 null。解析器为「打开蓝牙」声明 `expectedState = "on:BLUETOOTH"`、`targetIdentity = "bluetooth"`，而第㉔轮起 `TerminalState` 对声明了终态的任务要求结构化证据（身份 + 状态）——于是**真的读回成功的蓝牙开关**被判 `UNPROVEN`，`enforce` 把句子改写成「请求已经发出，但没能确认结果」，`verified` 被清成 null。这与第㉞轮修的 Wi-Fi / 手电是同一个洞，蓝牙当时没纳入那一轮。
+
+### 缺陷 2 — 一次立即读被当成平台的最终答复
+
+`BluetoothAdapter.enable()` / `disable()` 是异步的：返回 true 只表示「流程已开始」。旧代码在下一行立刻读 `isEnabled`，读到旧值就播「Android 不允许普通应用直接切换蓝牙…点一下开关就行」并打开设置。这句话是**关于平台限制的断言**，不是关于观测的陈述；适配器只是还在 turning-on 时它就是错的。另外 `SecurityException`（缺 `BLUETOOTH_CONNECT`）也被 `runCatching{}.getOrElse{false}` 吞进同一分支，把权限问题说成平台不允许。
+
+### 改动（`tools/LocalCapabilities.kt`）
+
+| 路径 | 现在的结论 |
+|---|---|
+| `before == 目标` | `SUCCESS` + `verified=true` + `ObservedState("bluetooth","on"/"off")`，`dispatched=false`（只读，未下发），句子仍是「已经是开着的/关着的」 |
+| 接受请求且 `awaitState` 有界轮询读到目标值 | `SUCCESS` + `verified=true` + `observed`，`dispatched=true` |
+| 接受请求但在 1200 ms 内未读到变化 | `SUCCESS` + `verified=null` + `observed=null` + `dispatched=true`，句子「已经请求…但没能在 1 秒内看到状态变化，请在设置里确认」，detail 记 `settled=false` |
+| API 返回 false（平台拒绝） | 保持 `SYSTEM_RESTRICTED` + 「不允许普通应用直接切换」+ 无证据 |
+| `SecurityException` | `PERMISSION_DENIED` + 「切换蓝牙需要蓝牙权限，还没授权」 |
+
+`awaitState(a, want)` 只做只读轮询（150 ms 步长 / 1200 ms 上限，返回第几次读到，0 = 没读到），不重发开关请求。`dispatched` 与第㊹轮引入的语义一致：只有能证明没下发才为 false。
+
+### TDD 与实跑数字（`--offline --rerun-tasks`，JDK 17）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `BluetoothReadbackEvidenceTest`(9)，生产未改 | **RED 9 tests / 7 failed / 0 errors**（全部断言失败，非编译错误）。实得：端到端判 `NOT_APPLICABLE`、permission 用例 `SYSTEM_RESTRICTED`、`observed=null`、`[false,false,true]` 实得 `SYSTEM_RESTRICTED` 且播报含「不允许」、未稳定用例 `verified=false`。2 条控制组本就通过 |
+| 实现后同组 | **GREEN 9 / 9**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **382 / 0 failed / 0 errors / 0 skipped**，exit=0（第㊹轮 373，+9） |
+| 全量 `:app:testDebugUnitTest` | **2472 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（`AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，未重跑旧 SHA 基线） |
+
+### 边界
+
+- 夹具是 MockK 合成的 `BluetoothAdapter` / `BluetoothManager`：证明的是 `btSet` 内部契约，**不是**目标机行为。三星/Android 17 上 `enable()/disable()` 是否被直接拒绝、真实稳定时间是否落在 1200 ms 内、`BLUETOOTH_CONNECT` 是否已授予、`ACTION_BLUETOOTH_SETTINGS` 跳转是否成功，**全部未验证**。
+- 可用性代价：接受请求但未在窗口内稳定时，从「确定失败/平台限制」变成「已下发、结果未知」——句子更诚实，但用户仍要自己看一眼。
+- `btState`（查询）未加 `observed`：查询不承诺终态，`TerminalState` 判 `NOT_APPLICABLE`，加了也没有判定作用。
+- 撤销仍不覆盖蓝牙/Wi-Fi：只有 `Target.TORCH` 会写 `ActionMemory`；对蓝牙说「撤销刚才的操作」继续是安全拒绝，不是功能可用。
+- 设备矩阵维持 4 通过 / 0 失败 / 3 未测；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+
 ## 第㊹轮：复审 `6553305508`（针对 `57b2741`）3 条全部处理（离线源码 + JVM，未实机）
 
 需要复审；审查未关闭。本轮开工读到 ChatGPT 定时复审 `6553305508`（2026-11-01T04:16:49Z，审的是当时 HEAD `57b2741`）：1 条 P1 + 1 条 P1/P2 + 1 条 P2。
