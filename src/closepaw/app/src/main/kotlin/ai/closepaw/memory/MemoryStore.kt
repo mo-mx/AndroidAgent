@@ -3,6 +3,9 @@ package ai.closepaw.memory
 import android.util.Log
 import java.io.File
 import java.io.IOException
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicBoolean
@@ -271,9 +274,26 @@ class MemoryStore(
         target.parentFile?.mkdirs()
         val tmpFile = File(target.parentFile, "${target.name}.tmp")
         tmpFile.writeBytes(bytes)
-        if (!tmpFile.renameTo(target)) {
+        try {
+            // `File.renameTo` cannot replace an existing file on every host (Windows returns false
+            // when the target exists), so every write after the first threw IOException while the
+            // new bytes were already sitting in the temp file. `Files.move(REPLACE_EXISTING)` is
+            // the same atomic rename on POSIX and a replacing move elsewhere.
+            // ATOMIC_MOVE is preferred and only dropped when the file system itself refuses it;
+            // the replace itself is never skipped.
+            try {
+                Files.move(
+                    tmpFile.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE
+                )
+            } catch (e: AtomicMoveNotSupportedException) {
+                Files.move(tmpFile.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        } catch (e: IOException) {
             tmpFile.delete()
-            throw IOException("Failed to replace ${target.name}")
+            throw IOException("Failed to replace ${target.name}", e)
         }
     }
 }

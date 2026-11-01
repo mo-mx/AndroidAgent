@@ -368,4 +368,22 @@ class MemoryStoreTest {
         assertThat(store2.appendUserPreference("日".repeat(70))).isFalse()
         assertThat(store2.read(MemoryScope.USER)).isNull()
     }
+
+    @Test
+    fun `append replaces the existing file instead of failing on it`() {
+        assertThat(store.appendUserPreference("first preference")).isTrue()
+        val target = File(memoryDir, "user.md")
+        val firstPass = target.readText()
+
+        // Every later write targets a file that already exists, so the temp file has to be moved
+        // *over* the target. `File.renameTo` returned false there on Windows, turning the second
+        // append into an IOException even though the content was already on disk.
+        assertThat(store.appendUserPreference("second preference")).isTrue()
+
+        val secondPass = target.readText()
+        assertThat(secondPass).contains("first preference")
+        assertThat(secondPass).contains("second preference")
+        assertThat(secondPass).isNotEqualTo(firstPass)
+        assertThat(target.parentFile!!.listFiles()!!.map { it.name }).doesNotContain("user.md.tmp")
+    }
 }
