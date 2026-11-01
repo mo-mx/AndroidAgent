@@ -3,6 +3,48 @@
 更新：2026-10-31　维护方式：每次真机验证后**追加**一条，写清"测什么/怎么测/结果/证据在哪"。
 规则：没有真机日志的项目只能写"未验证"，不得写"通过"。---
 
+## 2026-11-01 第55轮（JVM 实跑于当前 HEAD `a6a498f` 本体 + JDK 平台语义探针，未实机）
+
+测什么：复审 `6557244443`（HEAD `a6a498f`）指出两条可核对事实：①第54轮的 JVM 数字实际跑在**父提交** `179f762` 上，不能写成「在 `a6a498f` 上实跑」；②日志只在本机 gitignored 目录，「审查方无法独立核验」。本轮把这**两条都消掉**，不改代码。
+
+怎么测：`source env.sh`（JDK `17.0.20.1+1`、SDK 在仓库 `tools/`），`src/closepaw` 下
+`./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.voice.*' --rerun-tasks --console=plain`，
+再跑一次不带 `--tests` 的全量；统计直接读 `app/build/test-results/testDebugUnitTest/*.xml`（求和 `tests/failures/errors/skipped`），不采信控制台摘要。汇总已入仓库：`docs/evidence/pr4-a6a498f-junit-summary.txt`（271 个测试类逐类计数 + 6 条失败断言原文，机器生成）。
+
+实际结果（HEAD = `a6a498f2dcd434b781230c4c797f7ebb8a55cbe5`，`git diff --stat 179f762 HEAD` 仅 3 个 docs 文件）：
+
+| 任务 | HEAD | 结果 | exit | 耗时 |
+|---|---|---|---|---|
+| 定向 `ai.closepaw.voice.*` | `a6a498f` | **423 tests / 0 failed / 0 errors / 0 skipped** | 0 | 5m27s |
+| 全量 `:app:testDebugUnitTest` | `a6a498f` | **2528 tests / 6 failed / 0 errors / 8 skipped** | **1（不是全绿）** | 6m20s |
+
+全量 6 项失败（与 `179f762`、`fafe365`、`5789be4` 逐条同名，本轮未改未跳）：
+
+```
+ai.closepaw.agent.cognition.skills.AgentSkillCatalogTest :: entry filePath points to SKILL md
+ai.closepaw.memory.MemoryStoreTest :: append with duplicate heading inserts under last occurrence
+ai.closepaw.memory.MemoryStoreTest :: append on file with missing heading appends new section at EOF
+ai.closepaw.memory.MemoryStoreTest :: append under heading followed by free text inserts before next heading
+ai.closepaw.memory.MemoryStoreTest :: multiple entries append to same section
+ai.closepaw.memory.MemoryStoreTest :: app entries stay inside their target section
+```
+
+失败断言原文（取自 XML，不是转述）：`AgentSkillCatalogTest` → `expected to end with: my-skill/SKILL.md | but was: C:\...\my-skill\SKILL.md`；`MemoryStoreTest` → 4 条 `expected to be true`，1 条 `expected: 2 | but was: 1`。
+
+平台语义探针（`docs/evidence/pr4-a6a498f-platform-probe.java` / `.txt`，JDK 17 真实执行）：
+
+```
+renameTo over EXISTING target = false ; target content = old ; tmp still exists = true
+renameTo over MISSING target  = true ; target content = new
+Files.move(REPLACE_EXISTING) = true ; content = v3
+getPath() = C:\...\probe16571310999341493481\my-skill\SKILL.md
+endsWith("my-skill/SKILL.md") = false ; File.separator = '\' ; os.name = Windows 11
+```
+
+**验证级别**：这两类失败在 Windows 宿主上的成因是**机制级实证**（JDK 自身 API 复现 `MemoryStore.atomicWrite` 的三行 + 断言用正斜杠做后缀比较），不是设备或真机验证。**Linux 宿主上这 6 项仍未被跑过**——WSL 实测无 `java`/`curl`/`wget`/`python3`/`unzip`，`sudo` 需要密码，本机无 `docker`，故自动执行不可行。
+
+**未验证（明确列出）**：Linux/POSIX JVM 上是否转绿；独立 CI（本 SHA 无 workflow run / commit status）；真机（当前 SHA 未构建 APK、未安装、未操作手机，设备矩阵维持历史 4 通过 / 0 失败 / 3 未测，来自旧 APK）。
+
 ## 2026-11-01 第54轮（JVM 实跑：HEAD `179f762` 定向 + 全量，未实机）
 
 测什么：**当前 HEAD 在 Kotlin 侧此前没有任何实跑证据**（第51–53轮只跑 Python；第53轮明写未跑 Gradle），而 PR 正文/复审引用的 423 / 2528 属于 `5789be4`、`fafe365`。复审 B3 要求的「同一 HEAD 可复核」在这一环上是空的，本轮补上。不改代码，只补证据。

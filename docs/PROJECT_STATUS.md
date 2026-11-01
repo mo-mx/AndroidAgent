@@ -1,5 +1,41 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第55轮：复审 `6557244443`（HEAD `a6a498f`）—— 验收阻塞不靠改代码解，改把证据搬到仓库里（JVM 实跑 + JDK 探针，未实机）
+
+复审 `6557244443`（`<!-- chatgpt-hourly-review SHA:a6a498f -->`，2026-11-01T11:20:32Z）是本 PR 最新一条审查，也是我上轮之后唯一的新评论。它的结论与前三轮不同：**没有指认新的代码缺陷**，只有一条 B3「阶段 1 的最终交付验收尚未闭合（验收门槛）」，并明确「不指派第三轮修复、不批准合并」。因此本轮**不改代码**（`src/` 零 diff），只做它逐条点出的证据缺口。
+
+### 复审指出的两个可核对事实，处理如下
+
+1. **「第54轮的 JVM 命令实际在其父提交 `179f762` 执行」——成立**，我第54轮评论自己也写的是 `179f762`。本轮在**当前 HEAD `a6a498f` 本体**上重跑了两档，消掉这个保留语：
+   - 定向 `ai.closepaw.voice.*`：**423 tests / 0 failed / 0 errors / 0 skipped**，`BUILD SUCCESSFUL`，exit=0（5m27s）。
+   - 全量 `:app:testDebugUnitTest`：**2528 tests / 6 failed / 0 errors / 8 skipped**，**exit=1，不是全绿**（6m20s），6 项与 `179f762`/`fafe365`/`5789be4` 逐条同名，本轮**未改、未跳过**。
+   - 顺带确认 `git diff --stat 179f762 HEAD` 只有 3 个 `docs/` 文件（61 行新增），即两档结果对应的源码完全相同——但这不再需要「父提交可参考」这种间接说法。
+2. **「报告中的日志位于提交者本机 gitignored 目录，审查方无法独立核验」——成立，本轮把它搬进仓库**：新增 `docs/evidence/pr4-a6a498f-junit-summary.txt`，由 JUnit XML **机器生成**（271 个测试类逐类 `tests/failures/errors/skipped/time`，加 6 条失败断言消息原文），不是手写转述；任何人 clone 后可直接与自己的重跑结果对照。
+
+### 6 项失败的性质：从「同名」推进到「机制级实证」
+
+前几轮只能写「与旧 SHA 同名 + 源码机制推断」。本轮用 JDK 自身 API 做了一次真实探针（源码 `docs/evidence/pr4-a6a498f-platform-probe.java`，输出同目录 `.txt`，Windows 11 / JDK 17.0.20.1+1）：
+
+| 探针 | 实得 |
+|---|---|
+| `tmp.renameTo(已存在的目标)`（= `MemoryStore.atomicWrite` 的写法） | **false**，目标内容仍是 `old`，tmp 仍在 |
+| 同一调用，目标不存在时 | **true**，内容变 `new` |
+| `Files.move(REPLACE_EXISTING)` 覆盖已存在目标 | **true**，内容 `v3` |
+| `new File(dir,"my-skill/SKILL.md").getPath().endsWith("my-skill/SKILL.md")` | **false**（`File.separator = \`） |
+
+这与两个失败类的断言原文一一对应：`MemoryStoreTest` 5 项全是 `expected to be true`（`append` 里 `renameTo` false → `IOException` → 返回 false）或内容未变；`AgentSkillCatalogTest` 的失败消息是把 `...\my-skill\SKILL.md` 与 `my-skill/SKILL.md` 做字符串后缀比较。**结论级别仍要说清**：这是「机制级实证 + 同环境旧 SHA 对照」，证明这 6 项在 Windows 宿主上必然红、且与本 PR 改动无关；**不等于**「Linux 宿主上已跑通」。
+
+### Linux 宿主对照：本轮仍做不了，且 blocker 更具体了
+
+实测（不是推测）：`wsl -e bash -lc 'java -version'` → `command not found`；`curl`/`wget`/`python3`/`unzip` **都不存在**；`sudo -n true` → `sudo: a password is required`；`docker` → `command not found`。即该 WSL 发行版无 JDK、无包管理器可用路径、无容器，`--offline` 的 Android 构建在 Linux 侧不可能成立。**要在 Linux 上复核这 6 项，需要用户提供 sudo 密码/预装 JDK，或授权加一个 CI runner。** 本轮不擅自装系统包（AGENTS.md 第 7 条同级风险），也不联网下载分发。
+
+### 待用户决定（复审第二次明写，本轮仍不代拍）
+
+①`tools/termux-bridge` + `copyClosePawBridge` 是否移出阶段 1 交付；②是否授权限定环境（POSIX/Linux JVM）或真机验收；③是否另立 Issue 承接阶段 2。在这三项之前的固定事实：**PR #4 不合并、不装包、不动手机**；本轮未 push main、未 force push、未改受保护规则、未 delegate、未调用付费 API。
+
+- 定向/全量命令：`source env.sh` → `cd src/closepaw` → `./gradlew --offline :app:testDebugUnitTest [--tests 'ai.closepaw.voice.*'] --rerun-tasks --console=plain`。
+- 设备矩阵维持 **4 通过 / 0 失败 / 3 未测**（旧 APK、旧 SHA）；`closeAlarm` 仍安全 BLOCKED、计时器对象级终态 UNPROVEN、阶段 2 未开始、Issue #6 未并入。
+
 ## 第54轮：无新审查，给当前 HEAD `179f762` 补第一次 Kotlin 实跑证据（JVM，未实机）
 
 PR #4 无新审查（最新复审仍是 `6556347173`，针对 `fafe365`，第52/53轮已处理；`created_at > 2026-11-01T10:29Z` 的评论为空）。按「无新审查推进可离线项」，本轮补的是**证据缺口**，不是新功能，也不是第54次扩项：第51–53轮只跑过 Python（第53轮明写「没有 Kotlin 改动，因此没有跑 Gradle」），因此 **HEAD `179f762` 这个 SHA 在 Kotlin 侧一次实跑都没有**，PR 正文里的 423 / 2528 全部是 `5789be4`/`fafe365` 的数字。复审 B3 反复要的就是「同一 HEAD 可独立复核」，本轮把它补齐。
