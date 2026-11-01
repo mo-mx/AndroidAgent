@@ -110,11 +110,22 @@ object ActionMemory {
         // that never arrives yields TIMEOUT even though the torch may already have switched — and
         // `dispatched` records exactly that. Consuming only on SUCCESS kept the memory across such a
         // timeout, so a second "撤销" re-issued the same inverse (for a remembered DISABLE: turning
-        // on a torch the user had just switched off by hand). The entry is therefore kept only when
-        // dispatch is *provably* absent or unknown-but-refused-before-issue, i.e. `dispatched ==
-        // false`; anything else may already have moved the object.
-        if (r.dispatched != false && last === e) last = null
-        Log.i(TAG, "undo(${e.action}/${e.target}) → ${r.status} ${r.detail}${if (last == null) " consumed" else ""}")
+        // on a torch the user had just switched off by hand).
+        //
+        // Round 50 review B2/P1: `dispatched == false` alone says *nothing was handed to the OS*, and
+        // that covers two opposite facts:
+        //   • the device refused before issue (camera unavailable, no flash) → the inverse still has
+        //     to happen, so the entry stays and an honest retry is possible;
+        //   • the inverse's goal already holds (the user switched the torch off by hand, so
+        //     `TorchControl.set(false)` answers `alreadySatisfied` → SUCCESS + verified + `dispatched
+        //     = false`) → the memory is spent. Keeping it meant a later "撤销", after the user
+        //     turned the torch back on, issued `set(false)` and extinguished that new state while
+        //     attributing it to the assistant's older action.
+        // A successful inverse — issued or already true — ends the memory either way; only a
+        // failure that provably never reached the device keeps it.
+        val keepForRetry = !r.ok && r.dispatched == false
+        if (!keepForRetry && last === e) last = null
+        Log.i(TAG, "undo(${e.action}/${e.target}) → ${r.status} ${r.detail}${if (last == null) " consumed" else " kept for retry"}")
         return ToolResult(r.status, "undo", r.speak, "undo of ${e.action}/${e.target}: ${r.detail}", r.verified,
             dispatched = r.dispatched)
     }

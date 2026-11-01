@@ -128,4 +128,63 @@ class TorchUndoConsumptionTest {
         assertThat(ActionMemory.last).isNotNull()
         assertThat(ActionMemory.last?.action).isEqualTo(Action.ENABLE)
     }
+
+    /**
+     * Round 50 review B2 / P1.
+     *
+     * The inverse did not have to issue anything because the goal it aims at already holds: the
+     * assistant turned the torch on, the user switched it off by hand, and "撤销刚才的操作" found
+     * the camera already off. `TorchControl.set` answers exactly that with
+     * `alreadySatisfied(...)` — `SUCCESS`, `verified = true`, `dispatched = false`.
+     *
+     * Round 44's rule ("keep the entry only when `dispatched == false`") was written for a camera
+     * that *refused before issuing*, where an honest retry is still possible. This is a different
+     * fact with the same `dispatched = false`: the inverse's goal is already achieved, so the
+     * memory has nothing left to undo. Keeping it let a second "撤销" (after the user turned the
+     * torch back on) issue `set(false)` and switch off the user's own light, attributing it to the
+     * assistant's older action.
+     */
+    private fun alreadySatisfiedOff() = ToolResult.ok(
+        "torch",
+        "手电筒本来就是关着的，没有再切换",
+        verified = true,
+        detail = "camera=0 baseline=false already-at-target pre-request (no change attributed)",
+        dispatched = false,
+    )
+
+    @Test
+    fun `an inverse whose goal already holds consumes the memory`() {
+        every { TorchControl.set(ctx, false) } returns alreadySatisfiedOff()
+        remember()
+
+        val first = ActionMemory.undo(ctx)
+        assertThat(first.status).isEqualTo(ToolStatus.SUCCESS)
+        // Nothing was issued, but the memory is spent: its inverse goal is already true.
+        assertThat(ActionMemory.last).isNull()
+
+        // The user turns the torch back on and says "撤销" again inside the window.
+        val again = ActionMemory.undo(ctx)
+        assertThat(again.status).isNotEqualTo(ToolStatus.SUCCESS)
+        assertThat(again.speak).contains("不能安全撤销")
+        verify(exactly = 1) { TorchControl.set(any(), false) }
+    }
+
+    @Test
+    fun `an already-satisfied enable is consumed symmetrically`() {
+        // Remembered DISABLE ("已关闭手电筒"); the user turned it back on by hand, so the inverse
+        // (enable) finds the torch already on.
+        every { TorchControl.set(ctx, true) } returns ToolResult.ok(
+            "torch",
+            "手电筒本来就是开着的，没有再切换",
+            verified = true,
+            dispatched = false,
+        )
+        remember(Action.DISABLE, "已关闭手电筒")
+
+        ActionMemory.undo(ctx)
+        assertThat(ActionMemory.last).isNull()
+
+        ActionMemory.undo(ctx)
+        verify(exactly = 1) { TorchControl.set(any(), true) }
+    }
 }
