@@ -1,5 +1,40 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第61轮：新复审 `6575719349`（HEAD `0fb2d0b`）无新代码任务；把它列为「提交者报告」的三条事实在本 SHA 上重跑（`src/` 零改动，未实机）
+
+本轮新审查：PR #4 评论 `6575719349`（`<!-- chatgpt-hourly-review SHA:0fb2d0b... -->`，2026-11-02T11:13:37Z），针对当前 HEAD `0fb2d0b1cae7bb704ed3e2b47101f52b9e14a5dd`。它的判定：**B1/B2「本次无新增可证明的安全 BLOCKER」**；**B3 仍是用户决策项**（Termux Bridge 是否属于阶段 1 交付、是否授权限定设备验收）；唯一 FOLLOW-UP 是 `KNOWN_OPEN` 与其余历史本机路径「需后续独立评估」，并**明确写「不指派 Hermes 修复」**。所以本轮不开新修复，也不改代码。
+
+### 该复审的三条 UNVERIFIED 我在本 SHA 上重跑了（不是照抄上轮数字）
+
+它写明「本轮没有独立执行这些命令」。这次全部在 `0fb2d0b` 工作树重跑：
+
+| 项 | 命令 | 实得（2026-11-02） |
+|---|---|---|
+| 语法 | `python -m py_compile docs/evidence/sanitize_evidence.py` | 通过（无输出） |
+| 仓库级闸门 | `python docs/evidence/sanitize_evidence.py --scope all --check` | `exit=0`；`KNOWN-OPEN` 仅 `asr_eval/refs.json`、`asr_eval/make_set.ps1`；两份汇总 `match=True`（`271/2528/6/0/8`、`271/2529/0/0/8`） |
+| 退出码 0 | 沙箱内干净树 `--scope docs --check` | `exit=0` |
+| 退出码 1 | 沙箱内植入一条本机绝对路径（形如 `…\Users\<本机用户名>\proj\x`） | `WOULD MASK: docs\probe.md`，`exit=1` |
+| 退出码 2 | 沙箱内把 `pr4-197dd90` 的声明总数 `tests=2529` 改成 `2530` | `declared=(271,2530,…)` vs `summed=(271,2529,…)`，`match=False`，`exit=2` |
+| 幂等 | 沙箱内先真脱敏再复检 | `MASKED` → 复检 `exit=0`；`mask(mask(x)) == mask(x)` 为 `True` |
+| 计数（HEAD 树） | `git grep -l <本机用户名> HEAD` | **24** 个：`scripts/` 19、`asr_eval/` 2、`env.sh`、`scrcpy_wireless.bat`、`mobile-actions-eval/setup_harness.py` |
+| 计数（`origin/main` 树） | 同模式换成 `origin/main` | **27** 个 |
+| 差集 | 两个命中列表相减 | 只在 main：`docs/phase1-device-report.md`、`docs/phase2-basic-agent-report.md`、`docs/TEST_RESULTS.md`；只在 HEAD：**空** |
+| 脚本改动范围 | `git diff 22b91c1 0fb2d0b -- docs/evidence/sanitize_evidence.py` | 单个 hunk，仅 docstring 的 `Exit codes:` 段落（+7/−1）；`mask()`/`totals()`/`main()` 未动 |
+| 独立 CI | `gh api …/commits/0fb2d0b…/status` | `state=pending`，`statuses` **空列表** —— 本 SHA **没有任何 CI 状态** |
+
+结论：「提交者报告」的三条（退出码、`--scope all --check` 前后一致、24/27 与差集）**逐条复现，无一条被推翻**。24 个残留全部是 main 上既有的本机脚本路径，PR 未新增；`--check exit=0` 依然**不能**读成「整个仓库已无私人路径」—— 这句措辞已在第 59/60 轮改窄，本轮未发现新的过度宣称。
+
+### 本轮没做的事（如实）
+
+- **未跑 Gradle**：`src/`、`app/src/test/` 本 SHA 零 diff；「全量 2529/0/0/8」仍是第56轮在 `197dd90` 的实跑记录，不是本 SHA 的。
+- **未处理那 24 个残留路径**：22 个是脚本的功能性输入（改成相对路径要改解析逻辑，且这些脚本只在本机跑，本轮无运行环境可验证），另 2 个是脚本自身的 `KNOWN_OPEN`。复审已声明不指派，且属独立决策项，不在阶段 1 冻结范围。
+- **未实机、未构建/安装 APK、未操作手机**；B3 的「独立 CI」「本 SHA 真机」两条仍为空。
+
+### 当前唯一阻塞
+
+B3：①Termux Bridge 是否纳入阶段 1 交付；②是否**重新授权**限定设备验收（上一轮实机授权已用掉，新一轮需用户重新确认）。这两条答之前没有可离线推进的代码项 —— 前 60 轮已把 `cancelTimer` 窗口校验、截断不算完整、计时器唯一绑定、五分钟真实入参、创建 undo 安全拒绝、撤销记忆消费、三处开关回读、Bridge token 认证全部落地。
+
+
 ## 第60轮：处理复审 `6559237989`（HEAD `22b91c1`）的两条 FOLLOW-UP —— 数字补上"在哪个树里量的"，脚本帮助文本改成与真实语义一致（`src/` 零改动，未实机）
 
 本轮新审查：PR #4 评论 `6559237989`（`<!-- chatgpt-hourly-review SHA:22b91c1... -->`，2026-11-01T14:24:14Z），针对 HEAD `22b91c1e3d38fba5344e294651495606ab49acd4`。它对**本 SHA 的判定是"没有新增可证明的 B1/B2 安全 BLOCKER"**，并明确"不启动第三轮修复、不要求 Hermes 自行处理遗留项"，**B3（阶段 1 交付边界：Bridge 是否纳入、是否授权限定设备验收）仍是用户决策项**。因此本轮**不开新一轮修复**，只把它标为非阻塞的两条 FOLLOW-UP 用实跑关掉。
