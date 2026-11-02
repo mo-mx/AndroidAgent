@@ -1,5 +1,42 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第70轮：新复审 `6586281082`（HEAD `65d86a8`）无新代码任务；它指出的测试计数差异经本机实跑证实 —— **全量不是 0 failed，是 1 failed**（`src/` 零改动，未实机）
+
+去重：上一轮处理的是 `6585144367`（第69轮，2026-11-02T18:35Z）；其后新增的只有 `6586281082`（`<!-- chatgpt-hourly-review SHA:65d86a8 -->`，2026-11-02T19:22:04Z，针对当前 HEAD `65d86a8af6fa902b70642ab50239a5bfca7a41dd`）。第66–69轮的记录在 `docs/phase6-stage1-device-acceptance.md`。
+
+### 复审判定（原文摘要）
+
+- **BLOCKER：本轮 diff 未发现满足「明确路径 + 可达触发 + 可复现 + 违反阶段安全契约」的新增项**；B1 手电归属、B2 撤销代码本次未变；B4 的局部重试上限（3 次 / 一次 BACK / 1200 ms 有限轮询）成立，但「不等于已验证外层端到端会话终止」。
+- **停止条件**：两轮集中修复上限不重置；**不授权第三轮修复、不指派 Hermes 清理 FOLLOW-UP、不自动批准合并**。
+- **FOLLOW-UP**：①`scripts/voice_probe.py` 新增两处本机绝对路径（是本次 diff 引入，非那 24 个历史文件）；②单次 BACK 可能退出创建器/其它子页面，真机未证明无草稿影响。
+- **UNVERIFIED**：报告 2535 项，而新增测试类可数 8 条 `@Test`，相加应为 2537；无当前 SHA 的机器 XML 汇总。
+
+### 本轮做了什么：在当前 HEAD 实跑全量 JVM，结果为失败
+
+命令：`cd src/closepaw && ./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain`（`JAVA_HOME=tools/jdk-17.0.20.1+1`）。
+
+| 项 | 实测（XML 逐类求和） | 文档原写 |
+|---|---|---|
+| 类 / 项 / failed / errors / skipped | **272 / 2537 / 1 / 0 / 8** | 272 / 2535 / 0 / 0 / 8 |
+| Gradle | **BUILD FAILED in 7m 31s，exit=1** | `BUILD SUCCESSFUL`，exit=0 |
+
+失败用例：`ai.closepaw.voice.semantics.ClockForeignWindowTest` → `recovery selects exact tab rather than a preceding hint card`，`verify(exactly = 1) { tab.performAction(ACTION_CLICK) }` 实际命中 **2 次**。
+
+根因（源码分析，未实机）：`openClockTab` 第⑤轮新增的「无 tab 控件→一次 BACK→再点」路径先成功点了一次；随后 `readClockScreen` 因读到自家语音窗口而重试，重试分支 `clickClockTab(tab)` 再点一次同一 tab。安全面：两次都是**精确 tab**（`hint.performAction=0`、`click=0`、`tap=0`、`clickText=0` 仍通过），但与源码注释「never click twice, because a second ACTION_CLICK can toggle back」矛盾；另有「读不到无障碍树」与「确无 tab 栏」被同等对待、都按 BACK 的未证问题。
+
+### 未决（需用户/复审决定，本轮不改 `src/`、不改断言）
+
+- **A**：只在「能读到时钟树且确无 tab 栏」时按 BACK；读不到树时直接安全拒绝。
+- **B**：保留 BACK，但同一轮已投递过点击时 `readClockScreen` 不再重复点击。
+
+两种都会改变已真机验证过的导航语义，改后须重跑真机（需用户重新授权）。把断言改成 2 次让套件变绿属于弱化，不做。
+
+### 本轮改动与证明边界
+
+- 改动：`docs/phase6-stage1-device-acceptance.md`（更正 2535/0-failed/2533 与新增「定时轮复核」小节）、新增 `docs/evidence/pr4-65d86a8-junit-summary.txt`（机器生成，含失败用例原文首行）、`docs/evidence/sanitize_evidence.py` 的 `EVIDENCE_TARGETS` 加一条；本文件。`src/`、`app/src/test/` 零 diff。
+- 闸门：`python docs/evidence/sanitize_evidence.py --scope all --check` **exit=0**，新汇总 `declared=(272,2537,1,0,8)` 与逐类求和 `match=True`；`py_compile` 通过。
+- 边界：**未构建/未安装 APK、未操作手机**（BACK 行为只能真机验，需用户授权）；阶段 1 因这个失败**不能算通过**；未合并 PR、未 push main。
+
 ## 第65轮：无新审查；把「本 SHA 未构建 APK」这条证据空档在 `c10599a` 上关掉（`src/` 零改动，未装包、未动手机）
 
 本轮 PR #4 **没有新审查**：最新一条 ChatGPT 复审仍是 `6576888477`（`<!-- chatgpt-hourly-review SHA:efd0f9c... -->`，针对 `efd0f9c`），已在第63轮处理；其后 PR 只有我自己的第64轮评论 `IC_kwDOVdfNwc8AAAABiBNlQg`，Issue #3 最新一条也是第64轮同步 `6577943456`。当前 HEAD `c10599ad834a3d0035abfa9003dd17bdde38270e`（`git rev-parse` / `git ls-remote` / PR head 三方一致），`main` 仍 `580261f1253e00fd596304df1e9ebb0e5a8d5745`，工作树干净。

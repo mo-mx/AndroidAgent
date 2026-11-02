@@ -1,6 +1,6 @@
 # 阶段1实机验收记录（按轮次：① 锁屏阻塞 → ② 解锁续验 → ③ 时钟读取根因与修复 → ④ 限定真机验收）
 
-**当前结论（只读本节即可，勿用开头历史轮次判断现状）**：最新为 2026-11-03 第⑤轮（在线修复 One UI 9 的 tab 导航）。已定位并修复两条真实缺陷：①`isNavBar` 要求每个 tab 标签都有可点单元，而 One UI 9 上**当前选中的 tab 是 `clickable=false`**，整条 tab 栏因此被判为非导航栏 → 每次时钟查询都 `tab=click-failed-label-only`；②`ACTION_CLICK` 已投递但立即读选中态仍是旧值（tab 切换有动画）→ 误判 `clicked-not-selected`。修复后真机实测：**闹钟查询重新可用**（`verified=true visible=[6:00,7:30,8:00,9:20,10:00,11:00] tab=clicked nodes=67`）；倒计时查询可达定时器页（`tab=selected`），但计数解析仍 `count=unparsed` → 继续安全拒绝；定时器创建选择器页无 tab 栏，已加「一次 BACK 后重试」恢复（JVM 已测，真机待验，本轮因手机锁屏中断）。JVM 全量 272 类 / 2535 项 / 0 failed / 0 errors / 8 skipped / exit=0（第④轮汇总已按逐项表更正为 **通过 2 / 部分 1 / 安全拒绝 4 / 未测 3 / 设备成功但 App 未证实 1**）。
+**当前结论（只读本节即可，勿用开头历史轮次判断现状）**：最新为 2026-11-03 第⑤轮（在线修复 One UI 9 的 tab 导航）。已定位并修复两条真实缺陷：①`isNavBar` 要求每个 tab 标签都有可点单元，而 One UI 9 上**当前选中的 tab 是 `clickable=false`**，整条 tab 栏因此被判为非导航栏 → 每次时钟查询都 `tab=click-failed-label-only`；②`ACTION_CLICK` 已投递但立即读选中态仍是旧值（tab 切换有动画）→ 误判 `clicked-not-selected`。修复后真机实测：**闹钟查询重新可用**（`verified=true visible=[6:00,7:30,8:00,9:20,10:00,11:00] tab=clicked nodes=67`）；倒计时查询可达定时器页（`tab=selected`），但计数解析仍 `count=unparsed` → 继续安全拒绝；定时器创建选择器页无 tab 栏，已加「一次 BACK 后重试」恢复（JVM 已测，真机待验，本轮因手机锁屏中断）。**JVM 全量经 2026-11-03 定时轮在 `65d86a8` 实跑复核为 272 类 / 2537 项 / 1 failed / 0 errors / 8 skipped、exit=1（BUILD FAILED）**，原写「2535 项 / 0 failed / exit=0」为文档失实，已按实测更正；失败用例与根因见下文「定时轮复核」，该失败仍开放、未修。（第④轮汇总已按逐项表更正为 **通过 2 / 部分 1 / 安全拒绝 4 / 未测 3 / 设备成功但 App 未证实 1**）。
 
 轮次索引：
 | 轮次 | 时间 | 锁屏 | 主要内容 | 结果 |
@@ -51,7 +51,7 @@
 | BACK 落到时钟外 | 只尝试 1 次 tab 点击，`verified=false` |
 
 - 定向：新类 8/8 绿（先 RED 3/4、后补齐 BACK 两例）；`Clock*`、`Tab*` 子集全绿。
-- 全量：**272 类 / 2535 项 / 0 failed / 0 errors / 8 skipped，exit=0**（上一次 2533，+2 BACK 用例；未跳过、未弱化断言）。
+- 全量（**2026-11-03 定时轮复核后更正**）：**272 类 / 2537 项 / 1 failed / 0 errors / 8 skipped，exit=1（BUILD FAILED）**。原写「2535 项 / 0 failed / exit=0」与「上一次 2533」两处均无实测依据（已复核基线为 `efd0f9c` 的 2529 项），按 `65d86a8` 实跑 XML 求和更正；未跳过、未弱化断言，失败用例见下节。
 - 新增 `scripts/voice_probe.py`：单条注入 + 自动关掉 Android 17 对 debuggable 应用的「应用兼容性」弹窗（否则它抢焦点，首次读屏变成 `launch-not-foreground`）。
 
 ### 真机复测（APK SHA-256 `8e45df09…db06`，`install -r`）
@@ -67,6 +67,35 @@
 
 - 倒计时**计数解析**仍不认识 One UI 9 的创建器/列表形状（`count=unparsed`），属安全拒绝，不是误报；需单独修。
 - BACK 恢复仅 JVM 已测；真机验证中途手机进入锁屏（`Bouncer`），需用户解锁后补验。本轮未猜 PIN、未试图绕过锁屏。
+- **全量并非 0 failed**：见下节「定时轮复核」，`65d86a8` 实测 2537 项 / 1 failed。
+
+### 定时轮复核（2026-11-03，本机实跑；不是复审指派的任务）
+
+复审 `chatgpt-hourly-review SHA:65d86a8` 指出「新用例源码可数 8 条 `@Test`，与授权前报告的 2535 项相加应为 2537」。本轮在当前 HEAD `65d86a8` 干净工作树（`git status --porcelain` 为空）上实跑同一命令 `cd src/closepaw && ./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain`：
+
+| 项 | 实测（`app/build/test-results/testDebugUnitTest/*.xml` 逐类求和） | 文档原写 |
+|---|---|---|
+| 类 / 项 / failed / errors / skipped | **272 / 2537 / 1 / 0 / 8** | 272 / 2535 / 0 / 0 / 8 |
+| Gradle 结果 | **BUILD FAILED in 7m 31s，exit=1** | `BUILD SUCCESSFUL`，exit=0 |
+
+- 机器汇总已入仓：`docs/evidence/pr4-65d86a8-junit-summary.txt`（271→272 类逐类计数 + 失败用例原文首行），并登记进 `sanitize_evidence.py` 的 `EVIDENCE_TARGETS`；`python docs/evidence/sanitize_evidence.py --scope all --check` **exit=0**，该文件 `declared=(272,2537,1,0,8)` 与逐类求和 `match=True`，`py_compile` 通过。
+- 结论：**复审的算数成立（2537）**，原文档的「2535 项」「0 failed」「exit=0」「上一次 2533」四处均不成立。同一命令在同一 HEAD 上可复现该失败，**不是环境抖动**。
+
+### 失败用例与根因（源码分析，未实机）
+
+- 用例：`ClockForeignWindowTest.recovery selects exact tab rather than a preceding hint card`。断言 `verify(exactly = 1) { tab.performAction(ACTION_CLICK) }` 实际命中 **2 次**。
+- 路径：`queryAlarms` → `openClockTab` 在 `clickClockTab == null` 时按一次 BACK 并**再次**点击（本轮新增路径）→ 该次点击成功；随后 `readClockScreen` 因读到自家语音窗口而重试，重试分支 `clickClockTab(tab)` **又点一次**。第⑤轮新增的 BACK 重试使「点击恰好一次」变成两次。
+- 安全含义：两次点的是**同一个精确 tab**（`hint.performAction=0`、`UiAutomator.click=0`、坐标 `tap=0`、`clickText=0` 这些断言仍通过），但源码注释自己写着「never click twice, because a second ACTION_CLICK can toggle back」，与实测行为矛盾。
+- 另一未证问题：`clickClockTab == null` 既可能是「页面确无 tab 栏」，也可能是「无障碍树读不到」。当前两种都按 BACK，复审 FOLLOW-UP 第 2 条指的正是这里——真机尚未证明 BACK 不会退出创建器或丢失用户草稿。
+
+### 未决（需用户/复审决定；本轮不改 `src/`、不改断言）
+
+两种修法互斥，且都会改变已真机验证过的导航语义，改完必须重跑真机：
+
+- **A**：只在「能读到时钟树且确无 tab 栏」时按 BACK；读不到树时不 BACK、直接安全拒绝。
+- **B**：保留 BACK，但 `readClockScreen` 在同一轮已投递过点击时不再重复点击。
+
+按复审「不授权第三轮修复」的停止条件，本轮不动代码，也不把断言改成 2 次来让套件变绿（那等于弱化这套用例的意义）。
 
 ---
 

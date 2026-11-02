@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-11-03 第70轮（HEAD `65d86a8` 全量实跑：**1 failed**，不是 0 failed；未实机）
+
+测什么：复审 `6586281082` 指出「2535 项与新增 8 条用例不相容，应为 2537」。在 HEAD `65d86a8` 干净工作树上实跑同一套全量，用机器 XML 求和，不采信控制台摘要。
+
+怎么测：`cd src/closepaw && ./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain`（`JAVA_HOME=tools/jdk-17.0.20.1+1`）；汇总入仓 `docs/evidence/pr4-65d86a8-junit-summary.txt` 并登记进 `sanitize_evidence.py` 的 `EVIDENCE_TARGETS`。
+
+| HEAD | 结果 | exit | Gradle |
+|---|---|---|---|
+| `65d86a8` | **272 classes / 2537 tests / 1 failed / 0 errors / 8 skipped** | **1** | `BUILD FAILED in 7m 31s` |
+
+失败用例：`ClockForeignWindowTest.recovery selects exact tab rather than a preceding hint card` —— `verify(exactly = 1) { tab.performAction(ACTION_CLICK) }` 实测命中 2 次（`openClockTab` 的 BACK 重试点一次，`readClockScreen` 的重试分支再点一次）。**该失败仍开放，本轮未修**；修法有 A/B 两种且互相排斥，见 `docs/PROJECT_STATUS.md` 第70轮。
+
+结论：此前多处文档写的「272 类 / 2535 项 / 0 failed / 8 skipped，exit=0」与「上一次 2533」不成立，已按实测更正（2537 / 1 failed / exit=1）。未验证：真机、APK 构建/安装、Linux CI。
+
+---
+
 ## 2026-11-02 第63轮（全量 JVM 在 `efd0f9c` 本体实跑；未实机）
 
 测什么：消除「全量结果只属于 `9c389e3`」这条限定——复审 `6576888477` 指出现 HEAD `efd0f9c` 只加了 docs 与证据登记、未在当前 SHA 上实跑。

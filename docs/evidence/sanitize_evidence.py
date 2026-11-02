@@ -53,6 +53,7 @@ EVIDENCE_TARGETS = [
     EVIDENCE_DIR / "pr4-9c389e3-junit-summary.txt",
     EVIDENCE_DIR / "pr4-efd0f9c-junit-summary.txt",
     EVIDENCE_DIR / "pr4-a041c50-junit-summary.txt",
+    EVIDENCE_DIR / "pr4-65d86a8-junit-summary.txt",
     EVIDENCE_DIR / "pr4-a6a498f-platform-probe" / "output-windows11-jdk17.txt",
 ]
 
