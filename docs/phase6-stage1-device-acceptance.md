@@ -1,6 +1,6 @@
 # 阶段1实机验收记录（按轮次：① 锁屏阻塞 → ② 解锁续验 → ③ 时钟读取根因与修复 → ④ 限定真机验收）
 
-**当前结论（只读本节即可，勿用开头历史轮次判断现状）**：最新为 2026-11-03 第④轮（限定真机验收，APK 绑定 `dd3d089`）。手电筒开/关在设备侧被独立证实（`dumpsys media.camera` 的 torch on/off 时间戳与 App 日志一致），「本来就是开着」走 already-at-target 不下发，「撤销」真实关闭但 App 只报 UNPROVEN。时钟三条能力本轮**全部安全拒绝、零虚报**：ALARM QUERY `tab=click-failed-label-only`、TIMER QUERY `label-not-found window=not-clock`、CANCEL TIMER `clock not reachable`、CLOSE ALARM `BLOCKED needs clarification`。CREATE TIMER 设备端确实建成了 2 分钟倒计时（UI 实测 1 分 28 秒 + 取消），App 报 `verified=null page-unconfirmed`（读回不可用），随后手工取消清理。矩阵据实为 **通过 3 / 部分 1 / 安全拒绝 4 / 未测 3**；阶段 1 仍不满足合并条件。
+**当前结论（只读本节即可，勿用开头历史轮次判断现状）**：最新为 2026-11-03 第④轮（限定真机验收，APK 绑定 `dd3d089`）。手电筒开/关在设备侧被独立证实（`dumpsys media.camera` 的 torch on/off 时间戳与 App 日志一致），「本来就是开着」走 already-at-target 不下发，「撤销」真实关闭但 App 只报 UNPROVEN。时钟三条能力本轮**全部安全拒绝、零虚报**：ALARM QUERY `tab=click-failed-label-only`、TIMER QUERY `label-not-found window=not-clock`、CANCEL TIMER `clock not reachable`、CLOSE ALARM `BLOCKED needs clarification`。CREATE TIMER 设备端确实建成了 2 分钟倒计时（UI 实测 1 分 28 秒 + 取消），App 报 `verified=null page-unconfirmed`（读回不可用），随后手工取消清理。矩阵据实为 **通过 2 / 部分 1 / 安全拒绝 4 / 未测 3 / 设备成功但 App 未证实 1**（第 68 轮更正：原写「通过 3」把 CREATE TIMER 的「设备侧建成、App 读回不可用」计入了通过，与逐项表不符，属虚增，已按表复算为 2 项通过：离线语义闸门、手电筒状态回读）；阶段 1 仍不满足合并条件。
 
 轮次索引：
 | 轮次 | 时间 | 锁屏 | 主要内容 | 结果 |
@@ -8,7 +8,7 @@
 | ① 构建安装 + 首轮矩阵 | 2026-10-31 早 | deviceLocked=1（未绕过） | 构建/安装/哈希/无障碍基线 | 7 项全部未测 |
 | ② 解锁续验 | 2026-10-31 后 | deviceLocked=0 | 6 条 debug 文字注入 | 通过 2 / 失败 1 / 未测 4 |
 | ③ 复审 P1/P2 + 修复 | 2026-10-31 13:27–14:00 | deviceLocked=0 | 时钟读取根因定位、TDD 修复、重装重跑 | 通过 4 / 失败 0 / 未测 3 |
-| ④ 限定真机验收（最新） | 2026-11-03 01:25–01:36 | deviceLocked=0 | 干净重装 dd3d089；手电筒/时钟/计时器的实测 | 通过 3 / 部分 1 / 安全拒绝 4 / 未测 3 |
+| ④ 限定真机验收（最新） | 2026-11-03 01:25–01:36 | deviceLocked=0 | 干净重装 dd3d089；手电筒/时钟/计时器的实测 | 通过 2 / 部分 1 / 安全拒绝 4 / 未测 3 / 设备成功但未证实 1 |
 
 下文「## 第①轮」与「## 第②轮」为历史记录，不代表当前状态。
 
