@@ -1,5 +1,34 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第65轮：无新审查；把「本 SHA 未构建 APK」这条证据空档在 `c10599a` 上关掉（`src/` 零改动，未装包、未动手机）
+
+本轮 PR #4 **没有新审查**：最新一条 ChatGPT 复审仍是 `6576888477`（`<!-- chatgpt-hourly-review SHA:efd0f9c... -->`，针对 `efd0f9c`），已在第63轮处理；其后 PR 只有我自己的第64轮评论 `IC_kwDOVdfNwc8AAAABiBNlQg`，Issue #3 最新一条也是第64轮同步 `6577943456`。当前 HEAD `c10599ad834a3d0035abfa9003dd17bdde38270e`（`git rev-parse` / `git ls-remote` / PR head 三方一致），`main` 仍 `580261f1253e00fd596304df1e9ebb0e5a8d5745`，工作树干净。
+
+### 做了什么：在当前 HEAD 上构建 debug APK（只构建，不安装）
+
+前几轮的状态段一直写着「本 SHA 未构建 APK」，这是清单里最后一个能离线闭合的证据空档（不是功能项，不涉及真机）。
+
+命令：`JAVA_HOME=tools/jdk-17.0.20.1+1` + `ANDROID_HOME=tools/android-sdk` → `cd src/closepaw` → `./gradlew --offline :app:assembleDebug --rerun-tasks --console=plain`。
+
+| 项 | 实得（2026-11-02 21:44 +08:00，HEAD `c10599a`） |
+|---|---|
+| Gradle | `BUILD SUCCESSFUL in 1m 4s`，`40 actionable tasks: 40 executed`（`--rerun-tasks`，不复用旧产物），**exit=0** |
+| 产物 | `app/build/outputs/apk/debug/app-debug.apk`，267 407 790 字节，`versionCode 1` / `versionName 0.1.0`，23 个 dex |
+| sha256 | `ddb36b2cc48c209528a1e9ac77b118c564f9060f1a48c9f8998e40d92f019e05` |
+| 签名 | `apksigner verify` → **Verifies**，v2=true，签名者 `CN=Android Debug`，证书 SHA-256 `5d47f71d…111f5a` |
+| 产物归属 | 解包 23 个 dex 后 `grep -l "alarmPage=unconfirmed"` 命中 `classes14.dex`；该字面量只存在于本 SHA 的 `ClockControl.kt:775`，且 `git diff --stat 197dd90..HEAD -- src/` 为空 → dex 出自当前源码，不是旧的增量残留 |
+| 机器记录 | `docs/evidence/pr4-c10599a-apk-build.txt`（命令、日志尾、sha256、签名、归属校验、证明边界） |
+
+### 证明边界（按 AGENTS.md 第 3/4/5 条）
+
+- **能说明**：在 Windows 11 + JDK 17 + 仓库内 SDK 上，`c10599a` 这个确切树能离线编译、dex、打包成 v2 签名的 debug APK，40 个任务全部重跑，输入不需要网络。
+- **不能说明**：①**未安装、未启动、未连手机**——设备矩阵维持**历史 4 通过 / 0 失败 / 3 未测**（旧 APK）；②打包≠行为：`closeAlarm` 仍 `BLOCKED`、计时器对象级终态仍 `UNPROVEN`、手电/撤销只到「源码 + JVM/MockK」；③不是 Linux/POSIX 构建，仓库仍无 `.github/workflows`、该提交无 CI status；④只验了 debug 签名，没碰 release 签名配置。
+- 本轮改动：新增 1 个证据文件 + 本状态文档。`src/`、`app/src/test/`、`sanitize_evidence.py` **零 diff**（该 APK 日志不是 JUnit 汇总，故不加入 `EVIDENCE_TARGETS`）。
+
+### 当前阻塞（与前几轮相同，未变；离线项已清空）
+
+B3：①Termux Bridge 是否纳入阶段 1 交付；②是否**重新授权**限定设备验收（上一轮实机授权已用掉，新一轮实机需用户明确同意）；③是否另立 Issue 承接阶段 2。复审已两轮声明停止自动修复；本轮之后**没有剩余的离线技术项或离线证据项**，不再开新的 docs/证据轮次，等用户对这三项表态。
+
 ## 第63轮：新复审 `6576888477`（HEAD `efd0f9c`）无新代码任务；把它列为本 SHA「未独立实跑」的全量 JVM 在 `efd0f9c` 本体跑掉（`src/` 零改动，未实机）
 
 本轮有**新审查**：PR #4 评论 `6576888477`（`<!-- chatgpt-hourly-review SHA:efd0f9c... -->`，2026-11-02T12:15:45Z），针对当前 HEAD `efd0f9cfc057fbb8efaa6bf7ba7a5fce3d30d37a`（`git rev-parse` / `git ls-remote` / PR head 三方一致）。上一轮（第62轮）处理的最后一条是 `6576507686`，其后新增的就是它，未重复劳动。
