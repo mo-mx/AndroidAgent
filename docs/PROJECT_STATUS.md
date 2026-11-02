@@ -1,5 +1,45 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第60轮：处理复审 `6559237989`（HEAD `22b91c1`）的两条 FOLLOW-UP —— 数字补上"在哪个树里量的"，脚本帮助文本改成与真实语义一致（`src/` 零改动，未实机）
+
+本轮新审查：PR #4 评论 `6559237989`（`<!-- chatgpt-hourly-review SHA:22b91c1... -->`，2026-11-01T14:24:14Z），针对 HEAD `22b91c1e3d38fba5344e294651495606ab49acd4`。它对**本 SHA 的判定是"没有新增可证明的 B1/B2 安全 BLOCKER"**，并明确"不启动第三轮修复、不要求 Hermes 自行处理遗留项"，**B3（阶段 1 交付边界：Bridge 是否纳入、是否授权限定设备验收）仍是用户决策项**。因此本轮**不开新一轮修复**，只把它标为非阻塞的两条 FOLLOW-UP 用实跑关掉。
+
+### FOLLOW-UP 1：`24 个文件 / 交集为空` 是提交者报告量，本轮重测并补上测量树
+
+复审说它"未独立运行仓库级 `git grep` 复算 24 的数量"。本轮按可复现命令重测，结论是**第59轮的数字在 HEAD 上成立，但原文没写"在哪棵树里量的"，容易被读成"main 上只有 24 个"——那个读法是错的**：
+
+| 测量对象 | 命令 | 结果 |
+|---|---|---|
+| `origin/main` 树 | `git grep -l -I -E "Users[\\/]+<user>\|/c/Users/<user>" $(git rev-parse origin/main) -- .` | **27** 个文件 |
+| 本 PR HEAD 树 | 同模式，`git grep -l -I -E ... HEAD -- .` | **24** 个文件 |
+| 差集 | 上表两集合相减 | 恰好 3 个：`docs/phase1-device-report.md`、`docs/phase2-basic-agent-report.md`、`docs/TEST_RESULTS.md` —— 正是第58轮在本 PR 内脱敏的那三个文档 |
+| 交集 | `comm -12` HEAD 命中列表 与 `git diff --name-only $(git merge-base origin/main HEAD) HEAD` | **0** —— PR 没有新增，也没留下新的本机路径 |
+
+即：**main=27、HEAD=24、Δ=3 全是本 PR 的删除项**，"PR 未新增"这一条成立；错的只是"24 个"被当成 main 的数字。24 个残留全部在 `scripts/`(19)、`asr_eval/`(2)、`env.sh`、`scrcpy_wireless.bat`、`mobile-actions-eval/setup_harness.py`，属本机开发脚本的**功能性输入**，按 AGENTS.md 第 8 条该单独评估，不在冻结 PR 内改 22 个脚本。
+
+### FOLLOW-UP 2：`sanitize_evidence.py` 的帮助文本 "Exit codes: 0 clean" 与真实语义冲突
+
+复审点名这是既有措辞问题（脚本本 SHA 未改）。它确实是错的：`KNOWN_OPEN` 只打印、不计入 `dirty`，所以仓库里还有 24 个本机路径时 `--check` 照样 `exit 0`。本轮**只改 docstring 的措辞，不改任何代码路径**，并按 AGENTS.md 第 3 条把三个退出码逐个实测，而不是照抄：
+
+| 退出码 | 构造方式（临时沙箱，不碰仓库文件） | 实测 |
+|---|---|---|
+| 0 | 沙箱内 `--scope all --check` 原样 | `exit=0`，两行 `KNOWN-OPEN` 仍打印 |
+| 1 | 沙箱内往 `docs/evidence/.../output-windows11-jdk17.txt` 追加一条 `C:\Users\<user>\...` | `WOULD MASK: docs\evidence\...\output-windows11-jdk17.txt`，`exit=1`；再 `--scope all` 脱敏后复检 `exit=0` |
+| 2 | 沙箱内把 `pr4-197dd90-junit-summary.txt` 的 `TOTAL tests=2529` 改成 `2500` | `match=False`，`exit=2`；不带 `--check` 也是 `exit=2`（与"任何 scope 都返回 2"一致） |
+
+改前/改后对仓库实跑 `--scope all --check`，**stdout 逐字节相同、EXIT 均为 0**（`diff` 只差我追加的标记行），`py_compile` 通过 —— 说明这是纯措辞修正，闸门行为零变化。
+
+### 证据级别（按 AGENTS.md 第 3/4/5 条）
+
+- 本轮 `src/`、`app/src/test/` **零 diff**，故**未跑 Gradle**；"全量 JVM 2529/0/0/8，exit=0"仍是第56轮在 `197dd90` 的实跑记录，不是本 SHA 的。
+- 实测证据仅限：Python 脱敏脚本退出码（Windows 11 / 本机 python 3.11）、`git grep`/`git diff` 计数。**未构建/安装 APK，未操作手机**。
+- B3 的三条空档（独立 CI、POSIX/Linux JVM、本 SHA 真机）本轮**仍未闭合**，且**不是本轮能自行关闭的**。
+
+### 本轮为什么停在这里
+
+复审已触发两轮停止条件并声明不指派第三轮；B1/B2 无新增阻塞；离线可做的项（`cancelTimer` 窗口校验、截断不当完整、计时器唯一绑定、五分钟真实参数、创建 undo 安全拒绝、撤销记忆消费、三处开关回读、Bridge token 认证）在前 59 轮均已落地。**继续动手只剩用户决策：阶段 1 是否包含 Termux Bridge、是否重新授权限定设备验收。** 在用户明确回答前，不装包、不操作手机、不合并。
+
+
 ## 第59轮：新复审 `6558533290` —— 无新 BLOCKER；把「`--check` 通过 ≠ 仓库无私人路径」实测出来并更正上轮措辞（零源码改动，未实机）
 
 本轮唯一新审查是 PR #4 评论 `6558533290`（`<!-- chatgpt-hourly-review SHA:24d02c2... -->`，2026-11-01T13:22:27Z），针对当前 HEAD `24d02c2f355d5e18ccfe152c20e03df0b0ac3c9f`。
@@ -38,7 +78,7 @@ PR #4 自第57轮评论（`6558200669`，12:52:41Z）后**没有新审查**；�
    - JSON 的双反斜杠形态单独一遍处理，**替换后仍是合法 JSON**（`json.loads` 实测通过），不产生 `\U` 这类非法转义；
    - 幂等：`mask(mask(x)) == mask(x)` 实测 True，已脱敏的 `<user>` 不会被二次改写；
    - 用户名从 `USERNAME`/`USER`/`getpass` 读，**不写进仓库**。
-3. **`--check` 变成可复跑闸门**（`--scope all --check`），并继续逐类求和比对 JUnit 汇总的声明总计。**第59轮更正**：`exit 0` 只表示「可掩码的目标里没有可掩码项」；`KNOWN_OPEN` 只打印、不计入 `dirty`，故 `exit 0` **不等于**整个仓库已无私人路径（实测仓库内仍有 24 个此类文件，且均为 main 既有）。
+3. **`--check` 变成可复跑闸门**（`--scope all --check`），并继续逐类求和比对 JUnit 汇总的声明总计。**第59轮更正**：`exit 0` 只表示「可掩码的目标里没有可掩码项」；`KNOWN_OPEN` 只打印、不计入 `dirty`，故 `exit 0` **不等于**整个仓库已无私人路径（实测仓库内仍有 24 个此类文件，且均为 main 既有；**第60轮补测**：24 是 HEAD 树的数，`origin/main` 树为 27，差集 3 为本 PR 脱敏的三个文档）。
 
 ### 实跑数据（Python，本机 Windows 11；**未跑 Gradle**——本轮 `src/`、`app/src/test/` 零 diff）
 

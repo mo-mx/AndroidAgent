@@ -29,7 +29,13 @@ Usage:
   python docs/evidence/sanitize_evidence.py --scope docs --check   # exit 1 if anything is left to mask
   python docs/evidence/sanitize_evidence.py --scope all --check    # also reports KNOWN-OPEN files
 
-Exit codes: 0 clean, 1 something left to mask (in --check), 2 JUnit totals mismatch.
+Exit codes (exact semantics; 0 is NOT "the repo has no host paths"):
+  0  in --check: every *maskable* target is already masked.  Files listed under
+     KNOWN_OPEN are only printed as a reminder and never counted as dirty, so a
+     repo can still contain host paths (scripts/, asr_eval/) and exit 0.
+  1  in --check: at least one maskable target still needs masking.
+  2  a JUnit summary's declared totals disagree with the re-summed rows
+     (returned for any scope, not only --check).
 """
 import getpass
 import os
