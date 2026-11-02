@@ -1,5 +1,35 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第62轮：无新审查；把「全量 JVM 只在 `197dd90` 跑过」这条空档在当前 HEAD `9c389e3` 上关掉（`src/` 零改动，未实机）
+
+本轮 PR #4 **没有新审查**：最新一条仍是 `6575719349`（`<!-- chatgpt-hourly-review SHA:0fb2d0b... -->`，2026-11-02T11:13:37Z），已由第61轮评论 `IC_kwDOVdfNwc8AAAABh_XHig` 处理完毕；其后 PR 只有该条回复。当前 HEAD `9c389e3e4d22e7f377a7781697a9c47fd14a402c`（`git rev-parse` / `git ls-remote` / PR head 三方一致），`main` 仍 `580261f1253e00fd596304df1e9ebb0e5a8d5745`。
+
+### 做了什么：在当前 HEAD 上真跑一次全量 JVM 单测
+
+前 6 轮的状态都写着同一句限定：「`2529/0/0/8` 是第56轮在 `197dd90` 的实跑记录，不是本 SHA 的」。这是本轮唯一能离线闭合的证据空档，所以直接在 `9c389e3` 干净工作树上跑全量。
+
+命令：`source env.sh` → `cd src/closepaw` → `./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain`（`--rerun-tasks` 是必须的：本机曾出现增量编译复用旧 class 导致跑旧码）。跑前删掉 `app/build/test-results/testDebugUnitTest`，避免旧 XML 混入统计。
+
+| 项 | 实得（2026-11-02，HEAD `9c389e3`） |
+|---|---|
+| Gradle | `BUILD SUCCESSFUL in 8m`，**exit=0** |
+| 汇总（`test-results/testDebugUnitTest/*.xml` 用 `xml.etree` 求和，不取控制台概要） | **271 classes / 2529 tests / 0 failed / 0 errors / 8 skipped** |
+| 8 条 skipped 名单 | `ShellRunnerTest::runDrained*` 4 条 + `ShellToolExecutionTest::*` 4 条，全是既有的 Android-shell 环境跳过，本轮未增未减 |
+| 曾经在本机红的 6 项 | `AgentSkillCatalogTest`（22 类全过，含 `entry filePath points to SKILL md`）与 `MemoryStoreTest`（34 类全过，含 `append replaces the existing file instead of failing on it`）在本 SHA **全绿** —— 它们由 `197dd90`（`fix(memory): replace the existing file instead of failing on it`）修掉，不是本轮改的 |
+| 机器汇总入仓 | `docs/evidence/pr4-9c389e3-junit-summary.txt`（271 类逐类计数），并已加入 `sanitize_evidence.py` 的 `EVIDENCE_TARGETS`，由闸门重算校验 |
+| 闸门复跑 | `python docs/evidence/sanitize_evidence.py --scope all --check` → 三份汇总 `match=True`（`271/2528/6/0/8`、`271/2529/0/0/8`、`271/2529/0/0/8`），`KNOWN-OPEN` 仍只有 `asr_eval/refs.json`、`asr_eval/make_set.ps1`，**exit=0**；`py_compile` 通过 |
+
+### 这次绿说明了什么、没说明什么（按 AGENTS.md 第 3/4/5 条）
+
+- **说明**：在 Windows 11 + JDK 17 + 本仓库 `tools/` 的 Android SDK 上，当前 HEAD 的 JVM 单测全集通过；`197dd90` 之后 6 个 docs 提交（含本轮 `EVIDENCE_TARGETS` 一行）没有引入任何 JVM 回归。
+- **不说明**：①这不是 Ubuntu/POSIX 上的结果，独立 CI 仍为空（`gh api …/commits/9c389e3…/status` 无 status）；②JVM 单测全绿**不等于**功能可用——`closeAlarm` 仍 `BLOCKED`，计时器创建/取消的对象级终态仍 `UNPROVEN`，手电撤销只到「源码 + JVM/MockK」级别；③本 SHA 未构建/未安装 APK、未操作手机，设备矩阵维持 4 通过 / 0 失败 / 3 未测。
+- 本轮唯一的非 docs 改动是 `sanitize_evidence.py` 的 `EVIDENCE_TARGETS` 加一行（不改变任何掩码/判定逻辑），`src/` 与 `app/src/test/` **零 diff**。
+
+### 当前唯一阻塞（与第61轮相同，未变）
+
+B3：①Termux Bridge 是否纳入阶段 1 交付；②是否**重新授权**限定设备验收（上一轮实机授权已用掉）。离线可做的技术项清单（`cancelTimer` 窗口校验、截断不当完整、计时器唯一绑定、五分钟真实入参、创建 undo 安全拒绝、撤销记忆消费、三处开关回读、Bridge token 认证）已全部落地，本轮之后**再无遗留的离线代码项**可推进；需要装包/真机的部分等用户明确授权。
+
+
 ## 第61轮：新复审 `6575719349`（HEAD `0fb2d0b`）无新代码任务；把它列为「提交者报告」的三条事实在本 SHA 上重跑（`src/` 零改动，未实机）
 
 本轮新审查：PR #4 评论 `6575719349`（`<!-- chatgpt-hourly-review SHA:0fb2d0b... -->`，2026-11-02T11:13:37Z），针对当前 HEAD `0fb2d0b1cae7bb704ed3e2b47101f52b9e14a5dd`。它的判定：**B1/B2「本次无新增可证明的安全 BLOCKER」**；**B3 仍是用户决策项**（Termux Bridge 是否属于阶段 1 交付、是否授权限定设备验收）；唯一 FOLLOW-UP 是 `KNOWN_OPEN` 与其余历史本机路径「需后续独立评估」，并**明确写「不指派 Hermes 修复」**。所以本轮不开新修复，也不改代码。

@@ -50,6 +50,7 @@ REPO_ROOT = DOCS_DIR.parent
 EVIDENCE_TARGETS = [
     EVIDENCE_DIR / "pr4-a6a498f-junit-summary.txt",
     EVIDENCE_DIR / "pr4-197dd90-junit-summary.txt",
+    EVIDENCE_DIR / "pr4-9c389e3-junit-summary.txt",
     EVIDENCE_DIR / "pr4-a6a498f-platform-probe" / "output-windows11-jdk17.txt",
 ]
 
