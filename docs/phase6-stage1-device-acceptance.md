@@ -1,6 +1,6 @@
 # 阶段1实机验收记录（按轮次：① 锁屏阻塞 → ② 解锁续验 → ③ 时钟读取根因与修复 → ④ 限定真机验收）
 
-**当前结论（只读本节即可，勿用开头历史轮次判断现状）**：最新为 2026-11-03 第④轮（限定真机验收，APK 绑定 `dd3d089`）。手电筒开/关在设备侧被独立证实（`dumpsys media.camera` 的 torch on/off 时间戳与 App 日志一致），「本来就是开着」走 already-at-target 不下发，「撤销」真实关闭但 App 只报 UNPROVEN。时钟三条能力本轮**全部安全拒绝、零虚报**：ALARM QUERY `tab=click-failed-label-only`、TIMER QUERY `label-not-found window=not-clock`、CANCEL TIMER `clock not reachable`、CLOSE ALARM `BLOCKED needs clarification`。CREATE TIMER 设备端确实建成了 2 分钟倒计时（UI 实测 1 分 28 秒 + 取消），App 报 `verified=null page-unconfirmed`（读回不可用），随后手工取消清理。矩阵据实为 **通过 2 / 部分 1 / 安全拒绝 4 / 未测 3 / 设备成功但 App 未证实 1**（第 68 轮更正：原写「通过 3」把 CREATE TIMER 的「设备侧建成、App 读回不可用」计入了通过，与逐项表不符，属虚增，已按表复算为 2 项通过：离线语义闸门、手电筒状态回读）；阶段 1 仍不满足合并条件。
+**当前结论（只读本节即可，勿用开头历史轮次判断现状）**：最新为 2026-11-03 第⑤轮（在线修复 One UI 9 的 tab 导航）。已定位并修复两条真实缺陷：①`isNavBar` 要求每个 tab 标签都有可点单元，而 One UI 9 上**当前选中的 tab 是 `clickable=false`**，整条 tab 栏因此被判为非导航栏 → 每次时钟查询都 `tab=click-failed-label-only`；②`ACTION_CLICK` 已投递但立即读选中态仍是旧值（tab 切换有动画）→ 误判 `clicked-not-selected`。修复后真机实测：**闹钟查询重新可用**（`verified=true visible=[6:00,7:30,8:00,9:20,10:00,11:00] tab=clicked nodes=67`）；倒计时查询可达定时器页（`tab=selected`），但计数解析仍 `count=unparsed` → 继续安全拒绝；定时器创建选择器页无 tab 栏，已加「一次 BACK 后重试」恢复（JVM 已测，真机待验，本轮因手机锁屏中断）。JVM 全量 272 类 / 2535 项 / 0 failed / 0 errors / 8 skipped / exit=0（第④轮汇总已按逐项表更正为 **通过 2 / 部分 1 / 安全拒绝 4 / 未测 3 / 设备成功但 App 未证实 1**）。
 
 轮次索引：
 | 轮次 | 时间 | 锁屏 | 主要内容 | 结果 |
@@ -8,7 +8,8 @@
 | ① 构建安装 + 首轮矩阵 | 2026-10-31 早 | deviceLocked=1（未绕过） | 构建/安装/哈希/无障碍基线 | 7 项全部未测 |
 | ② 解锁续验 | 2026-10-31 后 | deviceLocked=0 | 6 条 debug 文字注入 | 通过 2 / 失败 1 / 未测 4 |
 | ③ 复审 P1/P2 + 修复 | 2026-10-31 13:27–14:00 | deviceLocked=0 | 时钟读取根因定位、TDD 修复、重装重跑 | 通过 4 / 失败 0 / 未测 3 |
-| ④ 限定真机验收（最新） | 2026-11-03 01:25–01:36 | deviceLocked=0 | 干净重装 dd3d089；手电筒/时钟/计时器的实测 | 通过 2 / 部分 1 / 安全拒绝 4 / 未测 3 / 设备成功但未证实 1 |
+| ④ 限定真机验收（历史） | 2026-11-03 01:25–01:36 | deviceLocked=0 | 干净重装 dd3d089；手电筒/时钟/计时器的实测 | 通过 2 / 部分 1 / 安全拒绝 4 / 未测 3 / 设备成功但未证实 1 |
+| ⑤ tab 导航修复（最新） | 2026-11-03 02:03–02:33 | deviceLocked=0→锁屏中断 | One UI 9 选中 tab 不可点 + 切换动画误判 | 闹钟查询恢复；计时器页可达、计数仍拒读 |
 
 下文「## 第①轮」与「## 第②轮」为历史记录，不代表当前状态。
 
@@ -16,7 +17,60 @@
 
 ---
 
-## 第④轮（最新）：限定真机验收（APK 绑定 `dd3d089`）
+## 第⑤轮（最新）：在线修复 One UI 9 的 tab 导航（源码 + JVM + 真机）
+
+用户 2026-11-03 指示「就在线修复」，并点明两个现象：开发者兼容性弹窗挡住了闹钟界面；不在目标页时应自己读屏、自己点 tab。
+
+### 根因 1：选中的 tab 不可点，导致整条 tab 栏被否决
+
+- 真机读屏（`uiautomator dump`）：当前选中的 tab 是 `LinearLayout content-desc=闹钟, clickable=false, selected=true`，其余三个 `clickable=true`。
+- `isNavBar` 原要求**每个**标签都有可点单元（`clickUnit != null`），于是选中态一出现就把整条栏判为「不是导航栏」→ `navControl` 返回 null → 点击与选中态读取**同时失效**，表现为 `tab=click-failed-label-only`。
+- 修正：标签缺可点单元时，**仅当该标签（或其在栏内祖先）报告 `isSelected`** 才放行；无选中证据的普通标签仍然拒绝（保留「两个标签共用一个可点卡片=内容页」的拒绝）。
+
+### 根因 2：点击已投递但立即读选中态仍是旧值
+
+- 修复 1 后的真机日志：`navTab(定时器): clicked=true controlClickable=true`，但 `detail=tab=clicked-not-selected`。
+- 修正：点击成功后用 `UiAutomator.awaitTabSelected(tab, 1200)` 轮询选中态（每 120ms，**只读不点**，避免第二次点击反而切回去）。
+
+### 根因 3：页面无 tab 栏时完全无法导航
+
+- 定时器创建选择器覆盖了 tab 栏，`navControl=null` → 永远拒绝。
+- 修正：`openClockTab` 在「无可验证 tab 控件」且**时钟仍在前台**时，按**一次** BACK 并重试；若 BACK 后前台已不是时钟则不再点。绝不连按两次，也不在 BACK 后尝试坐标点击。
+
+### 测试（TDD，新增 `ClockSelectedTabNotClickableTest`，8 项）
+
+| 用例 | 断言 |
+|---|---|
+| 选中 tab 不可点 | `navControl != null`、`selectedState(当前)==true`、`selectedState(其他)==false` |
+| 点选中 tab | 返回 false，四个 tab 均 **0 次** `performAction` |
+| 点另一个 tab | 返回 true，仅该 tab **1 次** 点击，其余 0 次 |
+| 内容页（非选中、无可点单元） | 仍判为非导航栏，`clickClockNavTab` 不等于 true，0 次点击 |
+| 选中态延迟到达 | `awaitTabSelected` 轮询后返回 true |
+| 选中态始终未达 | 返回 false（不伪造达） |
+| 无 tab 栏→一次 BACK 后点击 | BACK 恰好 1 次，`detail` 含 `tab=clicked` |
+| BACK 落到时钟外 | 只尝试 1 次 tab 点击，`verified=false` |
+
+- 定向：新类 8/8 绿（先 RED 3/4、后补齐 BACK 两例）；`Clock*`、`Tab*` 子集全绿。
+- 全量：**272 类 / 2535 项 / 0 failed / 0 errors / 8 skipped，exit=0**（上一次 2533，+2 BACK 用例；未跳过、未弱化断言）。
+- 新增 `scripts/voice_probe.py`：单条注入 + 自动关掉 Android 17 对 debuggable 应用的「应用兼容性」弹窗（否则它抢焦点，首次读屏变成 `launch-not-foreground`）。
+
+### 真机复测（APK SHA-256 `8e45df09…db06`，`install -r`）
+
+| 场景 | 结果 |
+|---|---|
+| 闹钟查询 | **SUCCESS verified=true** `visible=[6:00, 7:30, 8:00, 9:20, 10:00, 11:00] alarmPage=true readable=true checkables=6 tab=clicked nodes=67` |
+| 倒计时查询（从闹钟页转过去） | 到达定时器页 (`tab=selected`)，但 `count=unparsed cards=0` → `DEVICE_UNAVAILABLE`，播「没法确认有几个倒计时在运行」 |
+| 倒计时创建器页 | 无 tab 栏 → 新增的 BACK 恢复（本轮因手机锁屏未完成真机验证，**不当作已修复**） |
+| 取消倒计时 | 时钟页未达到时 `clock not reachable`（安全拒绝） |
+
+### 本轮未完成 / 残留
+
+- 倒计时**计数解析**仍不认识 One UI 9 的创建器/列表形状（`count=unparsed`），属安全拒绝，不是误报；需单独修。
+- BACK 恢复仅 JVM 已测；真机验证中途手机进入锁屏（`Bouncer`），需用户解锁后补验。本轮未猜 PIN、未试图绕过锁屏。
+
+---
+
+## 第④轮（历史）：限定真机验收（APK 绑定 `dd3d089`）
 
 **授权边界**：用户 2026-11-02 明确授权一轮限定真机验收，范围＝离线语义闸门与安全拒绝、手电筒状态回读与撤销、计时器与闹钟的安全边界；不改高风险系统设置、不 Root、不刷机、不扩展范围；装包前单独确认。本轮全程未改助手角色、未关锁屏、未动 `voice_interaction_service`、未 force-stop、未改用户闹钟。
 
@@ -71,7 +125,7 @@
 
 ---
 
-## 第③轮（最新）：时钟读取根因 + 修复复测
+## 第③轮（历史）：时钟读取根因 + 修复复测
 
 需要复审。本轮按 PR #4 评论 `6539505148`（`IC_kwDOVdfNwc8AAAABhcjt_A`）的 P1/P2 执行；Issue #6 的跨轮上下文与多级导航未并入本轮。
 

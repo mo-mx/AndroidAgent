@@ -64,8 +64,22 @@ object ClockControl {
             }
         }
         // Missing or failed exact controls never authorize a containing-text click.
-        val clicked = clickClockTab(tab) == true
-        val selected = UiAutomator.tabSelected(tab)
+        //
+        // A clock page without the tab strip (the timer-creation picker covers it) exposes no
+        // navigation at all. Press BACK once and re-check — but only while the clock is still the
+        // foreground app, and never twice, so a wrong guess cannot walk the user out of the app.
+        var clickState = clickClockTab(tab)
+        if (clickState == null && UiAutomator.foregroundPackage() == CLOCK_PKG) {
+            UiAutomator.back()
+            Thread.sleep(350)
+            if (UiAutomator.foregroundPackage() == CLOCK_PKG) clickState = clickClockTab(tab)
+        }
+        val clicked = clickState == true
+        // Device evidence (2026-11-03, One UI 9): ACTION_CLICK is delivered, but the tab strip is
+        // animated and still reports the old selection when read immediately — the page did switch a
+        // moment later. Poll the selection briefly instead of declaring "clicked-not-selected";
+        // never click twice, because a second ACTION_CLICK can toggle back.
+        val selected = if (clicked) UiAutomator.awaitTabSelected(tab, 1200) else UiAutomator.tabSelected(tab)
         // Only asked when the click was not delivered: it separates "control missing" from
         // "control visible but the tap did nothing".
         val controlPresent = !clicked && UiAutomator.waitForText(tab, 600)

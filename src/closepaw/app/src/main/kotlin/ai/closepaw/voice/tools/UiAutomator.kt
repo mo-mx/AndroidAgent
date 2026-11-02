@@ -374,6 +374,26 @@ object UiAutomator {
         selectedState(root(), text, peers)
 
     /**
+     * Poll [tabSelected] until it reports `true` or the budget runs out, then return the last verdict
+     * (which may still be `false`/`null`). The clock's tab strip is animated: on One UI 9 a single
+     * read right after a delivered ACTION_CLICK still saw the old selection, while the page had in
+     * fact switched. This helper only *reads* — it never issues another click.
+     */
+    internal fun awaitTabSelected(
+        text: String,
+        timeoutMs: Long,
+        peers: List<String> = CLOCK_TABS,
+    ): Boolean? {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        var last: Boolean? = tabSelected(text, peers)
+        while (last != true && System.currentTimeMillis() < deadline) {
+            Thread.sleep(120)
+            last = tabSelected(text, peers)
+        }
+        return last
+    }
+
+    /**
      * The exact-label navigation control for [tab] together with the container that proves it is a tab.
      *
      * A same-package node that merely reads "闹钟" (a section header, a settings row, a hint card) is
@@ -509,7 +529,17 @@ object UiAutomator {
         // even through different wrappers (round 22). Only ≤4 labels, so a list is exact.
         val units = ArrayList<AccessibilityNodeInfo>()
         for ((label, labelNode) in labels) {
-            val unit = clickUnit(labelNode, node) ?: return false
+            val unit = clickUnit(labelNode, node)
+            if (unit == null) {
+                // Device evidence (2026-11-03, One UI 9 / Clock 12.5.60.27): the selected tab is
+                // not clickable (clickable=false, selected=true) while the others are. Demanding a
+                // click unit from every label rejected the whole strip whenever one tab was
+                // selected, so every clock query became `tab=click-failed-label-only` even on the
+                // correct page. Unclickable is only acceptable when the strip reports selection;
+                // a plain label without selection evidence still refuses (content-page guard).
+                if (!selectedBelow(labelNode, node)) return false
+                continue
+            }
             if (units.any { sameNode(it, unit) }) return false
             units.add(unit)
         }
@@ -555,6 +585,23 @@ object UiAutomator {
             depth++
         }
         return UNREACHABLE_DEPTH
+    }
+
+    /**
+     * True when [label] or one of its ancestors below [bar] reports `isSelected`, i.e. the strip
+     * itself says this label is the current tab. Used only to allow an unclickable *selected* tab
+     * (One UI 9 device evidence); a label without selection evidence never qualifies.
+     */
+    private fun selectedBelow(label: AccessibilityNodeInfo, bar: AccessibilityNodeInfo): Boolean {
+        var cur: AccessibilityNodeInfo? = label
+        var hops = 0
+        while (cur != null && hops++ <= NAV_MAX_HOPS + 2) {
+            val node = cur
+            if (sameNode(node, bar)) return false
+            if (runCatching { node.isSelected }.getOrDefault(false)) return true
+            cur = runCatching { node.parent }.getOrNull()
+        }
+        return false
     }
 
     /**
@@ -835,11 +882,26 @@ object UiAutomator {
      */
     internal fun clickClockNavTab(tab: String): Boolean? = runCatching {
         val r = root() ?: return@runCatching null
-        if (r.packageName?.toString() != CLOCK_PKG) return@runCatching false
-        val nav = navControl(r, tab, CLOCK_TABS) ?: return@runCatching null
-        if (nav.control.packageName?.toString() != CLOCK_PKG) return@runCatching false
-        if (nav.container.packageName?.toString() != CLOCK_PKG) return@runCatching false
-        clickTabControl(nav)
+        if (r.packageName?.toString() != CLOCK_PKG) {
+            Log.i(TAG, "navTab($tab): refused, rootPkg=${r.packageName}")
+            return@runCatching false
+        }
+        val nav = navControl(r, tab, CLOCK_TABS)
+        if (nav == null) {
+            Log.i(TAG, "navTab($tab): no verified tab control (nav=null)")
+            return@runCatching null
+        }
+        if (nav.control.packageName?.toString() != CLOCK_PKG) {
+            Log.i(TAG, "navTab($tab): control pkg=${nav.control.packageName}")
+            return@runCatching false
+        }
+        if (nav.container.packageName?.toString() != CLOCK_PKG) {
+            Log.i(TAG, "navTab($tab): container pkg=${nav.container.packageName}")
+            return@runCatching false
+        }
+        val clicked = clickTabControl(nav)
+        Log.i(TAG, "navTab($tab): clicked=$clicked controlClickable=${nav.control.isClickable}")
+        clicked
     }.getOrNull()
 
     fun readScreen(limit: Int = 60): ScreenRead = readTree(root(), limit, available())
