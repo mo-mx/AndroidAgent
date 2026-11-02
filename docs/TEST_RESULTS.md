@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-11-02 第63轮（全量 JVM 在 `efd0f9c` 本体实跑；未实机）
+
+测什么：消除「全量结果只属于 `9c389e3`」这条限定——复审 `6576888477` 指出现 HEAD `efd0f9c` 只加了 docs 与证据登记、未在当前 SHA 上实跑。
+
+怎么测：`rm -rf app/build/test-results/testDebugUnitTest` → `JAVA_HOME=tools/jdk-17.0.20.1+1 ANDROID_HOME=tools/android-sdk ./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain`；统计读 XML 求和（不采信控制台摘要），汇总入仓 `docs/evidence/pr4-efd0f9c-junit-summary.txt`。
+
+| HEAD | 结果 | exit | Gradle |
+|---|---|---|---|
+| `efd0f9c` | **2529 tests / 0 failed / 0 errors / 8 skipped**（271 类） | **0** | `BUILD SUCCESSFUL in 6m 35s` |
+
+8 条 skipped 与 `197dd90`/`9c389e3` 同名同数（`ShellRunnerTest` 4 + `ShellToolExecutionTest` 4）。未验证：Linux/POSIX 未跑、独立 CI 仍空、本 SHA 未构建/未安装 APK、未操作手机（设备矩阵仍为历史 4 通过 / 0 失败 / 3 未测）。
+
+
 ## 2026-11-01 第56轮（JVM 全量首次全绿于 `197dd90` 本体 + 6 项历史失败的真实修复，未实机）
 
 测什么：第55轮把 6 项失败定性为「Windows 宿主语义、与本 PR 无关」，但全量始终 `exit=1`。本轮不再只归因——**先补测试再改生产代码**，把这 6 项真正修绿，并让全量在同一 HEAD 上给出 `exit=0`。

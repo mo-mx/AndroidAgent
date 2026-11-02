@@ -1,5 +1,37 @@
 # PROJECT_STATUS — 当前真实状态
 
+## 第63轮：新复审 `6576888477`（HEAD `efd0f9c`）无新代码任务；把它列为本 SHA「未独立实跑」的全量 JVM 在 `efd0f9c` 本体跑掉（`src/` 零改动，未实机）
+
+本轮有**新审查**：PR #4 评论 `6576888477`（`<!-- chatgpt-hourly-review SHA:efd0f9c... -->`，2026-11-02T12:15:45Z），针对当前 HEAD `efd0f9cfc057fbb8efaa6bf7ba7a5fce3d30d37a`（`git rev-parse` / `git ls-remote` / PR head 三方一致）。上一轮（第62轮）处理的最后一条是 `6576507686`，其后新增的就是它，未重复劳动。
+
+它的判定（原文摘要）：**B1/B2「本轮没有新增可证明的安全 BLOCKER」**；**B3 仍是用户决策项**（Termux Bridge 是否纳入阶段 1 交付、是否授权限定设备验收），并写明「本评论**不指派第三轮修复**」「不扩展冻结清单、不自动触发开发」。**FOLLOW-UP：未发现本次 diff 新增需要立即处理的项。**
+
+所以本轮不开新修复、不改 `src/`。它唯一留给提交者补的事实是 UNVERIFIED 第 1 条：*「当前 `efd0f9c` 只增加文档和证据目标登记，没有在当前 SHA 上独立实跑」*。这一条能离线闭合，就在本 SHA 本体跑。
+
+### 做了什么：在 `efd0f9c` 本体跑全量 JVM 单测（不是引用 `9c389e3` 的结果）
+
+命令：`JAVA_HOME=tools/jdk-17.0.20.1+1` + `ANDROID_HOME=tools/android-sdk` → `cd src/closepaw` → `./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain`。跑前 `rm -rf app/build/test-results/testDebugUnitTest`，避免旧 SHA 的 XML 混入统计；统计只读 `test-results/*.xml`（`xml.etree` 求和），不采信控制台摘要。
+
+| 项 | 实得（2026-11-02 20:41 +08:00，HEAD `efd0f9c`） |
+|---|---|
+| Gradle | `BUILD SUCCESSFUL in 6m 35s`，31 tasks executed，**exit=0** |
+| 全量汇总 | **271 classes / 2529 tests / 0 failed / 0 errors / 8 skipped** |
+| 8 条 skipped | `ShellRunnerTest::runDrained*` 4 + `ShellToolExecutionTest::*` 4，均为既有 Android-shell 环境跳过，未增未减（名单逐条记入证据文件） |
+| 与上一实跑点 `9c389e3` 的差异 | 计数完全相同（`271/2529/0/0/8`）；两 SHA 之间只有 `docs/` 改动，本轮因此把「结果只适用于 `9c389e3`」这条限定消掉 |
+| 机器汇总入仓 | `docs/evidence/pr4-efd0f9c-junit-summary.txt`（271 类逐类计数，`sanitize_evidence.py` 的 `EVIDENCE_TARGETS` 已加该路径） |
+| 闸门复跑 | `python docs/evidence/sanitize_evidence.py --scope all --check` → 四份汇总 `match=True`（`2528/6/0/8`、`2529/0/0/8`×3），`KNOWN-OPEN` 仍只有 `asr_eval/refs.json`、`asr_eval/make_set.ps1`，**exit=0**；`py_compile` 通过 |
+
+### 证明边界（按 AGENTS.md 第 3/4/5 条）
+
+- **能说明**：Windows 11 + JDK 17 + 仓库内 Android SDK 上，`efd0f9c` 这个确切树的 JVM 单测全集通过；`9c389e3 → efd0f9c` 的三个 docs 提交（含 `EVIDENCE_TARGETS` 一行）没有引入 JVM 回归。
+- **不能说明**：①不是 Linux/POSIX 结果，`gh api …/commits/efd0f9c…/status` 仍无 status、仓库仍无 `.github/workflows`；②JVM 全绿≠功能可用：`closeAlarm` 仍 `BLOCKED`、计时器对象级终态仍 `UNPROVEN`、手电/撤销只到「源码 + JVM/MockK」；③本 SHA 未构建 APK、未装、未操作手机，设备矩阵维持**历史 4 通过 / 0 失败 / 3 未测**（旧 APK）。
+- 本轮改动：新增 1 个证据文件 + `EVIDENCE_TARGETS` 加 1 行 + 文档。`src/` 与 `app/src/test/` **零 diff**。
+
+### 当前唯一阻塞（与第62轮相同，未变）
+
+B3：①Termux Bridge 是否纳入阶段 1 交付；②是否**重新授权**限定设备验收（上一轮实机授权已用掉，新一轮实机需用户明确同意）；③是否另立 Issue 承接阶段 2。离线技术项清单已清空（`cancelTimer` 窗口校验、截断不当完整、计时器唯一绑定、五分钟真实入参、创建 undo 安全拒绝、撤销记忆消费、三处开关回读、Bridge token 认证均已落地），本 SHA 之后无遗留离线代码项。复审已两轮声明停止自动修复，本轮亦不代用户拍 Bridge 去留。
+
+
 ## 第62轮：无新审查；把「全量 JVM 只在 `197dd90` 跑过」这条空档在当前 HEAD `9c389e3` 上关掉（`src/` 零改动，未实机）
 
 本轮 PR #4 **没有新审查**：最新一条仍是 `6575719349`（`<!-- chatgpt-hourly-review SHA:0fb2d0b... -->`，2026-11-02T11:13:37Z），已由第61轮评论 `IC_kwDOVdfNwc8AAAABh_XHig` 处理完毕；其后 PR 只有该条回复。当前 HEAD `9c389e3e4d22e7f377a7781697a9c47fd14a402c`（`git rev-parse` / `git ls-remote` / PR head 三方一致），`main` 仍 `580261f1253e00fd596304df1e9ebb0e5a8d5745`。
