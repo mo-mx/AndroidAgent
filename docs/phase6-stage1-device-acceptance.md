@@ -1,17 +1,73 @@
-# 阶段1实机验收记录（按轮次：① 锁屏阻塞 → ② 解锁续验 → ③ 时钟读取根因与修复）
+# 阶段1实机验收记录（按轮次：① 锁屏阻塞 → ② 解锁续验 → ③ 时钟读取根因与修复 → ④ 限定真机验收）
 
-**当前结论（只读本节即可，勿用开头历史轮次判断现状）**：最新为 2026-10-31 第③轮。时钟 UI 读取失败已定位为**读到了自己的窗口**（`rootPkg=ai.closepaw`，3 个节点）并已修复验证：ALARM QUERY 现为 `verified=true readable=true visible=[6 个时间显示，已脱敏]`；TIMER QUERY 在“1 个运行中”时为 `verified=true count=1`、在清理后为 `verified=true`（0）。矩阵仍是 **通过 4 / 失败 0 / 未测 3**（第②轮的“失败 1”已修并复测通过；新增的计时器查询读取不再虚报，但计时器取消绑定等 3 项仍缺安全对象证据）。阶段 1 **仍未整体通过**，PR #4 不合并。
+**当前结论（只读本节即可，勿用开头历史轮次判断现状）**：最新为 2026-11-03 第④轮（限定真机验收，APK 绑定 `dd3d089`）。手电筒开/关在设备侧被独立证实（`dumpsys media.camera` 的 torch on/off 时间戳与 App 日志一致），「本来就是开着」走 already-at-target 不下发，「撤销」真实关闭但 App 只报 UNPROVEN。时钟三条能力本轮**全部安全拒绝、零虚报**：ALARM QUERY `tab=click-failed-label-only`、TIMER QUERY `label-not-found window=not-clock`、CANCEL TIMER `clock not reachable`、CLOSE ALARM `BLOCKED needs clarification`。CREATE TIMER 设备端确实建成了 2 分钟倒计时（UI 实测 1 分 28 秒 + 取消），App 报 `verified=null page-unconfirmed`（读回不可用），随后手工取消清理。矩阵据实为 **通过 3 / 部分 1 / 安全拒绝 4 / 未测 3**；阶段 1 仍不满足合并条件。
 
 轮次索引：
 | 轮次 | 时间 | 锁屏 | 主要内容 | 结果 |
 |---|---|---|---|---|
 | ① 构建安装 + 首轮矩阵 | 2026-10-31 早 | deviceLocked=1（未绕过） | 构建/安装/哈希/无障碍基线 | 7 项全部未测 |
 | ② 解锁续验 | 2026-10-31 后 | deviceLocked=0 | 6 条 debug 文字注入 | 通过 2 / 失败 1 / 未测 4 |
-| ③ 复审 P1/P2 + 修复（最新） | 2026-10-31 13:27–14:00 | deviceLocked=0 | 时钟读取根因定位、TDD 修复、重装重跑 | 通过 4 / 失败 0 / 未测 3 |
+| ③ 复审 P1/P2 + 修复 | 2026-10-31 13:27–14:00 | deviceLocked=0 | 时钟读取根因定位、TDD 修复、重装重跑 | 通过 4 / 失败 0 / 未测 3 |
+| ④ 限定真机验收（最新） | 2026-11-03 01:25–01:36 | deviceLocked=0 | 干净重装 dd3d089；手电筒/时钟/计时器的实测 | 通过 3 / 部分 1 / 安全拒绝 4 / 未测 3 |
 
 下文「## 第①轮」与「## 第②轮」为历史记录，不代表当前状态。
 
 第④轮（2026-10-31）只改了源码与 JVM 测试（tab“到达”语义拆分，复审 `6539752681` P2），**没有上机、没有新 APK**，因此不在本验收文档新增设备轮次；详见 `docs/phase6-stage1-semantic-gate.md` 第六轮。
+
+---
+
+## 第④轮（最新）：限定真机验收（APK 绑定 `dd3d089`）
+
+**授权边界**：用户 2026-11-02 明确授权一轮限定真机验收，范围＝离线语义闸门与安全拒绝、手电筒状态回读与撤销、计时器与闹钟的安全边界；不改高风险系统设置、不 Root、不刷机、不扩展范围；装包前单独确认。本轮全程未改助手角色、未关锁屏、未动 `voice_interaction_service`、未 force-stop、未改用户闹钟。
+
+### 环境与构建（真实执行）
+
+- 设备 `SM-F731U1` / Android 17 / SDK 37；`dumpsys device_state` = `OPENED, app_accessible=true`；`deviceLocked=0`。
+- APK：`dd3d089` 上 `./gradlew --offline --rerun-tasks assembleDebug -x lint` → **75/75 任务实际执行、BUILD SUCCESSFUL、rc=0**；产物 **267,407,790 字节**，`SHA-256 ddb36b2cc48c209528a1e9ac77b118c564f9060f1a48c9f8998e40d92f019e05`，`apksigner verify` 通过，`CN=Android Debug`，证书 SHA-256 `5d47f71d…1f5a`。该字节与第 65 轮记录的 `c10599a` 产物**完全一致**（docs-only 差异，源码相同）。
+- 安装：`adb uninstall ai.closepaw` + `adb install`，2026-11-03 01:25:38，**清数据全新安装**；装后 `dumpsys accessibility` = `Bound services id=ai.closepaw/.app.AgentService, retrieveInteractiveWindows=true`。
+- 模型端点：本轮全部走端上 `SemanticRunner`，**未调用任何云/付费 API**（日志无 `dispatch to agent`），因此无需配置百炼 key。
+
+### 实测明细（logcat 原文）
+
+| 场景 | 命令（debug 注入） | 实测 |
+|---|---|---|
+| 手电筒·已亮时再开 | `fake_text "打开手电筒"` | `SUCCESS verified=true detail=camera=0 baseline=true already-at-target pre-request (no change attributed)`；播报「手电筒本来就是开着的，没有再切换」 |
+| 手电筒·关闭 | `fake_text "关闭手电筒"` | `SUCCESS verified=true detail=camera=0 torch=false baseline=true attributed=post-request`；设备侧 `Torch for camera id 0 turned off for client PID 11951 @01:30:36` |
+| 手电筒·打开 | `fake_text "打开手电筒"` | `SUCCESS verified=true detail=camera=0 torch=true baseline=false attributed=post-request`；设备侧 `turned on @01:30:47` |
+| 撤销 | `fake_text "撤销"` | `ActionMemory: undo(ENABLE/TORCH) → SUCCESS camera=0 torch=false attributed=post-request consumed`；`SemanticRunner: status=SUCCESS verified=null detail=…postcondition=unproven(no object evidence)`；播报「请求已经发出，但没能确认结果」；设备侧 `turned off @01:30:57`，`settings get secure flashlight_enabled = 0` |
+| 闹钟查询 | `fake_text "现在有几个闹钟"` | `SUCCESS verified=false detail=…alarmPage=false readable=false checkables=6 tab=click-failed-label-only nodes=66 rootPkg=com.sec.android.app.clockpackage`；播报「无法读取闹钟列表，不能确认…」**（拒读，未报数）** |
+| 倒计时查询 | `fake_text "现在有几个倒计时"` | `DEVICE_UNAVAILABLE verified=false detail=tab=label-not-found nodes=66 rootPkg=com.sec.android.app.clockpackage window=not-clock`；播报「没读到时钟的定时器页面…」 |
+| 取消倒计时 | `fake_text "取消两分钟倒计时"` | `DEVICE_UNAVAILABLE verified=false detail=clock not reachable`；播报「打不开时钟，取消不了倒计时」 |
+| 关闭闹钟 | `fake_text "关闭闹钟"` | `BLOCKED verified=false detail=needs clarification: 关闭闹钟`；播报「关哪个闹钟？」**（零动作）** |
+| 创建倒计时 | `fake_text "设置两分钟倒计时"` | `SUCCESS verified=null detail=before=count=-1 …why=page-unconfirmed; readback=before-page-unconfirmed`；播报「已经请求设置2分钟的倒计时，但没有读到设置前的页面，没法确认…」。**设备侧实际创建成功**：手工切到定时器页读屏为 `1 分钟 28 秒钟` + `取消/暂停` 卡片 → 随后手工点「取消」清理，页面回到创建选择器 |
+| 离线语义闸门 | `--ez parse_only true` | `打开手电筒 → ENABLE/TORCH ok=true`；`关闭闹钟 → CLOSE/ALARM ok=true`；`取消两分钟倒计时 → CANCEL/TIMER{seconds=120} ok=true`；`设置两分钟倒计时 → CREATE/TIMER{seconds=120} ok=true`（解析与能力表判定，不执行） |
+
+### 本轮矩阵（据实，不打包成“通过”）
+
+| 项目 | 结论 | 依据 |
+|---|---|---|
+| 离线语义闸门（解析+能力表） | 通过 | 4 条注入的 PARSEONLY 判定均为预期任务 |
+| 手电筒状态回读 | 通过 | 开/关均 `verified=true`，且与 `dumpsys media.camera` 的 torch 时间戳逐条对应 |
+| 手电筒撤销 | **部分** | 动作真实生效（01:30:57 off、flashlight_enabled=0），但 App 自身只报 `postcondition=unproven` 并播「没能确认结果」 |
+| 闹钟查询（只读） | 安全拒绝（未通过） | `tab=click-failed-label-only`，未报数量、未点击任何闹钟对象 |
+| 倒计时查询 | 安全拒绝（未通过） | `label-not-found / window=not-clock` |
+| 倒计时取消 | 安全拒绝（未通过） | `clock not reachable`，零点击 |
+| 关闭闹钟 | 安全拒绝（需澄清） | `BLOCKED needs clarification`，零动作 |
+| 计时器创建 | 设备成功 / App 不可确认 | 设备侧确有 2 分钟倒计时；App `verified=null page-unconfirmed`，不虚报成功 |
+| 计时器唯一绑定、五分钟真实参数、真人语音/侧键 | 未测 | 本轮未覆盖 |
+
+### 失败与限制（如实记录，不作解释性掩饰）
+
+1. **One UI 9 时钟的 tab 节点语义变了**：读屏显示已选中的 `闹钟` tab 是 `clickable=false, selected=true`，其余 tab `clickable=true`。本轮 `QUERY/ALARM` 因此走 `click-failed-label-only` 拒读；第③轮同一路径曾返回 `tab=clicked nodes=67`。差异环境未定位，**不能声称时钟查询能力可用**。
+2. **Android 17 对 debuggable 应用的“应用兼容性”警告**（`package=android`，6 个节点）会在每次启动时抢焦点，导致 `launch-not-foreground nodes=6 rootPkg=android`；本轮每次手工点「确定」后才继续。这是调试构建的宿主行为，不是 App 缺陷，但会污染真机自动化时序。
+3. **撤销播报保守**：`ActionMemory` 已确认 `torch=false attributed=post-request`，`SemanticRunner` 仍以 `postcondition=unproven` 降级为「没能确认结果」。属“宁可少说”，但用户体验上会误以为没生效。
+4. **创建倒计时的读回链路不可用**：`before` 与 `after` 都无法确认页面（`why=page-unconfirmed`），与第 1 条的 tab 导航失败同源。
+5. 本轮**未**构建 release、未改设备配置、未安装证书、未动用户闹钟对象（只读），未清理之外的写操作仅限自建 2 分钟倒计时。
+
+### 对合并条件的判断
+
+- 代码侧没有任何新增安全回归的证据：所有失败路径都是**安全拒绝 + 如实播报**，没有出现“没读到大喊 0 个”“点错对象”“虚报成功”。
+- 但阶段 1 承诺的**时钟查询/取消能力在当前设备上不可用**（tab 导航失败），且撤销/创建的终态确认缺失，因此**不满足人工合并条件**；需要先在离线下解决 One UI 9 tab 可点击性差异，或明确把时钟能力标注为“已知不可用、安全拒绝”。
 
 ---
 
