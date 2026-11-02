@@ -679,3 +679,20 @@ B3 同环境旧 SHA 基线（**本轮首次真正跑出来**）：`4d1e78d` 上�
 - 全量 6 项失败是历史既知项，本轮未改未跳过，也未重跑旧 SHA 基线。
 - 本 SHA 未构建、未安装 APK、未操作手机；设备矩阵维持 4 通过 / 0 失败 / 3 未测。
 
+## 第64轮：当前 HEAD 全量 JVM 复跑（离线，未实机）
+
+目的：PR 复审每轮都会指出「当前 SHA 未独立实跑」，第63轮只跑到 `efd0f9c`。本轮在当前 HEAD `a041c50` 本体重跑，使这条 UNVERIFIED 不再适用于 head。
+
+| 项 | 结果 |
+|---|---|
+| 命令 | `cd src/closepaw && ./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain`（Windows 11 / JDK 17.0.20.1+1，`env.sh` 导出 `JAVA_HOME`） |
+| 汇总（XML 逐类求和） | **271 classes / 2529 tests / 0 failures / 0 errors / 8 skipped** |
+| Gradle | `BUILD SUCCESSFUL in 6m 28s`，exit=0 |
+| 证据文件 | `docs/evidence/pr4-a041c50-junit-summary.txt`（已登记 `EVIDENCE_TARGETS`） |
+| 证据自检 | `python docs/evidence/sanitize_evidence.py --scope all --check` exit=0；`py_compile` 通过 |
+
+- 8 项 skip 仍是既有的 Android shell 环境跳过（`ShellRunnerTest` 4 + `ShellToolExecutionTest` 4），未改动、未新增跳过。
+- `a041c50` 相对 `efd0f9c` 是纯文档提交（`docs/PROJECT_STATUS.md`、`docs/TEST_RESULTS.md`、一份 junit summary、`sanitize_evidence.py` 增 1 行），`src/` 零 diff；因此这次复跑同时确认了上一轮的绿灯不是被后续文档改动掩盖。
+- 该结果**只覆盖 JVM 单测**，不覆盖真机：未构建 APK、未安装、未操作手机。
+
+
