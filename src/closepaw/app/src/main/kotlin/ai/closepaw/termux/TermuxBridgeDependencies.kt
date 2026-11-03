@@ -32,6 +32,7 @@ internal fun interface TermuxInstallProbe {
 internal enum class HealthProbe {
     Ready,
     BridgeOutdated,
+    Unauthorized,
     InvalidIdentity,
     Unavailable
 }
@@ -94,7 +95,8 @@ internal class AndroidTermuxInstallProbe(
 internal class HttpTermuxHealthProbe(
     private val healthUrl: String,
     private val expectedIdentity: String,
-    private val expectedVersion: String
+    private val expectedVersion: String,
+    private val tokenProvider: () -> String? = { TermuxBridgeToken.current() }
 ) : TermuxHealthProbe {
     private val httpClient =
         OkHttpClient.Builder()
@@ -106,9 +108,21 @@ internal class HttpTermuxHealthProbe(
 
     override suspend fun fetch(): HealthProbe =
         withContext(Dispatchers.IO) {
-            val request = Request.Builder().url(healthUrl).get().build()
+            val token = tokenProvider()
+            if (token == null) {
+                // Without the secret the daemon answers 401 anyway; do not spend a request and
+                // do not mistake the rejection for "bridge missing".
+                return@withContext HealthProbe.Unavailable
+            }
+            val request =
+                Request.Builder()
+                    .url(healthUrl)
+                    .header("Authorization", "Bearer $token")
+                    .get()
+                    .build()
             try {
                 httpClient.newCall(request).execute().use { response ->
+                    if (response.code == 401) return@withContext HealthProbe.Unauthorized
                     if (!response.isSuccessful) return@withContext HealthProbe.Unavailable
                     val json = JSONObject(response.body.string())
                     val identity = json.optString("identity")

@@ -33,14 +33,19 @@ captures/
 .idea/
 
 # ===== Toolchain / vendored binaries (installed locally, never tracked) =====
-tools/
-**/tools/android-sdk/
-**/tools/jdk-*/
-**/tools/platform-tools/
-**/tools/sdk_tmp/
-**/tools/scrcpy*/
-**/tools/sherpa/
-sdk_tmp/
+# Root-anchored only: a bare "tools/" also matched the Kotlin package
+# src/closepaw/app/src/main/kotlin/ai/closepaw/voice/tools/ and silently dropped the
+# whole device-capability layer from the repo.
+/tools/
+# Nested snapshot (src/closepaw) keeps its toolchain binaries here too, but its
+# `tools/termux-bridge/` is *source*: `app/build.gradle.kts` `copyClosePawBridge` copies
+# `tools/termux-bridge/closepaw_bridge.py` into `res/raw/` at `preBuild`. Excluding the
+# directory itself would drop the bridge source and leave a clean checkout unbuildable
+# (git cannot re-include a file whose parent directory is excluded), so the rule is
+# content-level with an explicit exception.
+/src/closepaw/tools/*
+!/src/closepaw/tools/termux-bridge/
+/sdk_tmp/
 
 # ===== Large model weights & eval binaries =====
 *.gguf
@@ -61,12 +66,23 @@ asr_eval/wav/
 # ===== Screen recordings / device screenshots & raw logs =====
 *.mp4
 *.webm
-logs/
+# Root-anchored only: "logs/" alone would also match the nested Gradle project's own run directory.
+# The nested project is a separate repo snapshot (src/closepaw), whose logs/ is device/test output
+# and must never be committed.
+/logs/
+/src/closepaw/logs/
 *.png
 *.jpg
 *.jpeg
 !docs/**/*.png
 !docs/**/*.jpg
+# Launcher art is source, not a screenshot: AndroidManifest references `@mipmap/ic_launcher`,
+# `mipmap-anydpi-v26/ic_launcher.xml` references `@drawable/ic_launcher_foreground`, and AAPT2
+# fails a clean checkout without them ("resource not found"). These exact paths are the only
+# images re-included — device screenshots and capture output stay ignored.
+!src/closepaw/app/src/main/res/mipmap-*/ic_launcher.png
+!src/closepaw/app/src/main/res/mipmap-*/ic_launcher_round.png
+!src/closepaw/app/src/main/res/drawable-*/ic_launcher_foreground.png
 
 # ===== Device / session scratch =====
 .wireless_target

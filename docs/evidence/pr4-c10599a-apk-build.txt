@@ -1,0 +1,75 @@
+PR #4 / feat/semantic-gate — debug APK build at HEAD c10599a
+============================================================
+Round 65, 2026-11-02 (host: Windows 11, JDK 17.0.20.1+1, in-repo Android SDK).
+Purpose: close the standing evidence gap "本 SHA 未构建 APK". No phone was
+touched, nothing was installed, no paid API was called.
+
+Tree
+----
+HEAD         c10599ad834a3d0035abfa9003dd17bdde38270e  (feat/semantic-gate)
+PR head      c10599ad834a3d0035abfa9003dd17bdde38270e  (read back from PR #4)
+ls-remote    c10599ad834a3d0035abfa9003dd17bdde38270e  refs/heads/feat/semantic-gate
+main         580261f1253e00fd596304df1e9ebb0e5a8d5745  (unchanged)
+working tree clean; src/ and app/src/test/ untouched by this round
+`git diff --stat 197dd90..HEAD -- src/` -> empty: the sources are byte-identical
+to the tree whose full JVM suite last ran green (2529 tests, 0 failed).
+
+Command
+-------
+JAVA_HOME=tools/jdk-17.0.20.1+1
+ANDROID_HOME=tools/android-sdk
+cd src/closepaw
+./gradlew --offline :app:assembleDebug --rerun-tasks --console=plain
+
+Result (verbatim console tail)
+------------------------------
+BUILD SUCCESSFUL in 1m 4s
+40 actionable tasks: 40 executed
+EXIT=0
+
+An earlier plain `--offline :app:assembleDebug` (no --rerun-tasks) also passed
+(BUILD SUCCESSFUL in 21s, 4 executed / 36 up-to-date, exit=0); it is recorded
+only as a sanity step, the numbers above are the ones that count.
+
+Artifact
+--------
+path        src/closepaw/app/build/outputs/apk/debug/app-debug.apk  (build output, not committed)
+size        267407790 bytes
+sha256      ddb36b2cc48c209528a1e9ac77b118c564f9060f1a48c9f8998e40d92f019e05
+versionCode 1
+versionName 0.1.0
+minSdkVersionForDexing 31
+dex files   23
+
+apksigner (tools/android-sdk/build-tools/36.0.0) verify --print-certs
+  Verifies
+  v2 scheme: true      v1: false   v3: false   v3.1: false   v4: false
+  Signer #1 CN: C=US, O=Android, CN=Android Debug
+  cert SHA-256: 5d47f71d47da7ae37d3d2e348dc6c240866952aa7904be90e7c68ba2fe111f5a
+
+Provenance check (the APK is this tree, not a stale incremental artifact)
+-------------------------------------------------------------------------
+`grep -l "alarmPage=unconfirmed"` over the 23 extracted classes*.dex files
+matches classes14.dex. That literal only exists in
+src/closepaw/app/src/main/kotlin/ai/closepaw/voice/semantics/ClockControl.kt:775
+at this SHA, so the packaged dex was produced from the current source.
+Combined with the empty `197dd90..HEAD` src diff, the artifact is consistent
+with HEAD.
+
+What this proves
+----------------
+- At c10599a, on this Windows host, the app module compiles, dexes and packages
+  into a v2-signed debug APK with every Gradle task re-executed (40/40).
+- The build inputs are reproducible offline: `--offline` with the in-repo SDK
+  and JDK, no network.
+
+What this does NOT prove
+------------------------
+- It was NOT installed and NOT launched. No adb, no device interaction, no
+  screenshot, no logs. Device matrix stays "historical 4 pass / 0 fail /
+  3 untested" against the OLD apk.
+- Packaging is not behaviour: `closeAlarm` remains BLOCKED, timer object-level
+  terminal state remains UNPROVEN, torch/undo remain source+JVM/MockK only.
+- Not a Linux/POSIX build; the repo still has no `.github/workflows` and this
+  commit has no CI status.
+- Debug-signed only; no release signing config was exercised.

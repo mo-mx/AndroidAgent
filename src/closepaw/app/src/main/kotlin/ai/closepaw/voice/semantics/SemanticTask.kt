@@ -44,7 +44,7 @@ object CapabilityGuard {
 
     private val allowed: Map<Target, Set<Action>> = mapOf(
         Target.TIMER to setOf(Action.CREATE, Action.CANCEL, Action.CLOSE, Action.QUERY, Action.PAUSE, Action.RESUME, Action.DELETE),
-        Target.ALARM to setOf(Action.CREATE, Action.CLOSE, Action.DELETE, Action.QUERY, Action.ENABLE, Action.DISABLE),
+        Target.ALARM to setOf(Action.CREATE, Action.CANCEL, Action.CLOSE, Action.DELETE, Action.QUERY, Action.ENABLE, Action.DISABLE),
         Target.APP to setOf(Action.OPEN, Action.CLOSE, Action.QUERY),
         Target.APP_FEATURE to setOf(Action.OPEN),
         Target.TORCH to setOf(Action.ENABLE, Action.DISABLE, Action.SET, Action.QUERY),
@@ -99,11 +99,5 @@ object CapabilityGuard {
             return Verdict(false, "query must not mutate")
         }
         return Verdict(true)
-    }
-
-    /** Hard safety net used by the executor: block create-vs-cancel inversions at call time. */
-    fun assertNotInverted(requested: Action, aboutToDo: Action): Boolean {
-        val cancelish = setOf(Action.CANCEL, Action.CLOSE, Action.DELETE, Action.DISABLE)
-        return !(requested in cancelish && aboutToDo == Action.CREATE)
     }
 }

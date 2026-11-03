@@ -1,0 +1,6 @@
+renameTo over EXISTING target = false ; target content = old ; tmp still exists = true
+renameTo over MISSING target  = true ; target content = new
+Files.move(REPLACE_EXISTING) = true ; content = v3
+getPath() = %TEMP%\probe<n>\my-skill\SKILL.md
+endsWith("my-skill/SKILL.md") = false ; File.separator = '\' ; os.name = Windows 11
+java.version = 17.0.20.1

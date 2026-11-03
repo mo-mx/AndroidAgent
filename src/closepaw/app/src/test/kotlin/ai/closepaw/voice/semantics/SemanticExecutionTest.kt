@@ -1,0 +1,171 @@
+package ai.closepaw.voice.semantics
+
+import ai.closepaw.voice.VoiceSession
+import ai.closepaw.voice.tools.*
+import android.content.Context
+import android.util.Log
+import io.mockk.*
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import com.google.common.truth.Truth.assertThat
+
+/** Real parser, capability table, runner, gate and clock; only Android/UI boundary is mocked. */
+class SemanticExecutionTest {
+    private val ctx = mockk<Context>()
+    @Before fun setup() {
+        mockkStatic(Log::class)
+        every { Log.i(any(), any()) } returns 0
+        every { Log.w(any<String>(), any<String>()) } returns 0
+        every { Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
+        mockkObject(VoiceSession, UiAutomator, IntentActions)
+        every { VoiceSession.isCurrent(any()) } returns true
+        every { UiAutomator.foregroundPackage() } returns "com.sec.android.app.clockpackage"
+        every { UiAutomator.clickText("闹钟") } returns true
+        // The alarm page must come from the clock package (the tool now refuses foreign windows);
+        // the fixture models an empty clock page, which is what "no such alarm" needs.
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
+    }
+    @After fun cleanup() = unmockkAll()
+
+    @Test fun `delete alarm must not announce closure after unverified click`() {
+        mockkObject(ClockControl)
+        every { ClockControl.closeAlarm(ctx, 8, 0) } returns ToolResult.ok("alarm_close", "已请求关闭，但无法确认最终状态", verified = false)
+        val result = ClockControl.deleteAlarm(ctx, 8, 0)
+        assertThat(result.verified).isFalse()
+        assertThat(result.speak).doesNotContain("已经关闭")
+        assertThat(result.speak).contains("无法确认")
+        assertThat(result.speak).contains("未删除")
+    }
+
+    @Test fun `planner and call cannot collude against original cancel intent`() {
+        val raw = "取消五分钟倒计时"
+        val forged = SemanticParser.parse(raw).single().copy(action = Action.CREATE)
+        assertThat(IntentGate.check(raw, forged,
+            IntentGate.ToolCall(Action.CREATE, Target.TIMER, mapOf("seconds" to "300"))).allowed).isFalse()
+    }
+
+    @Test fun `cancel duration cannot disappear at tool boundary`() {
+        val raw = "取消五分钟倒计时"
+        val task = SemanticParser.parse(raw).single()
+        assertThat(IntentGate.check(raw, task,
+            IntentGate.ToolCall(Action.CANCEL, Target.TIMER)).allowed).isFalse()
+        assertThat(IntentGate.check(raw, task.copy(params = emptyMap()),
+            IntentGate.ToolCall(Action.CANCEL, Target.TIMER, mapOf("seconds" to "5"))).allowed).isFalse()
+    }
+
+    @Test fun `specified timer never falls back to global first cancel`() {
+        every { UiAutomator.clickText("定时器") } returns true
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
+            texts = listOf("2 个定时器正在运行", "5 分钟", "10 分钟", "取消", "取消"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
+        every { UiAutomator.clickText("取消") } returns true
+        // Two clock-owned cancel controls and no duration evidence: nothing can be bound uniquely.
+        val a = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        val b = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        listOf(a, b).forEach {
+            every { it.text } returns "取消"
+            every { it.contentDescription } returns null
+            every { it.packageName } returns "com.sec.android.app.clockpackage"
+            every { it.isClickable } returns true
+            every { it.childCount } returns 0
+        }
+        val clockRoot = mockk<android.view.accessibility.AccessibilityNodeInfo>(relaxed = true)
+        every { clockRoot.text } returns ""
+        every { clockRoot.contentDescription } returns null
+        every { clockRoot.packageName } returns "com.sec.android.app.clockpackage"
+        every { clockRoot.childCount } returns 2
+        every { clockRoot.getChild(0) } returns a
+        every { clockRoot.getChild(1) } returns b
+        every { UiAutomator.selectedState(clockRoot, "定时器") } returns true
+        every { UiAutomator.root() } returns clockRoot
+        val reply = SemanticRunner.run(ctx, "取消五分钟倒计时", 1)
+        assertThat(reply).contains("无法唯一定位")
+        verify(exactly = 0) { UiAutomator.clickText("取消") }
+        verify(exactly = 0) { IntentActions.setTimer(any(), any()) }
+    }
+
+    @Test fun `wrong nonempty app package is not identity proof`() {
+        mockkObject(AppNavigator, AppRegistry)
+        val qq = AppRegistry.App("QQ", "com.tencent.mobileqq", emptyList())
+        val wechat = AppRegistry.App("微信", "com.tencent.mm", emptyList())
+        every { AppRegistry.apps(ctx, any()) } returns listOf(qq, wechat)
+        every { AppNavigator.resolve(ctx, "微信") } returns AppNavigator.Resolution(qq, why = "bad resolver")
+        every { AppNavigator.openResolved(any(), any(), any()) } returns ToolResult.ok("app", "WRONG LAUNCH", verified = true)
+        val reply = SemanticRunner.run(ctx, "打开微信", 1)
+        assertThat(reply).doesNotContain("WRONG LAUNCH")
+        verify(exactly = 0) { AppNavigator.openResolved(any(), any(), any()) }
+    }
+
+    @Test fun `real app resolver launches only named installed app`() {
+        mockkObject(AppRegistry)
+        val qq = AppRegistry.App("QQ", "com.tencent.mobileqq", emptyList())
+        val wechat = AppRegistry.App("微信", "com.tencent.mm", emptyList())
+        every { AppRegistry.apps(ctx, any()) } returns listOf(qq, wechat)
+        every { AppRegistry.launch(ctx, wechat) } returns ToolResult.ok("app", "正确打开微信", verified = true)
+        val reply = SemanticRunner.run(ctx, "打开微信", 1)
+        assertThat(reply).isEqualTo("正确打开微信")
+        verify(exactly = 1) { AppRegistry.launch(ctx, wechat) }
+        verify(exactly = 0) { AppRegistry.launch(ctx, qq) }
+    }
+
+    @Test fun `feature does not succeed merely because launch succeeds`() {
+        mockkObject(AppRegistry)
+        val app = AppRegistry.App("微信", "com.tencent.mm", emptyList())
+        every { AppRegistry.apps(ctx, any()) } returns listOf(app)
+        every { AppRegistry.launch(ctx, app) } returns ToolResult.ok("app", "已打开微信", verified = true)
+        // Round 38: the control lookup is bound per window, so the fixture has to model the app's
+        // own window and a complete read — otherwise it would be refused at the window gate and the
+        // "control not found" path this test is about would never run.
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(
+            texts = listOf("微信", "通讯录"), nodesVisited = 10,
+            rootPackage = "com.tencent.mm", serviceAvailable = true)
+        // Review 6552469328 (item 3): production calls the `List<String>` overload, so stubbing the
+        // `String` one injected nothing and this test went green for the wrong reason (no window at
+        // all rather than "the label is not on screen"). The labels are captured so the assertion
+        // also proves the alias set reached the real overload.
+        val seenLabels = slot<List<String>>()
+        every { UiAutomator.featureControl("com.tencent.mm", capture(seenLabels), any<Long>()) } returns
+            UiAutomator.FeatureLookup(null, "not-found")
+        every { UiAutomator.featureControlOnce("com.tencent.mm", any<List<String>>()) } returns
+            UiAutomator.FeatureLookup(null, "not-found")
+        val reply = SemanticRunner.run(ctx, "打开微信扫一扫", 1)
+        assertThat(reply).contains("没有找到扫一扫")
+        assertThat(reply).doesNotContain("已经进入")
+        verify(exactly = 1) { AppRegistry.launch(ctx, app) }
+        verify(exactly = 1) { UiAutomator.featureControl("com.tencent.mm", any<List<String>>(), any<Long>()) }
+        assertThat(seenLabels.captured).contains("扫一扫")
+    }
+
+    @Test fun `verified timer duration alone is not undo identity`() {
+        mockkObject(ClockControl)
+        ActionMemory.recordResult(Action.CREATE, Target.TIMER, mapOf("seconds" to "300"),
+            ToolResult.ok("timer", "测试", verified = true))
+        assertThat(ActionMemory.undo(ctx).speak).contains("不能安全撤销")
+        verify(exactly = 0) { ClockControl.cancelTimer(any(), any()) }
+    }
+
+    @Test fun `duplicate alarm times cannot select first row`() {
+        every { UiAutomator.tabSelected("闹钟") } returns true
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
+            texts = listOf("8:00", "8:00"), nodesVisited = 3, rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
+        val reply = SemanticRunner.run(ctx, "取消八点的闹钟", 1)
+        assertThat(reply).contains("无法唯一定位")
+        verify(exactly = 0) { UiAutomator.click(any()) }
+        verify(exactly = 0) { IntentActions.setAlarm(any(), any(), any()) }
+    }
+
+    @Test fun `alarm cancel reaches lookup and absent target never creates`() {
+        // An alarm page that says it is empty is real evidence; the target time is then really absent.
+        every { UiAutomator.readScreen(any()) } returns UiAutomator.ScreenRead(selectedTabs = mapOf("闹钟" to true, "定时器" to true),
+            texts = listOf("暂无闹钟"), nodesVisited = 3,
+            rootPackage = "com.sec.android.app.clockpackage", serviceAvailable = true)
+        every { UiAutomator.tabSelected(any()) } returns true
+        val reply = SemanticRunner.run(ctx, "取消八点的闹钟", 1)
+        assertThat(reply).contains("当前可见区域未找到8点0分的闹钟")
+        assertThat(reply).contains("不能确认不存在")
+        verify(exactly = 1) { UiAutomator.readScreen(120) }
+        verify(exactly = 0) { IntentActions.setAlarm(any(), any(), any()) }
+        verify(exactly = 0) { UiAutomator.click(any()) }
+    }
+}

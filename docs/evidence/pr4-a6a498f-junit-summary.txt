@@ -1,0 +1,316 @@
+# JUnit 结果汇总 — 机器生成，非手写
+# 来源：src/closepaw/app/build/test-results/testDebugUnitTest/*.xml（Gradle `:app:testDebugUnitTest --rerun-tasks`）
+# 生成时间：2026-11-01 19:48:12
+# 被测 HEAD：a6a498f2dcd434b781230c4c797f7ebb8a55cbe5（feat/semantic-gate）
+# 工具链：JDK 17.0.20.1+1，仓库自带 Gradle wrapper，--offline
+# 总计：tests=2528 failures=6 errors=0 skipped=8 classes=271
+# 脱敏说明（第57轮）：仅把本机用户目录/临时目录名替换为 C:\Users\<user>\ 与 %TEMP%\...<n>，
+# 测试类名、计数、断言消息原文未变；脱敏后重算逐类合计仍为 271/2528/6/0/8（脚本 docs/evidence/sanitize_evidence.py）。
+
+## 失败明细（逐条，含断言消息原文）
+### ai.closepaw.agent.cognition.skills.AgentSkillCatalogTest :: entry filePath points to SKILL md  (time=0.076s)
+value of            : getFilePath()
+expected to end with: my-skill/SKILL.md
+but was             : %TEMP%\junit<n>\my-skill\SKILL.md
+
+### ai.closepaw.memory.MemoryStoreTest :: append with duplicate heading inserts under last occurrence  (time=0.04s)
+expected to be true
+
+### ai.closepaw.memory.MemoryStoreTest :: append on file with missing heading appends new section at EOF  (time=0.032s)
+expected to be true
+
+### ai.closepaw.memory.MemoryStoreTest :: append under heading followed by free text inserts before next heading  (time=0.027s)
+expected to be true
+
+### ai.closepaw.memory.MemoryStoreTest :: multiple entries append to same section  (time=0.046s)
+expected: 2
+but was : 1
+
+### ai.closepaw.memory.MemoryStoreTest :: app entries stay inside their target section  (time=0.035s)
+expected to contain:
+    ## Preferences
+    - [
+but was:
+    # App Memory: com.test
+    
+    > Local delta over app skill. If conflict exists, trust this file.
+    
+    ## App Skill Overrides
+    - [2026-11-01 19:42:42 CST] Search is more reliable than scrolling
+    
+    ## Preferences
+    
+    ## Operational Notes
+
+## 逐测试类计数（class | tests | failures | errors | skipped | time)
+ai.closepaw.agent.ActionOutcomeMappingTest | 4 | 0 | 0 | 0 | 0.017
+ai.closepaw.agent.ActionTargetTest | 24 | 0 | 0 | 0 | 0.031
+ai.closepaw.agent.AgentErrorRecoveryTest | 3 | 0 | 0 | 0 | 1.47
+ai.closepaw.agent.AgentModelResolverTest | 3 | 0 | 0 | 0 | 0.422
+ai.closepaw.agent.AgentRunLoopTest | 15 | 0 | 0 | 0 | 0.161
+ai.closepaw.agent.AgentTraceObservabilityTest | 1 | 0 | 0 | 0 | 0.051
+ai.closepaw.agent.LocalBackendTurnRoutingTest | 1 | 0 | 0 | 0 | 0.004
+ai.closepaw.agent.ObservationFallbackTest | 1 | 0 | 0 | 0 | 0.147
+ai.closepaw.agent.TurnErrorClassifierTest | 5 | 0 | 0 | 0 | 0.001
+ai.closepaw.agent.TurnExecutionPhaseRunnerTest | 4 | 0 | 0 | 0 | 0.015
+ai.closepaw.agent.TurnOutcomeDecisionTest | 7 | 0 | 0 | 0 | 0.002
+ai.closepaw.agent.TurnPlanningPhaseRunnerTest | 4 | 0 | 0 | 0 | 0.013
+ai.closepaw.agent.TurnReactiveCompactionTest | 5 | 0 | 0 | 0 | 0.12
+ai.closepaw.agent.TurnToolFilteringTest | 8 | 0 | 0 | 0 | 0.023
+ai.closepaw.agent.cognition.context.NavigationStateTest | 1 | 0 | 0 | 0 | 0.002
+ai.closepaw.agent.cognition.policy.LoopDetectionPolicyTest | 8 | 0 | 0 | 0 | 0.003
+ai.closepaw.agent.cognition.policy.TurnToolPolicyTest | 12 | 0 | 0 | 0 | 0.002
+ai.closepaw.agent.cognition.prompt.AppSkillAssetIntegrityTest | 1 | 0 | 0 | 0 | 0.074
+ai.closepaw.agent.cognition.prompt.AssetAppSkillRepositoryTest | 4 | 0 | 0 | 0 | 0.254
+ai.closepaw.agent.cognition.prompt.PromptBuilderTest | 24 | 0 | 0 | 0 | 0.015
+ai.closepaw.agent.cognition.skills.AgentSkillCatalogTest | 22 | 1 | 0 | 0 | 0.283
+ai.closepaw.agent.cognition.skills.AgentSkillManagerTest | 36 | 0 | 0 | 0 | 0.316
+ai.closepaw.agent.cognition.skills.BundledAgentSkillInstallerTest | 3 | 0 | 0 | 0 | 0.134
+ai.closepaw.agent.cognition.skills.SkillFrontmatterParserTest | 13 | 0 | 0 | 0 | 0.011
+ai.closepaw.agent.definition.AgentDefRegistryTest | 2 | 0 | 0 | 0 | 0.002
+ai.closepaw.agent.definition.AgentDefTest | 1 | 0 | 0 | 0 | 0.0
+ai.closepaw.agent.definition.AgentRoleResolveTest | 5 | 0 | 0 | 0 | 0.002
+ai.closepaw.agent.definition.DefaultToolsExcludedByPrefTest | 4 | 0 | 0 | 0 | 0.0
+ai.closepaw.agent.subagent.SubAgentRunnerTest | 6 | 0 | 0 | 0 | 6.479
+ai.closepaw.app.AgentServiceEventHandlerTest | 3 | 0 | 0 | 0 | 0.099
+ai.closepaw.app.AgentServiceOnDestroyShutdownTest | 1 | 0 | 0 | 0 | 0.005
+ai.closepaw.app.AppSettingsStoreTest | 20 | 0 | 0 | 0 | 0.479
+ai.closepaw.app.MainActivityIntentApplierSecurityTest | 10 | 0 | 0 | 0 | 0.077
+ai.closepaw.app.MainActivityModelValidationTest | 10 | 0 | 0 | 0 | 0.098
+ai.closepaw.app.MemoryEditGateTest | 12 | 0 | 0 | 0 | 0.155
+ai.closepaw.app.OverlayLocationPolicyTest | 38 | 0 | 0 | 0 | 0.008
+ai.closepaw.auth.AuthStoreTest | 15 | 0 | 0 | 0 | 0.036
+ai.closepaw.auth.OpenAIOAuthTest | 6 | 0 | 0 | 0 | 0.005
+ai.closepaw.browser.BrowserUseSkillAssetTest | 3 | 0 | 0 | 0 | 0.005
+ai.closepaw.browser.cdp.ChromeCdpClientTest | 26 | 0 | 0 | 0 | 0.075
+ai.closepaw.browser.cdp.ChromeCdpDialogTrackingTest | 13 | 0 | 0 | 0 | 0.032
+ai.closepaw.browser.cdp.ChromeCdpRecoveryTest | 4 | 0 | 0 | 0 | 0.012
+ai.closepaw.browser.cdp.DialogStateTrackerTest | 4 | 0 | 0 | 0 | 0.0
+ai.closepaw.browser.cdp.RelayAuthTokenTest | 16 | 0 | 0 | 0 | 0.65
+ai.closepaw.browser.cdp.shizuku.ChromeDevtoolsUserServiceRelayTest | 6 | 0 | 0 | 0 | 5.019
+ai.closepaw.browser.cdp.shizuku.DevtoolsHttpProtocolTest | 18 | 0 | 0 | 0 | 0.003
+ai.closepaw.browser.cdp.shizuku.ShizukuChromeDevtoolsBridgeTest | 19 | 0 | 0 | 0 | 0.023
+ai.closepaw.browser.cdp.shizuku.ShizukuUserServiceProviderTest | 15 | 0 | 0 | 0 | 0.117
+ai.closepaw.browser.cdp.wireless.AdbCryptoKeyStoreTest | 5 | 0 | 0 | 0 | 1.122
+ai.closepaw.browser.cdp.wireless.AdbPairingClientTest | 7 | 0 | 0 | 0 | 0.01
+ai.closepaw.browser.cdp.wireless.AdbPairingPacketTest | 9 | 0 | 0 | 0 | 0.003
+ai.closepaw.browser.cdp.wireless.AdbProtocolTest | 9 | 0 | 0 | 0 | 0.003
+ai.closepaw.browser.cdp.wireless.AdbWireProtocolClientTest | 9 | 0 | 0 | 0 | 1.732
+ai.closepaw.browser.cdp.wireless.AdbWirelessManagerTest | 28 | 0 | 0 | 0 | 0.098
+ai.closepaw.browser.cdp.wireless.AndroidPubkeyTest | 3 | 0 | 0 | 0 | 0.079
+ai.closepaw.browser.cdp.wireless.PairOnceCacheTest | 20 | 0 | 0 | 0 | 3.398
+ai.closepaw.browser.cdp.wireless.Spake25519Test | 8 | 0 | 0 | 0 | 0.025
+ai.closepaw.browser.cdp.wireless.WirelessAdbSelfPairTransportRelayStressTest | 9 | 0 | 0 | 0 | 6.034
+ai.closepaw.browser.script.BrowserScriptBridgeTest | 19 | 0 | 0 | 0 | 0.021
+ai.closepaw.browser.script.BrowserScriptJsInterfaceTest | 10 | 0 | 0 | 0 | 1.259
+ai.closepaw.browser.script.BrowserScriptPreludeTest | 9 | 0 | 0 | 0 | 0.002
+ai.closepaw.browser.script.BrowserSessionManagerTest | 5 | 0 | 0 | 0 | 0.04
+ai.closepaw.browser.script.ScriptHostPageLoadCancelGuardTest | 4 | 0 | 0 | 0 | 0.003
+ai.closepaw.browser.setup.ChromeCdpProbeTest | 11 | 0 | 0 | 0 | 0.019
+ai.closepaw.browser.setup.ChromeFlagDeepLinkTest | 6 | 0 | 0 | 0 | 0.003
+ai.closepaw.browser.setup.CommandLineWriterTest | 5 | 0 | 0 | 0 | 0.01
+ai.closepaw.browser.setup.ShellRunnerTest | 4 | 0 | 0 | 4 | 0.002
+ai.closepaw.history.AgentMessageBufferTest | 6 | 0 | 0 | 0 | 0.003
+ai.closepaw.history.CompactorTest | 15 | 0 | 0 | 0 | 0.017
+ai.closepaw.history.HistoryManagerTest | 17 | 0 | 0 | 0 | 0.066
+ai.closepaw.history.SessionHistoryManagerTest | 5 | 0 | 0 | 0 | 0.145
+ai.closepaw.history.SessionRecordingServiceTest | 10 | 0 | 0 | 0 | 0.173
+ai.closepaw.history.SessionStorageTest | 4 | 0 | 0 | 0 | 0.049
+ai.closepaw.history.model.CheckpointStateReloadabilityTest | 2 | 0 | 0 | 0 | 0.001
+ai.closepaw.history.model.HistoryItemConverterTest | 4 | 0 | 0 | 0 | 0.002
+ai.closepaw.history.model.MessageConverterTest | 13 | 0 | 0 | 0 | 0.04
+ai.closepaw.llm.ChatCompletionClientTest | 8 | 0 | 0 | 0 | 1.308
+ai.closepaw.llm.ChatCompletionInteropTest | 7 | 0 | 0 | 0 | 0.023
+ai.closepaw.llm.CloudStreamRetryPolicyTest | 23 | 0 | 0 | 0 | 0.004
+ai.closepaw.llm.CloudStreamRetryRunnerTest | 24 | 0 | 0 | 0 | 0.041
+ai.closepaw.llm.CodexRequestBuilderTest | 10 | 0 | 0 | 0 | 0.003
+ai.closepaw.llm.CodexResponseClientTest | 14 | 0 | 0 | 0 | 0.034
+ai.closepaw.llm.CodexSseParserTest | 21 | 0 | 0 | 0 | 0.005
+ai.closepaw.llm.ContextWindowClassifierTest | 14 | 0 | 0 | 0 | 0.0
+ai.closepaw.llm.LFMLLMClientConversionTest | 10 | 0 | 0 | 0 | 0.007
+ai.closepaw.llm.LFMLLMClientTest | 14 | 0 | 0 | 0 | 1.666
+ai.closepaw.llm.LLMClientFactoryTest | 14 | 0 | 0 | 0 | 0.089
+ai.closepaw.llm.ModelCatalogRepositoryTest | 15 | 0 | 0 | 0 | 0.393
+ai.closepaw.llm.ModelCatalogTest | 38 | 0 | 0 | 0 | 0.002
+ai.closepaw.llm.ModelDiscoveryCacheTest | 6 | 0 | 0 | 0 | 0.028
+ai.closepaw.llm.ModelDiscoveryTest | 16 | 0 | 0 | 0 | 0.058
+ai.closepaw.llm.ModelIdValidatorTest | 5 | 0 | 0 | 0 | 0.0
+ai.closepaw.llm.OpenAIErrorClassifierTest | 27 | 0 | 0 | 0 | 0.004
+ai.closepaw.llm.OpenAIResponseClientTest | 2 | 0 | 0 | 0 | 0.013
+ai.closepaw.llm.OtherBaseUrlValidatorTest | 14 | 0 | 0 | 0 | 0.001
+ai.closepaw.llm.ToolParameterExtractorTest | 3 | 0 | 0 | 0 | 0.027
+ai.closepaw.memory.MemoryRecallerTest | 10 | 0 | 0 | 0 | 0.091
+ai.closepaw.memory.MemoryStoreTest | 33 | 5 | 0 | 0 | 0.355
+ai.closepaw.model.ModelsTest | 2 | 0 | 0 | 0 | 0.0
+ai.closepaw.onboarding.ApiKeyStepStateTest | 35 | 0 | 0 | 0 | 0.76
+ai.closepaw.onboarding.DemoStepStateTest | 18 | 0 | 0 | 0 | 0.077
+ai.closepaw.onboarding.HttpLlmCredentialValidatorTest | 8 | 0 | 0 | 0 | 0.543
+ai.closepaw.onboarding.OnboardingStoreTest | 7 | 0 | 0 | 0 | 0.018
+ai.closepaw.onboarding.OnboardingViewModelTest | 48 | 0 | 0 | 0 | 0.402
+ai.closepaw.onboarding.PermissionStateMonitorTest | 5 | 0 | 0 | 0 | 0.0
+ai.closepaw.onboarding.PermissionStepStateTest | 16 | 0 | 0 | 0 | 0.085
+ai.closepaw.perception.PerceptorInternalsTest | 37 | 0 | 0 | 0 | 0.02
+ai.closepaw.perception.PerceptorTest | 6 | 0 | 0 | 0 | 0.006
+ai.closepaw.perception.ScreenSummaryTest | 4 | 0 | 0 | 0 | 0.013
+ai.closepaw.platform.AppManagerTest | 1 | 0 | 0 | 0 | 0.204
+ai.closepaw.platform.BitmapUtilsTest | 4 | 0 | 0 | 0 | 0.073
+ai.closepaw.platform.BoundedCallbackTest | 5 | 0 | 0 | 0 | 0.02
+ai.closepaw.platform.NodeActionPerformerTest | 24 | 0 | 0 | 0 | 2.169
+ai.closepaw.platform.ScrollVisualizationGeometryTest | 4 | 0 | 0 | 0 | 0.002
+ai.closepaw.platform.virtualdisplay.ShizukuActivityTaskTransportTest | 6 | 0 | 0 | 0 | 0.007
+ai.closepaw.platform.virtualdisplay.ShizukuRuntimeGatewayTest | 1 | 0 | 0 | 0 | 0.005
+ai.closepaw.platform.virtualdisplay.VdLifecycleArbiterTest | 13 | 0 | 0 | 0 | 0.093
+ai.closepaw.platform.virtualdisplay.VirtualDisplayCaptureCoordinatorTest | 2 | 0 | 0 | 0 | 1.318
+ai.closepaw.platform.virtualdisplay.VirtualDisplayPlatformStopTest | 5 | 0 | 0 | 0 | 0.433
+ai.closepaw.platform.virtualdisplay.VirtualDisplaySurfaceControllerTest | 3 | 0 | 0 | 0 | 0.01
+ai.closepaw.platform.virtualdisplay.VirtualDisplayViewerTouchHandlerTest | 5 | 0 | 0 | 0 | 0.07
+ai.closepaw.session.AgentSessionCompletionHandoffTest | 5 | 0 | 0 | 0 | 0.273
+ai.closepaw.session.AgentSessionTest | 41 | 0 | 0 | 0 | 0.314
+ai.closepaw.session.ScratchpadStateTest | 9 | 0 | 0 | 0 | 0.002
+ai.closepaw.session.SessionBrowserIntegrationTest | 1 | 0 | 0 | 0 | 0.011
+ai.closepaw.session.SessionCheckpointConfigSnapshotTest | 2 | 0 | 0 | 0 | 0.001
+ai.closepaw.session.SessionCheckpointCoordinatorTest | 9 | 0 | 0 | 0 | 0.039
+ai.closepaw.session.SessionCheckpointReloadAndListenersTest | 7 | 0 | 0 | 0 | 0.989
+ai.closepaw.session.SessionCoordinatorTest | 32 | 0 | 0 | 0 | 0.204
+ai.closepaw.session.SessionLlmBootstrapperTest | 4 | 0 | 0 | 0 | 0.444
+ai.closepaw.session.SessionServicesBundledSkillInstallTest | 3 | 0 | 0 | 0 | 0.036
+ai.closepaw.session.SessionServicesCleanupTest | 4 | 0 | 0 | 0 | 0.084
+ai.closepaw.session.SessionServicesProviderRoutingTest | 2 | 0 | 0 | 0 | 0.177
+ai.closepaw.session.SessionServicesTermuxSnapshotTest | 4 | 0 | 0 | 0 | 0.016
+ai.closepaw.session.TodoStateTest | 4 | 0 | 0 | 0 | 0.0
+ai.closepaw.session.UserResponseChannelTest | 5 | 0 | 0 | 0 | 0.01
+ai.closepaw.termux.ClosePawBridgeResourceTest | 1 | 0 | 0 | 0 | 0.007
+ai.closepaw.termux.TermuxBridgeAuthTest | 6 | 0 | 0 | 0 | 0.079
+ai.closepaw.termux.TermuxBridgeDeployTokenTest | 3 | 0 | 0 | 0 | 0.013
+ai.closepaw.termux.TermuxBridgeManagerTest | 11 | 0 | 0 | 0 | 0.037
+ai.closepaw.termux.TermuxBridgeTokenTest | 6 | 0 | 0 | 0 | 0.0
+ai.closepaw.termux.TermuxRunCommandAdapterTest | 9 | 0 | 0 | 0 | 0.725
+ai.closepaw.tool.AppClassifierOverrideTest | 12 | 0 | 0 | 0 | 0.05
+ai.closepaw.tool.AppClassifierSecurityTest | 7 | 0 | 0 | 0 | 0.056
+ai.closepaw.tool.PolicyEngineTest | 28 | 0 | 0 | 0 | 0.008
+ai.closepaw.tool.ToolCallStateTest | 19 | 0 | 0 | 0 | 0.067
+ai.closepaw.tool.ToolRegistryTest | 4 | 0 | 0 | 0 | 0.002
+ai.closepaw.tool.ToolRouterTest | 12 | 0 | 0 | 0 | 0.04
+ai.closepaw.tool.action.CapturePrivacyGateTest | 10 | 0 | 0 | 0 | 0.04
+ai.closepaw.tool.action.ClickExecutorTest | 22 | 0 | 0 | 0 | 0.065
+ai.closepaw.tool.action.LongPressExecutorTest | 5 | 0 | 0 | 0 | 0.018
+ai.closepaw.tool.action.ScrollExecutorTest | 8 | 0 | 0 | 0 | 0.024
+ai.closepaw.tool.action.SwipeExecutorTest | 3 | 0 | 0 | 0 | 0.012
+ai.closepaw.tool.action.TargetResolverTest | 18 | 0 | 0 | 0 | 0.001
+ai.closepaw.tool.action.TypeExecutorTest | 12 | 0 | 0 | 0 | 0.022
+ai.closepaw.tool.impl.ActivateSkillToolTest | 12 | 0 | 0 | 0 | 0.091
+ai.closepaw.tool.impl.AskUserToolTest | 5 | 0 | 0 | 0 | 0.014
+ai.closepaw.tool.impl.BrowserScriptToolCancellationTest | 4 | 0 | 0 | 0 | 0.02
+ai.closepaw.tool.impl.BrowserScriptToolTest | 13 | 0 | 0 | 0 | 0.008
+ai.closepaw.tool.impl.BrowserScriptToolTraceTest | 6 | 0 | 0 | 0 | 0.012
+ai.closepaw.tool.impl.CompleteTaskToolTest | 4 | 0 | 0 | 0 | 0.0
+ai.closepaw.tool.impl.DefaultBrowserScriptCapabilityGateTest | 7 | 0 | 0 | 0 | 0.014
+ai.closepaw.tool.impl.DelegateTaskToolTest | 3 | 0 | 0 | 0 | 0.009
+ai.closepaw.tool.impl.MobileActionToolTest | 26 | 0 | 0 | 0 | 0.001
+ai.closepaw.tool.impl.OpenAppToolTest | 13 | 0 | 0 | 0 | 0.0
+ai.closepaw.tool.impl.RememberExperienceToolTest | 8 | 0 | 0 | 0 | 0.05
+ai.closepaw.tool.impl.ScratchpadToolTest | 11 | 0 | 0 | 0 | 0.006
+ai.closepaw.tool.impl.ShellToolBlocklistTest | 24 | 0 | 0 | 0 | 0.001
+ai.closepaw.tool.impl.ShellToolExecutionTest | 5 | 0 | 0 | 4 | 0.009
+ai.closepaw.tool.impl.SystemActionToolsTest | 2 | 0 | 0 | 0 | 0.0
+ai.closepaw.tool.impl.TermuxShellToolTest | 16 | 0 | 0 | 0 | 0.213
+ai.closepaw.tool.impl.WriteTodosToolTest | 8 | 0 | 0 | 0 | 0.005
+ai.closepaw.trace.AgentTraceArtifactsTest | 3 | 0 | 0 | 0 | 0.05
+ai.closepaw.trace.CognitionTraceRedactorSecurityTest | 8 | 0 | 0 | 0 | 0.0
+ai.closepaw.trace.FileTraceRecorderTest | 6 | 0 | 0 | 0 | 0.101
+ai.closepaw.ui.capsule.voice.VoiceInputControllerTest | 12 | 0 | 0 | 0 | 0.005
+ai.closepaw.ui.chat.ChatActionExecutionMappingTest | 2 | 0 | 0 | 0 | 0.002
+ai.closepaw.ui.chat.ChatCompletionHandoffTest | 4 | 0 | 0 | 0 | 0.013
+ai.closepaw.ui.chat.ChatCompletionMessageTest | 5 | 0 | 0 | 0 | 0.0
+ai.closepaw.ui.chat.ChatCompletionSummaryTest | 3 | 0 | 0 | 0 | 0.0
+ai.closepaw.ui.chat.ChatDoneBridgeTest | 2 | 0 | 0 | 0 | 0.003
+ai.closepaw.ui.chat.ChatEventReducerTest | 10 | 0 | 0 | 0 | 0.002
+ai.closepaw.ui.chat.ChatRebindEventFilterTest | 3 | 0 | 0 | 0 | 0.0
+ai.closepaw.ui.chat.ChatSessionHistoryControllerTest | 4 | 0 | 0 | 0 | 0.066
+ai.closepaw.ui.chat.ChatStartupFailureTest | 1 | 0 | 0 | 0 | 0.001
+ai.closepaw.ui.chat.ChatSupplementAndActionTransitionTest | 8 | 0 | 0 | 0 | 0.002
+ai.closepaw.ui.chat.ChatThoughtAndRowStateTest | 10 | 0 | 0 | 0 | 0.002
+ai.closepaw.ui.chat.ChatViewModelTest | 5 | 0 | 0 | 0 | 0.03
+ai.closepaw.ui.chat.NewSessionNoHandoffTest | 2 | 0 | 0 | 0 | 0.006
+ai.closepaw.ui.chat.components.CompletionHandoffCtaVisibilityTest | 4 | 0 | 0 | 0 | 0.002
+ai.closepaw.ui.chat.components.ThinkingIndicatorCadenceTest | 6 | 0 | 0 | 0 | 0.002
+ai.closepaw.ui.chat.components.ThoughtGroupTest | 5 | 0 | 0 | 0 | 0.002
+ai.closepaw.ui.overlay.CapsuleApprovalTransitionTest | 27 | 0 | 0 | 0 | 0.004
+ai.closepaw.ui.overlay.CapsuleStateHolderTest | 40 | 0 | 0 | 0 | 0.002
+ai.closepaw.ui.overlay.model.CapsuleModeTest | 6 | 0 | 0 | 0 | 0.0
+ai.closepaw.ui.overlay.model.CapsuleRenderSpecTest | 5 | 0 | 0 | 0 | 0.007
+ai.closepaw.ui.overlay.model.NavSpecTest | 7 | 0 | 0 | 0 | 0.001
+ai.closepaw.ui.settings.AppAccessContentIndexTest | 10 | 0 | 0 | 0 | 0.073
+ai.closepaw.ui.settings.AppRowTest | 4 | 0 | 0 | 0 | 0.103
+ai.closepaw.ui.settings.BrowserScriptStatusMapperTest | 11 | 0 | 0 | 0 | 0.01
+ai.closepaw.ui.settings.BrowserScriptToggleGateTest | 14 | 0 | 0 | 0 | 0.079
+ai.closepaw.ui.settings.LlmAuthApiKeyPersistTest | 2 | 0 | 0 | 0 | 0.015
+ai.closepaw.ui.settings.LlmAuthOtherAutoFlipTest | 9 | 0 | 0 | 0 | 0.0
+ai.closepaw.ui.settings.ModelPickerTest | 8 | 0 | 0 | 0 | 0.005
+ai.closepaw.ui.settings.RefreshButtonGateTest | 3 | 0 | 0 | 0 | 0.003
+ai.closepaw.ui.settings.RunCommandPermissionGateTest | 9 | 0 | 0 | 0 | 0.163
+ai.closepaw.ui.settings.TermuxStatusMapperTest | 19 | 0 | 0 | 0 | 0.002
+ai.closepaw.ui.settings.VirtualDisplayStatusMapperTest | 13 | 0 | 0 | 0 | 0.008
+ai.closepaw.ui.settings.VirtualDisplayToggleGateTest | 11 | 0 | 0 | 0 | 0.049
+ai.closepaw.voice.semantics.AlarmQuerySafetyTest | 4 | 0 | 0 | 0 | 6.371
+ai.closepaw.voice.semantics.AppFeatureClickBindingTest | 7 | 0 | 0 | 0 | 3.905
+ai.closepaw.voice.semantics.AppFeatureControlAmbiguityTest | 6 | 0 | 0 | 0 | 2.658
+ai.closepaw.voice.semantics.AppFeatureIdentityTest | 10 | 0 | 0 | 0 | 7.374
+ai.closepaw.voice.semantics.AppFeatureReadCompletenessTest | 6 | 0 | 0 | 0 | 8.074
+ai.closepaw.voice.semantics.AppFeatureWindowIdentityTest | 6 | 0 | 0 | 0 | 3.279
+ai.closepaw.voice.semantics.ClockAlarmPageEvidenceTest | 9 | 0 | 0 | 0 | 10.573
+ai.closepaw.voice.semantics.ClockClickTimeBindingTest | 5 | 0 | 0 | 0 | 8.848
+ai.closepaw.voice.semantics.ClockContentLabelGateTest | 7 | 0 | 0 | 0 | 2.851
+ai.closepaw.voice.semantics.ClockForeignWindowTest | 6 | 0 | 0 | 0 | 10.651
+ai.closepaw.voice.semantics.ClockFreshEvidenceTest | 13 | 0 | 0 | 0 | 21.079
+ai.closepaw.voice.semantics.ClockNavBarBoundaryTest | 6 | 0 | 0 | 0 | 1.625
+ai.closepaw.voice.semantics.ClockNavCandidateTest | 5 | 0 | 0 | 0 | 1.419
+ai.closepaw.voice.semantics.ClockNodeIdentityTest | 5 | 0 | 0 | 0 | 0.037
+ai.closepaw.voice.semantics.ClockReadDiagnosticsTest | 6 | 0 | 0 | 0 | 5.752
+ai.closepaw.voice.semantics.ClockSelectionEntryMatrixTest | 11 | 0 | 0 | 0 | 8.407
+ai.closepaw.voice.semantics.ClockTabControlIdentityTest | 7 | 0 | 0 | 0 | 1.945
+ai.closepaw.voice.semantics.ClockTabReachTest | 9 | 0 | 0 | 0 | 6.185
+ai.closepaw.voice.semantics.ClockWindowBindingTest | 7 | 0 | 0 | 0 | 11.137
+ai.closepaw.voice.semantics.ClockWindowGateTest | 12 | 0 | 0 | 0 | 15.63
+ai.closepaw.voice.semantics.IntentGateTest | 23 | 0 | 0 | 0 | 0.008
+ai.closepaw.voice.semantics.SemanticExecutionTest | 10 | 0 | 0 | 0 | 7.808
+ai.closepaw.voice.semantics.TerminalExpectedStateTest | 15 | 0 | 0 | 0 | 0.001
+ai.closepaw.voice.semantics.TerminalStateGateTest | 11 | 0 | 0 | 0 | 0.001
+ai.closepaw.voice.semantics.TerminalUnprovenMutationTest | 7 | 0 | 0 | 0 | 0.0
+ai.closepaw.voice.semantics.TimerAmbiguousDurationArgumentTest | 3 | 0 | 0 | 0 | 0.744
+ai.closepaw.voice.semantics.TimerCancelRunningSetTest | 4 | 0 | 0 | 0 | 6.134
+ai.closepaw.voice.semantics.TimerCancelViewportCompletenessTest | 5 | 0 | 0 | 0 | 8.498
+ai.closepaw.voice.semantics.TimerCancelWiringTest | 5 | 0 | 0 | 0 | 0.0
+ai.closepaw.voice.semantics.TimerChoiceUnitArgumentTest | 3 | 0 | 0 | 0 | 0.755
+ai.closepaw.voice.semantics.TimerCompoundDurationArgumentTest | 3 | 0 | 0 | 0 | 0.719
+ai.closepaw.voice.semantics.TimerCountShapeTest | 8 | 0 | 0 | 0 | 0.0
+ai.closepaw.voice.semantics.TimerCreateArgumentTest | 3 | 0 | 0 | 0 | 0.743
+ai.closepaw.voice.semantics.TimerObjectExecutionTest | 6 | 0 | 0 | 0 | 10.158
+ai.closepaw.voice.semantics.TimerPausedFrozenReadoutTest | 6 | 0 | 0 | 0 | 4.524
+ai.closepaw.voice.semantics.TimerQueryRunningBoundTest | 6 | 0 | 0 | 0 | 5.843
+ai.closepaw.voice.tools.AlarmAbsenceWordingTest | 3 | 0 | 0 | 0 | 0.673
+ai.closepaw.voice.tools.AlarmTriggerWaitTest | 6 | 0 | 0 | 0 | 1.142
+ai.closepaw.voice.tools.BluetoothReadbackEvidenceTest | 9 | 0 | 0 | 0 | 1.917
+ai.closepaw.voice.tools.BluetoothSettleClockTest | 5 | 0 | 0 | 0 | 0.003
+ai.closepaw.voice.tools.ChineseTimeAmbiguityTest | 10 | 0 | 0 | 0 | 0.001
+ai.closepaw.voice.tools.ChineseTimeChoiceUnitTest | 9 | 0 | 0 | 0 | 0.0
+ai.closepaw.voice.tools.ChineseTimeDurationTest | 4 | 0 | 0 | 0 | 0.001
+ai.closepaw.voice.tools.ChineseTimePhraseUnitTest | 5 | 0 | 0 | 0 | 0.001
+ai.closepaw.voice.tools.ClockUndoSafetyTest | 2 | 0 | 0 | 0 | 10.652
+ai.closepaw.voice.tools.IntentCreationVerificationTest | 4 | 0 | 0 | 0 | 4.527
+ai.closepaw.voice.tools.SwitchReadbackEvidenceTest | 10 | 0 | 0 | 0 | 0.077
+ai.closepaw.voice.tools.TabSelectedStateTest | 9 | 0 | 0 | 0 | 0.021
+ai.closepaw.voice.tools.TimerCancelReadbackTest | 8 | 0 | 0 | 0 | 13.978
+ai.closepaw.voice.tools.TimerCreateReadbackTest | 10 | 0 | 0 | 0 | 11.848
+ai.closepaw.voice.tools.TimerDiagnosticsEvidenceTest | 6 | 0 | 0 | 0 | 11.907
+ai.closepaw.voice.tools.TimerReadTruncationTest | 5 | 0 | 0 | 0 | 9.921
+ai.closepaw.voice.tools.TimerTabNavigationSafetyTest | 4 | 0 | 0 | 0 | 7.962
+ai.closepaw.voice.tools.TorchAlreadyAtTargetTest | 6 | 0 | 0 | 0 | 0.493
+ai.closepaw.voice.tools.TorchAttributionTest | 9 | 0 | 0 | 0 | 0.0
+ai.closepaw.voice.tools.TorchLateBaselineTest | 4 | 0 | 0 | 0 | 0.0
+ai.closepaw.voice.tools.TorchLateRegistrationAttributionTest | 5 | 0 | 0 | 0 | 0.0
+ai.closepaw.voice.tools.TorchUndoConsumptionTest | 7 | 0 | 0 | 0 | 1.745
+ai.closepaw.voice.tools.TorchUndoDispatchTest | 6 | 0 | 0 | 0 | 1.495
+ai.closepaw.voice.tools.UiAutomatorReadTest | 5 | 0 | 0 | 0 | 0.306
+ai.closepaw.voice.tools.UndoMemoryExpiryTest | 3 | 0 | 0 | 0 | 0.78
+ai.closepaw.voice.tools.UndoMonotonicClockTest | 4 | 0 | 0 | 0 | 0.337

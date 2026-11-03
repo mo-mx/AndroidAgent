@@ -1,6 +1,1047 @@
 # PROJECT_STATUS — 当前真实状态
 
-最后更新：2026-10-31（本次更新内容：GitHub 协作仓库初始化）
+## 第70轮：新复审 `6586281082`（HEAD `65d86a8`）无新代码任务；它指出的测试计数差异经本机实跑证实 —— **全量不是 0 failed，是 1 failed**（`src/` 零改动，未实机）
+
+去重：上一轮处理的是 `6585144367`（第69轮，2026-11-02T18:35Z）；其后新增的只有 `6586281082`（`<!-- chatgpt-hourly-review SHA:65d86a8 -->`，2026-11-02T19:22:04Z，针对当前 HEAD `65d86a8af6fa902b70642ab50239a5bfca7a41dd`）。第66–69轮的记录在 `docs/phase6-stage1-device-acceptance.md`。
+
+### 复审判定（原文摘要）
+
+- **BLOCKER：本轮 diff 未发现满足「明确路径 + 可达触发 + 可复现 + 违反阶段安全契约」的新增项**；B1 手电归属、B2 撤销代码本次未变；B4 的局部重试上限（3 次 / 一次 BACK / 1200 ms 有限轮询）成立，但「不等于已验证外层端到端会话终止」。
+- **停止条件**：两轮集中修复上限不重置；**不授权第三轮修复、不指派 Hermes 清理 FOLLOW-UP、不自动批准合并**。
+- **FOLLOW-UP**：①`scripts/voice_probe.py` 新增两处本机绝对路径（是本次 diff 引入，非那 24 个历史文件）；②单次 BACK 可能退出创建器/其它子页面，真机未证明无草稿影响。
+- **UNVERIFIED**：报告 2535 项，而新增测试类可数 8 条 `@Test`，相加应为 2537；无当前 SHA 的机器 XML 汇总。
+
+### 本轮做了什么：在当前 HEAD 实跑全量 JVM，结果为失败
+
+命令：`cd src/closepaw && ./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain`（`JAVA_HOME=tools/jdk-17.0.20.1+1`）。
+
+| 项 | 实测（XML 逐类求和） | 文档原写 |
+|---|---|---|
+| 类 / 项 / failed / errors / skipped | **272 / 2537 / 1 / 0 / 8** | 272 / 2535 / 0 / 0 / 8 |
+| Gradle | **BUILD FAILED in 7m 31s，exit=1** | `BUILD SUCCESSFUL`，exit=0 |
+
+失败用例：`ai.closepaw.voice.semantics.ClockForeignWindowTest` → `recovery selects exact tab rather than a preceding hint card`，`verify(exactly = 1) { tab.performAction(ACTION_CLICK) }` 实际命中 **2 次**。
+
+根因（源码分析，未实机）：`openClockTab` 第⑤轮新增的「无 tab 控件→一次 BACK→再点」路径先成功点了一次；随后 `readClockScreen` 因读到自家语音窗口而重试，重试分支 `clickClockTab(tab)` 再点一次同一 tab。安全面：两次都是**精确 tab**（`hint.performAction=0`、`click=0`、`tap=0`、`clickText=0` 仍通过），但与源码注释「never click twice, because a second ACTION_CLICK can toggle back」矛盾；另有「读不到无障碍树」与「确无 tab 栏」被同等对待、都按 BACK 的未证问题。
+
+### 未决（需用户/复审决定，本轮不改 `src/`、不改断言）
+
+- **A**：只在「能读到时钟树且确无 tab 栏」时按 BACK；读不到树时直接安全拒绝。
+- **B**：保留 BACK，但同一轮已投递过点击时 `readClockScreen` 不再重复点击。
+
+两种都会改变已真机验证过的导航语义，改后须重跑真机（需用户重新授权）。把断言改成 2 次让套件变绿属于弱化，不做。
+
+### 本轮改动与证明边界
+
+- 改动：`docs/phase6-stage1-device-acceptance.md`（更正 2535/0-failed/2533 与新增「定时轮复核」小节）、新增 `docs/evidence/pr4-65d86a8-junit-summary.txt`（机器生成，含失败用例原文首行）、`docs/evidence/sanitize_evidence.py` 的 `EVIDENCE_TARGETS` 加一条；本文件。`src/`、`app/src/test/` 零 diff。
+- 闸门：`python docs/evidence/sanitize_evidence.py --scope all --check` **exit=0**，新汇总 `declared=(272,2537,1,0,8)` 与逐类求和 `match=True`；`py_compile` 通过。
+- 边界：**未构建/未安装 APK、未操作手机**（BACK 行为只能真机验，需用户授权）；阶段 1 因这个失败**不能算通过**；未合并 PR、未 push main。
+
+## 第65轮：无新审查；把「本 SHA 未构建 APK」这条证据空档在 `c10599a` 上关掉（`src/` 零改动，未装包、未动手机）
+
+本轮 PR #4 **没有新审查**：最新一条 ChatGPT 复审仍是 `6576888477`（`<!-- chatgpt-hourly-review SHA:efd0f9c... -->`，针对 `efd0f9c`），已在第63轮处理；其后 PR 只有我自己的第64轮评论 `IC_kwDOVdfNwc8AAAABiBNlQg`，Issue #3 最新一条也是第64轮同步 `6577943456`。当前 HEAD `c10599ad834a3d0035abfa9003dd17bdde38270e`（`git rev-parse` / `git ls-remote` / PR head 三方一致），`main` 仍 `580261f1253e00fd596304df1e9ebb0e5a8d5745`，工作树干净。
+
+### 做了什么：在当前 HEAD 上构建 debug APK（只构建，不安装）
+
+前几轮的状态段一直写着「本 SHA 未构建 APK」，这是清单里最后一个能离线闭合的证据空档（不是功能项，不涉及真机）。
+
+命令：`JAVA_HOME=tools/jdk-17.0.20.1+1` + `ANDROID_HOME=tools/android-sdk` → `cd src/closepaw` → `./gradlew --offline :app:assembleDebug --rerun-tasks --console=plain`。
+
+| 项 | 实得（2026-11-02 21:44 +08:00，HEAD `c10599a`） |
+|---|---|
+| Gradle | `BUILD SUCCESSFUL in 1m 4s`，`40 actionable tasks: 40 executed`（`--rerun-tasks`，不复用旧产物），**exit=0** |
+| 产物 | `app/build/outputs/apk/debug/app-debug.apk`，267 407 790 字节，`versionCode 1` / `versionName 0.1.0`，23 个 dex |
+| sha256 | `ddb36b2cc48c209528a1e9ac77b118c564f9060f1a48c9f8998e40d92f019e05` |
+| 签名 | `apksigner verify` → **Verifies**，v2=true，签名者 `CN=Android Debug`，证书 SHA-256 `5d47f71d…111f5a` |
+| 产物归属 | 解包 23 个 dex 后 `grep -l "alarmPage=unconfirmed"` 命中 `classes14.dex`；该字面量只存在于本 SHA 的 `ClockControl.kt:775`，且 `git diff --stat 197dd90..HEAD -- src/` 为空 → dex 出自当前源码，不是旧的增量残留 |
+| 机器记录 | `docs/evidence/pr4-c10599a-apk-build.txt`（命令、日志尾、sha256、签名、归属校验、证明边界） |
+
+### 证明边界（按 AGENTS.md 第 3/4/5 条）
+
+- **能说明**：在 Windows 11 + JDK 17 + 仓库内 SDK 上，`c10599a` 这个确切树能离线编译、dex、打包成 v2 签名的 debug APK，40 个任务全部重跑，输入不需要网络。
+- **不能说明**：①**未安装、未启动、未连手机**——设备矩阵维持**历史 4 通过 / 0 失败 / 3 未测**（旧 APK）；②打包≠行为：`closeAlarm` 仍 `BLOCKED`、计时器对象级终态仍 `UNPROVEN`、手电/撤销只到「源码 + JVM/MockK」；③不是 Linux/POSIX 构建，仓库仍无 `.github/workflows`、该提交无 CI status；④只验了 debug 签名，没碰 release 签名配置。
+- 本轮改动：新增 1 个证据文件 + 本状态文档。`src/`、`app/src/test/`、`sanitize_evidence.py` **零 diff**（该 APK 日志不是 JUnit 汇总，故不加入 `EVIDENCE_TARGETS`）。
+
+### 当前阻塞（与前几轮相同，未变；离线项已清空）
+
+B3：①Termux Bridge 是否纳入阶段 1 交付；②是否**重新授权**限定设备验收（上一轮实机授权已用掉，新一轮实机需用户明确同意）；③是否另立 Issue 承接阶段 2。复审已两轮声明停止自动修复；本轮之后**没有剩余的离线技术项或离线证据项**，不再开新的 docs/证据轮次，等用户对这三项表态。
+
+## 第63轮：新复审 `6576888477`（HEAD `efd0f9c`）无新代码任务；把它列为本 SHA「未独立实跑」的全量 JVM 在 `efd0f9c` 本体跑掉（`src/` 零改动，未实机）
+
+本轮有**新审查**：PR #4 评论 `6576888477`（`<!-- chatgpt-hourly-review SHA:efd0f9c... -->`，2026-11-02T12:15:45Z），针对当前 HEAD `efd0f9cfc057fbb8efaa6bf7ba7a5fce3d30d37a`（`git rev-parse` / `git ls-remote` / PR head 三方一致）。上一轮（第62轮）处理的最后一条是 `6576507686`，其后新增的就是它，未重复劳动。
+
+它的判定（原文摘要）：**B1/B2「本轮没有新增可证明的安全 BLOCKER」**；**B3 仍是用户决策项**（Termux Bridge 是否纳入阶段 1 交付、是否授权限定设备验收），并写明「本评论**不指派第三轮修复**」「不扩展冻结清单、不自动触发开发」。**FOLLOW-UP：未发现本次 diff 新增需要立即处理的项。**
+
+所以本轮不开新修复、不改 `src/`。它唯一留给提交者补的事实是 UNVERIFIED 第 1 条：*「当前 `efd0f9c` 只增加文档和证据目标登记，没有在当前 SHA 上独立实跑」*。这一条能离线闭合，就在本 SHA 本体跑。
+
+### 做了什么：在 `efd0f9c` 本体跑全量 JVM 单测（不是引用 `9c389e3` 的结果）
+
+命令：`JAVA_HOME=tools/jdk-17.0.20.1+1` + `ANDROID_HOME=tools/android-sdk` → `cd src/closepaw` → `./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain`。跑前 `rm -rf app/build/test-results/testDebugUnitTest`，避免旧 SHA 的 XML 混入统计；统计只读 `test-results/*.xml`（`xml.etree` 求和），不采信控制台摘要。
+
+| 项 | 实得（2026-11-02 20:41 +08:00，HEAD `efd0f9c`） |
+|---|---|
+| Gradle | `BUILD SUCCESSFUL in 6m 35s`，31 tasks executed，**exit=0** |
+| 全量汇总 | **271 classes / 2529 tests / 0 failed / 0 errors / 8 skipped** |
+| 8 条 skipped | `ShellRunnerTest::runDrained*` 4 + `ShellToolExecutionTest::*` 4，均为既有 Android-shell 环境跳过，未增未减（名单逐条记入证据文件） |
+| 与上一实跑点 `9c389e3` 的差异 | 计数完全相同（`271/2529/0/0/8`）；两 SHA 之间只有 `docs/` 改动，本轮因此把「结果只适用于 `9c389e3`」这条限定消掉 |
+| 机器汇总入仓 | `docs/evidence/pr4-efd0f9c-junit-summary.txt`（271 类逐类计数，`sanitize_evidence.py` 的 `EVIDENCE_TARGETS` 已加该路径） |
+| 闸门复跑 | `python docs/evidence/sanitize_evidence.py --scope all --check` → 四份汇总 `match=True`（`2528/6/0/8`、`2529/0/0/8`×3），`KNOWN-OPEN` 仍只有 `asr_eval/refs.json`、`asr_eval/make_set.ps1`，**exit=0**；`py_compile` 通过 |
+
+### 证明边界（按 AGENTS.md 第 3/4/5 条）
+
+- **能说明**：Windows 11 + JDK 17 + 仓库内 Android SDK 上，`efd0f9c` 这个确切树的 JVM 单测全集通过；`9c389e3 → efd0f9c` 的三个 docs 提交（含 `EVIDENCE_TARGETS` 一行）没有引入 JVM 回归。
+- **不能说明**：①不是 Linux/POSIX 结果，`gh api …/commits/efd0f9c…/status` 仍无 status、仓库仍无 `.github/workflows`；②JVM 全绿≠功能可用：`closeAlarm` 仍 `BLOCKED`、计时器对象级终态仍 `UNPROVEN`、手电/撤销只到「源码 + JVM/MockK」；③本 SHA 未构建 APK、未装、未操作手机，设备矩阵维持**历史 4 通过 / 0 失败 / 3 未测**（旧 APK）。
+- 本轮改动：新增 1 个证据文件 + `EVIDENCE_TARGETS` 加 1 行 + 文档。`src/` 与 `app/src/test/` **零 diff**。
+
+### 当前唯一阻塞（与第62轮相同，未变）
+
+B3：①Termux Bridge 是否纳入阶段 1 交付；②是否**重新授权**限定设备验收（上一轮实机授权已用掉，新一轮实机需用户明确同意）；③是否另立 Issue 承接阶段 2。离线技术项清单已清空（`cancelTimer` 窗口校验、截断不当完整、计时器唯一绑定、五分钟真实入参、创建 undo 安全拒绝、撤销记忆消费、三处开关回读、Bridge token 认证均已落地），本 SHA 之后无遗留离线代码项。复审已两轮声明停止自动修复，本轮亦不代用户拍 Bridge 去留。
+
+
+## 第62轮：无新审查；把「全量 JVM 只在 `197dd90` 跑过」这条空档在当前 HEAD `9c389e3` 上关掉（`src/` 零改动，未实机）
+
+本轮 PR #4 **没有新审查**：最新一条仍是 `6575719349`（`<!-- chatgpt-hourly-review SHA:0fb2d0b... -->`，2026-11-02T11:13:37Z），已由第61轮评论 `IC_kwDOVdfNwc8AAAABh_XHig` 处理完毕；其后 PR 只有该条回复。当前 HEAD `9c389e3e4d22e7f377a7781697a9c47fd14a402c`（`git rev-parse` / `git ls-remote` / PR head 三方一致），`main` 仍 `580261f1253e00fd596304df1e9ebb0e5a8d5745`。
+
+### 做了什么：在当前 HEAD 上真跑一次全量 JVM 单测
+
+前 6 轮的状态都写着同一句限定：「`2529/0/0/8` 是第56轮在 `197dd90` 的实跑记录，不是本 SHA 的」。这是本轮唯一能离线闭合的证据空档，所以直接在 `9c389e3` 干净工作树上跑全量。
+
+命令：`source env.sh` → `cd src/closepaw` → `./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain`（`--rerun-tasks` 是必须的：本机曾出现增量编译复用旧 class 导致跑旧码）。跑前删掉 `app/build/test-results/testDebugUnitTest`，避免旧 XML 混入统计。
+
+| 项 | 实得（2026-11-02，HEAD `9c389e3`） |
+|---|---|
+| Gradle | `BUILD SUCCESSFUL in 8m`，**exit=0** |
+| 汇总（`test-results/testDebugUnitTest/*.xml` 用 `xml.etree` 求和，不取控制台概要） | **271 classes / 2529 tests / 0 failed / 0 errors / 8 skipped** |
+| 8 条 skipped 名单 | `ShellRunnerTest::runDrained*` 4 条 + `ShellToolExecutionTest::*` 4 条，全是既有的 Android-shell 环境跳过，本轮未增未减 |
+| 曾经在本机红的 6 项 | `AgentSkillCatalogTest`（22 类全过，含 `entry filePath points to SKILL md`）与 `MemoryStoreTest`（34 类全过，含 `append replaces the existing file instead of failing on it`）在本 SHA **全绿** —— 它们由 `197dd90`（`fix(memory): replace the existing file instead of failing on it`）修掉，不是本轮改的 |
+| 机器汇总入仓 | `docs/evidence/pr4-9c389e3-junit-summary.txt`（271 类逐类计数），并已加入 `sanitize_evidence.py` 的 `EVIDENCE_TARGETS`，由闸门重算校验 |
+| 闸门复跑 | `python docs/evidence/sanitize_evidence.py --scope all --check` → 三份汇总 `match=True`（`271/2528/6/0/8`、`271/2529/0/0/8`、`271/2529/0/0/8`），`KNOWN-OPEN` 仍只有 `asr_eval/refs.json`、`asr_eval/make_set.ps1`，**exit=0**；`py_compile` 通过 |
+
+### 这次绿说明了什么、没说明什么（按 AGENTS.md 第 3/4/5 条）
+
+- **说明**：在 Windows 11 + JDK 17 + 本仓库 `tools/` 的 Android SDK 上，当前 HEAD 的 JVM 单测全集通过；`197dd90` 之后 6 个 docs 提交（含本轮 `EVIDENCE_TARGETS` 一行）没有引入任何 JVM 回归。
+- **不说明**：①这不是 Ubuntu/POSIX 上的结果，独立 CI 仍为空（`gh api …/commits/9c389e3…/status` 无 status）；②JVM 单测全绿**不等于**功能可用——`closeAlarm` 仍 `BLOCKED`，计时器创建/取消的对象级终态仍 `UNPROVEN`，手电撤销只到「源码 + JVM/MockK」级别；③本 SHA 未构建/未安装 APK、未操作手机，设备矩阵维持 4 通过 / 0 失败 / 3 未测。
+- 本轮唯一的非 docs 改动是 `sanitize_evidence.py` 的 `EVIDENCE_TARGETS` 加一行（不改变任何掩码/判定逻辑），`src/` 与 `app/src/test/` **零 diff**。
+
+### 当前唯一阻塞（与第61轮相同，未变）
+
+B3：①Termux Bridge 是否纳入阶段 1 交付；②是否**重新授权**限定设备验收（上一轮实机授权已用掉）。离线可做的技术项清单（`cancelTimer` 窗口校验、截断不当完整、计时器唯一绑定、五分钟真实入参、创建 undo 安全拒绝、撤销记忆消费、三处开关回读、Bridge token 认证）已全部落地，本轮之后**再无遗留的离线代码项**可推进；需要装包/真机的部分等用户明确授权。
+
+
+## 第61轮：新复审 `6575719349`（HEAD `0fb2d0b`）无新代码任务；把它列为「提交者报告」的三条事实在本 SHA 上重跑（`src/` 零改动，未实机）
+
+本轮新审查：PR #4 评论 `6575719349`（`<!-- chatgpt-hourly-review SHA:0fb2d0b... -->`，2026-11-02T11:13:37Z），针对当前 HEAD `0fb2d0b1cae7bb704ed3e2b47101f52b9e14a5dd`。它的判定：**B1/B2「本次无新增可证明的安全 BLOCKER」**；**B3 仍是用户决策项**（Termux Bridge 是否属于阶段 1 交付、是否授权限定设备验收）；唯一 FOLLOW-UP 是 `KNOWN_OPEN` 与其余历史本机路径「需后续独立评估」，并**明确写「不指派 Hermes 修复」**。所以本轮不开新修复，也不改代码。
+
+### 该复审的三条 UNVERIFIED 我在本 SHA 上重跑了（不是照抄上轮数字）
+
+它写明「本轮没有独立执行这些命令」。这次全部在 `0fb2d0b` 工作树重跑：
+
+| 项 | 命令 | 实得（2026-11-02） |
+|---|---|---|
+| 语法 | `python -m py_compile docs/evidence/sanitize_evidence.py` | 通过（无输出） |
+| 仓库级闸门 | `python docs/evidence/sanitize_evidence.py --scope all --check` | `exit=0`；`KNOWN-OPEN` 仅 `asr_eval/refs.json`、`asr_eval/make_set.ps1`；两份汇总 `match=True`（`271/2528/6/0/8`、`271/2529/0/0/8`） |
+| 退出码 0 | 沙箱内干净树 `--scope docs --check` | `exit=0` |
+| 退出码 1 | 沙箱内植入一条本机绝对路径（形如 `…\Users\<本机用户名>\proj\x`） | `WOULD MASK: docs\probe.md`，`exit=1` |
+| 退出码 2 | 沙箱内把 `pr4-197dd90` 的声明总数 `tests=2529` 改成 `2530` | `declared=(271,2530,…)` vs `summed=(271,2529,…)`，`match=False`，`exit=2` |
+| 幂等 | 沙箱内先真脱敏再复检 | `MASKED` → 复检 `exit=0`；`mask(mask(x)) == mask(x)` 为 `True` |
+| 计数（HEAD 树） | `git grep -l <本机用户名> HEAD` | **24** 个：`scripts/` 19、`asr_eval/` 2、`env.sh`、`scrcpy_wireless.bat`、`mobile-actions-eval/setup_harness.py` |
+| 计数（`origin/main` 树） | 同模式换成 `origin/main` | **27** 个 |
+| 差集 | 两个命中列表相减 | 只在 main：`docs/phase1-device-report.md`、`docs/phase2-basic-agent-report.md`、`docs/TEST_RESULTS.md`；只在 HEAD：**空** |
+| 脚本改动范围 | `git diff 22b91c1 0fb2d0b -- docs/evidence/sanitize_evidence.py` | 单个 hunk，仅 docstring 的 `Exit codes:` 段落（+7/−1）；`mask()`/`totals()`/`main()` 未动 |
+| 独立 CI | `gh api …/commits/0fb2d0b…/status` | `state=pending`，`statuses` **空列表** —— 本 SHA **没有任何 CI 状态** |
+
+结论：「提交者报告」的三条（退出码、`--scope all --check` 前后一致、24/27 与差集）**逐条复现，无一条被推翻**。24 个残留全部是 main 上既有的本机脚本路径，PR 未新增；`--check exit=0` 依然**不能**读成「整个仓库已无私人路径」—— 这句措辞已在第 59/60 轮改窄，本轮未发现新的过度宣称。
+
+### 本轮没做的事（如实）
+
+- **未跑 Gradle**：`src/`、`app/src/test/` 本 SHA 零 diff；「全量 2529/0/0/8」仍是第56轮在 `197dd90` 的实跑记录，不是本 SHA 的。
+- **未处理那 24 个残留路径**：22 个是脚本的功能性输入（改成相对路径要改解析逻辑，且这些脚本只在本机跑，本轮无运行环境可验证），另 2 个是脚本自身的 `KNOWN_OPEN`。复审已声明不指派，且属独立决策项，不在阶段 1 冻结范围。
+- **未实机、未构建/安装 APK、未操作手机**；B3 的「独立 CI」「本 SHA 真机」两条仍为空。
+
+### 当前唯一阻塞
+
+B3：①Termux Bridge 是否纳入阶段 1 交付；②是否**重新授权**限定设备验收（上一轮实机授权已用掉，新一轮需用户重新确认）。这两条答之前没有可离线推进的代码项 —— 前 60 轮已把 `cancelTimer` 窗口校验、截断不算完整、计时器唯一绑定、五分钟真实入参、创建 undo 安全拒绝、撤销记忆消费、三处开关回读、Bridge token 认证全部落地。
+
+
+## 第60轮：处理复审 `6559237989`（HEAD `22b91c1`）的两条 FOLLOW-UP —— 数字补上"在哪个树里量的"，脚本帮助文本改成与真实语义一致（`src/` 零改动，未实机）
+
+本轮新审查：PR #4 评论 `6559237989`（`<!-- chatgpt-hourly-review SHA:22b91c1... -->`，2026-11-01T14:24:14Z），针对 HEAD `22b91c1e3d38fba5344e294651495606ab49acd4`。它对**本 SHA 的判定是"没有新增可证明的 B1/B2 安全 BLOCKER"**，并明确"不启动第三轮修复、不要求 Hermes 自行处理遗留项"，**B3（阶段 1 交付边界：Bridge 是否纳入、是否授权限定设备验收）仍是用户决策项**。因此本轮**不开新一轮修复**，只把它标为非阻塞的两条 FOLLOW-UP 用实跑关掉。
+
+### FOLLOW-UP 1：`24 个文件 / 交集为空` 是提交者报告量，本轮重测并补上测量树
+
+复审说它"未独立运行仓库级 `git grep` 复算 24 的数量"。本轮按可复现命令重测，结论是**第59轮的数字在 HEAD 上成立，但原文没写"在哪棵树里量的"，容易被读成"main 上只有 24 个"——那个读法是错的**：
+
+| 测量对象 | 命令 | 结果 |
+|---|---|---|
+| `origin/main` 树 | `git grep -l -I -E "Users[\\/]+<user>\|/c/Users/<user>" $(git rev-parse origin/main) -- .` | **27** 个文件 |
+| 本 PR HEAD 树 | 同模式，`git grep -l -I -E ... HEAD -- .` | **24** 个文件 |
+| 差集 | 上表两集合相减 | 恰好 3 个：`docs/phase1-device-report.md`、`docs/phase2-basic-agent-report.md`、`docs/TEST_RESULTS.md` —— 正是第58轮在本 PR 内脱敏的那三个文档 |
+| 交集 | `comm -12` HEAD 命中列表 与 `git diff --name-only $(git merge-base origin/main HEAD) HEAD` | **0** —— PR 没有新增，也没留下新的本机路径 |
+
+即：**main=27、HEAD=24、Δ=3 全是本 PR 的删除项**，"PR 未新增"这一条成立；错的只是"24 个"被当成 main 的数字。24 个残留全部在 `scripts/`(19)、`asr_eval/`(2)、`env.sh`、`scrcpy_wireless.bat`、`mobile-actions-eval/setup_harness.py`，属本机开发脚本的**功能性输入**，按 AGENTS.md 第 8 条该单独评估，不在冻结 PR 内改 22 个脚本。
+
+### FOLLOW-UP 2：`sanitize_evidence.py` 的帮助文本 "Exit codes: 0 clean" 与真实语义冲突
+
+复审点名这是既有措辞问题（脚本本 SHA 未改）。它确实是错的：`KNOWN_OPEN` 只打印、不计入 `dirty`，所以仓库里还有 24 个本机路径时 `--check` 照样 `exit 0`。本轮**只改 docstring 的措辞，不改任何代码路径**，并按 AGENTS.md 第 3 条把三个退出码逐个实测，而不是照抄：
+
+| 退出码 | 构造方式（临时沙箱，不碰仓库文件） | 实测 |
+|---|---|---|
+| 0 | 沙箱内 `--scope all --check` 原样 | `exit=0`，两行 `KNOWN-OPEN` 仍打印 |
+| 1 | 沙箱内往 `docs/evidence/.../output-windows11-jdk17.txt` 追加一条 `C:\Users\<user>\...` | `WOULD MASK: docs\evidence\...\output-windows11-jdk17.txt`，`exit=1`；再 `--scope all` 脱敏后复检 `exit=0` |
+| 2 | 沙箱内把 `pr4-197dd90-junit-summary.txt` 的 `TOTAL tests=2529` 改成 `2500` | `match=False`，`exit=2`；不带 `--check` 也是 `exit=2`（与"任何 scope 都返回 2"一致） |
+
+改前/改后对仓库实跑 `--scope all --check`，**stdout 逐字节相同、EXIT 均为 0**（`diff` 只差我追加的标记行），`py_compile` 通过 —— 说明这是纯措辞修正，闸门行为零变化。
+
+### 证据级别（按 AGENTS.md 第 3/4/5 条）
+
+- 本轮 `src/`、`app/src/test/` **零 diff**，故**未跑 Gradle**；"全量 JVM 2529/0/0/8，exit=0"仍是第56轮在 `197dd90` 的实跑记录，不是本 SHA 的。
+- 实测证据仅限：Python 脱敏脚本退出码（Windows 11 / 本机 python 3.11）、`git grep`/`git diff` 计数。**未构建/安装 APK，未操作手机**。
+- B3 的三条空档（独立 CI、POSIX/Linux JVM、本 SHA 真机）本轮**仍未闭合**，且**不是本轮能自行关闭的**。
+
+### 本轮为什么停在这里
+
+复审已触发两轮停止条件并声明不指派第三轮；B1/B2 无新增阻塞；离线可做的项（`cancelTimer` 窗口校验、截断不当完整、计时器唯一绑定、五分钟真实参数、创建 undo 安全拒绝、撤销记忆消费、三处开关回读、Bridge token 认证）在前 59 轮均已落地。**继续动手只剩用户决策：阶段 1 是否包含 Termux Bridge、是否重新授权限定设备验收。** 在用户明确回答前，不装包、不操作手机、不合并。
+
+
+## 第59轮：新复审 `6558533290` —— 无新 BLOCKER；把「`--check` 通过 ≠ 仓库无私人路径」实测出来并更正上轮措辞（零源码改动，未实机）
+
+本轮唯一新审查是 PR #4 评论 `6558533290`（`<!-- chatgpt-hourly-review SHA:24d02c2... -->`，2026-11-01T13:22:27Z），针对当前 HEAD `24d02c2f355d5e18ccfe152c20e03df0b0ac3c9f`。
+
+### 复审给的三类结论（按它的分类照抄，不升级）
+
+- **B1/B2**：本次差异（`be6d87b..24d02c2`，4 个提交 / 15 个文件）**未发现新的、有可达路径与最小复现的安全阻塞**；`TorchControl`、`ActionMemory`、语义闸门、Termux Bridge 生产源码本轮未改动。
+- **B3**：阶段 1 最终验收仍未关闭，需要用户决定（Bridge 是否纳入阶段 1、是否授权限定设备验收），**不是新发现的代码缺陷**。复审已触发两轮停止条件，**不指派第三轮修复**。
+- **FOLLOW-UP（非阻塞）**：`sanitize_evidence.py --scope all --check` 对 `KNOWN_OPEN` 只打印提醒、不计入 `dirty`，仍可能 `exit=0`，因此不能把「`--check` 通过」读成「整个仓库已无私人路径」。
+
+### 本轮只做两件离线可验证的事
+
+1. **实测该 FOLLOW-UP 是否成立**（它自己只写了「可能」）：`python docs/evidence/sanitize_evidence.py --scope all --check` 实跑输出两行 `KNOWN-OPEN (needs separate decision, not rewritten): asr_eval/refs.json`、`... asr_eval/make_set.ps1`，**EXIT=0**。同时 `--scope docs --check` EXIT=0、`--check`（evidence）EXIT=0，两份 JUnit 汇总逐类求和仍 `match=True`（`2528/6`、`2529/0`）。**结论：FOLLOW-UP 成立，已复现。**
+2. **把「仓库级还剩多少」量出来**（复审只点名 2 个 KNOWN-OPEN，实际更多）：`git grep -l -i "$USERNAME" -- .`（本机用户名）命中 **24 个已跟踪文件** —— `scripts/` 19 个、`asr_eval/` 2 个、`env.sh`、`scrcpy_wireless.bat`、`mobile-actions-eval/setup_harness.py`。逐个与 `git diff --name-only origin/main...HEAD` 求交，**交集为空**：即这些本机绝对路径**全部是 main 上既有的**，PR #4 没有新增。`origin/main` 在 `scripts/`、`asr_eval/`、`env.sh`、`scrcpy_wireless.bat`、`mobile-actions-eval/` 下共有 41 个文件。
+
+### 为什么不修（不是「忘了」）
+
+- 改 `--check` 语义（把 `KNOWN_OPEN` 计入 `dirty`）会让这条闸门在**尚未决定如何处置那 2 个功能性输入**的情况下永久红；复审本身写明「若日后单独处理，应另经用户授权，不在本轮扩大修复范围」。
+- 另外 22 个文件是**本机开发脚本里写死的绝对路径**（与 `asr_eval/refs.json` 同类：是脚本的功能性输入，不是文档）。要改成相对路径/环境变量必须改脚本解析逻辑，属功能改动，且这些脚本只在本机跑、本轮无对应运行环境可验证——按 AGENTS.md 第 3/4 条，不能「改了就宣称好了」。
+- 因此本轮**只更正文档措辞**，把「`exit 0 = 干净`」收窄为「`exit 0` 只表示可掩码目标里没有可掩码项」，并把上面 24/2 的实测数字写进状态，避免下轮把这条当已闭合。
+
+### 证据级别
+
+- 本轮 `src/`、`app/src/test/` **零 diff**（`git diff --stat 197dd90..HEAD` 12 个文件全在 `docs/`），故**未跑 Gradle**；「全量 JVM 全绿」的证据仍是第56轮在 `197dd90` 的实跑记录，代码版本相同不代表在 `24d02c2` 上重跑过。
+- 实跑证据仅限：Python 脱敏脚本、`git grep`/`git diff`（Windows 11 本机）。**未构建/安装/测试 APK，未操作手机**。B3 的「真机验收」与「独立 CI」两条仍为空。
+
+## 第58轮：无新审查，把「脱敏」从 `docs/evidence/` 扩到整个 `docs/` 树（零源码改动，未实机）
+
+PR #4 自第57轮评论（`6558200669`，12:52:41Z）后**没有新审查**；最新复审仍是 `6557962727`（`be6d87b`），它只剩 B3 验收门槛并已宣布两轮停止。所以本轮不碰冻结范围，只补第57轮自己写明「未改、如需请说一声」的那半条隐私尾巴——它同时也是 `AGENTS.md` 第 8 条（不把个人数据写进仓库）的直接落实。
+
+### 做了什么
+
+1. **脱敏范围扩到 `docs/**/*.md`**（只改路径前缀，不改任何结论/数字/断言）：`phase1-device-report.md`（3 处：adb 路径、`env.sh`、项目目录）、`phase2-basic-agent-report.md`（1 处源码路径）、`TEST_RESULTS.md`（1 处 `bash` 吃掉反斜杠的复现说明，`C:Users<user>AppDataLocalTemp...` 形态保留原意）。`PROJECT_STATUS.md` 里那条 `grep -rn "Users.<name>"` 示例命令原本自带用户名，也换成占位符。
+2. **`docs/evidence/sanitize_evidence.py` 增加 `--scope evidence|docs|all`**，默认行为与第57轮一致：
+   - `<盘>:\Users\<用户>\` → `C:\Users\<user>\`；`Users<用户>AppData…`（反斜杠被吃掉的形态）→ `Users<user>AppData…`；
+   - JSON 的双反斜杠形态单独一遍处理，**替换后仍是合法 JSON**（`json.loads` 实测通过），不产生 `\U` 这类非法转义；
+   - 幂等：`mask(mask(x)) == mask(x)` 实测 True，已脱敏的 `<user>` 不会被二次改写；
+   - 用户名从 `USERNAME`/`USER`/`getpass` 读，**不写进仓库**。
+3. **`--check` 变成可复跑闸门**（`--scope all --check`），并继续逐类求和比对 JUnit 汇总的声明总计。**第59轮更正**：`exit 0` 只表示「可掩码的目标里没有可掩码项」；`KNOWN_OPEN` 只打印、不计入 `dirty`，故 `exit 0` **不等于**整个仓库已无私人路径（实测仓库内仍有 24 个此类文件，且均为 main 既有；**第60轮补测**：24 是 HEAD 树的数，`origin/main` 树为 27，差集 3 为本 PR 脱敏的三个文档）。
+
+### 实跑数据（Python，本机 Windows 11；**未跑 Gradle**——本轮 `src/`、`app/src/test/` 零 diff）
+
+| 检查 | 命令 | 结果 |
+|---|---|---|
+| 脱敏前 | `sanitize_evidence.py --scope all --check` | 3 个文件 `WOULD MASK`，**exit=1**；两份汇总 `2528/6`、`2529/0` 求和均 `match=True` |
+| 脱敏 | `--scope docs` | `MASKED: phase1-device-report.md / phase2-basic-agent-report.md / TEST_RESULTS.md`，exit=0 |
+| 脱敏后 | `--scope all --check` | **exit=0**；两份汇总求和仍 `match=True`（计数未因脱敏改变）。该 exit=0 **不含** `KNOWN_OPEN` 判断（第59轮实测） |
+| 残留扫描 | `git grep -ni "$USERNAME" -- docs/`（本机用户名） | 无命中 |
+| 幂等 | 直接调 `mask()` | `mask(mask(x)) == mask(x)` → True |
+| JSON 安全 | 构造 `refs.json` 同形串 → `mask` → `json.loads` | 解析成功，`wav` 变成 `C:\Users\<user>\AndroidAgent\...` |
+
+### 仍列 KNOWN-OPEN（不假装已修）
+
+- `asr_eval/refs.json`、`asr_eval/make_set.ps1` 仍有本机绝对路径。这是 **ASR 评测脚本的功能性输入**，不是文档：`eval_asr.py:152` 直接 `read_wav(r["wav"])` 读 `refs.json` 里的绝对路径。要改成仓库相对路径必须同时改 `eval_asr.py` 的解析逻辑，属**功能改动**，且本轮没有真实 wav/模型可验证，不在这个冻结 PR 里顺手做。`--scope all` 会把这两个文件打成 `KNOWN-OPEN` 打印出来。
+- 探针/汇总只证明本机 Windows 机制；Linux/POSIX JVM、独立 CI、真机三条仍未闭合，等待用户决定。
+
+## 第57轮：处理复审 `6557962727` 的两条 FOLLOW-UP（探针文件不可按发布命令执行 + 证据含本机路径），源码零改动
+
+复审 `6557962727`（`<!-- chatgpt-hourly-review SHA:be6d87b -->`，2026-11-01T12:30:03Z）是第56轮评论之后唯一的新审查。它**没有指认新的代码缺陷**，仍只有 B3 验收门槛，并明确「已达两轮停止条件、不指派第三轮修复」；另给两条**非阻塞 FOLLOW-UP**，都属证据可复现性/隐私，可离线闭合，故本轮只做这两条。
+
+### FOLLOW-UP ①：探针文件名与 `public class Probe` 不匹配，发布的 `javac -d . Probe.java` 无法直接在仓库文件上执行 —— 成立，已修
+
+- `git mv docs/evidence/pr4-a6a498f-platform-probe.java → docs/evidence/pr4-a6a498f-platform-probe/Probe.java`（目录保留 SHA provenance，文件名匹配类名），输出改名为同目录 `output-windows11-jdk17.txt`，并新增该目录 `README.md`，写清度量对象、确切命令、实测 stdout 与不证明什么。
+- **实跑验证命令本身**（Git Bash / Windows 11，仓库自带 JDK `tools/jdk-17.0.20.1+1`）：按 README 逐行执行 exit=0，输出与已提交文件逐行一致（仅临时目录名不同）。即不再需要"另存为 Probe.java"这一步。
+
+### FOLLOW-UP ②：JUnit 汇总与探针输出包含本机 Windows 用户目录 —— 成立，已脱敏且计数未变
+
+- 新增 `docs/evidence/sanitize_evidence.py`，只做两类替换：`<盘>:\Users\<名>\` → `C:\Users\<user>\`，`<盘>:\Users\<user>\AppData\Local\Temp\(junit|probe)<数字>` → `%TEMP%\<kind><n>`；测试类名、计数、断言原文不动。
+- 脚本每次运行都会**重新逐类求和**并与声明总计比对；脱敏后实得：`a6a498f` 汇总 **271/2528/6/0/8 一致**，`197dd90` 汇总 **271/2529/0/0/8 一致**。`--check` 复跑 exit=0（无残留可脱敏项），`grep -rn "Users.<user>" docs/evidence/` 无命中（<user> 指本机用户名，见第58轮）。
+- 顺带把 `docs/TEST_RESULTS.md` 日志目录里的本机用户名改成 `C:\Users\<user>\`；`docs/phase1-device-report.md`、`docs/phase2-basic-agent-report.md` 中的旧绝对路径未改（属历史设备报告正文，非本次被点名的证据文件）。
+
+### 证据级别（不升级）
+
+- 本轮 `src/`、`app/src/test/` **零 diff**；未跑 Gradle（无源码变化，重跑只会重复 `197dd90` 的 2529/0/0/8）。因此"全量 JVM 全绿"的证据仍是第56轮 `197dd90` 的实跑记录，**不是本轮新测**。
+- 探针仍只证明本机（Windows 11 / JDK 17.0.20.1+1）的机制；Linux/POSIX JVM 与真机仍未测。B3 验收边界、独立 CI、真机验收三条仍待用户决定。
+
+## 第56轮：无新审查，把 6 项「历史红」真正修绿——全量 JVM 首次 `exit=0`（未实机）
+
+PR #4 自第55轮评论（`6557526960`，11:49:13Z）后**没有新审查**；最新复审仍是 `6557244443`（`a6a498f`），该复审已宣布两轮停止、不指派第三轮修复。因此本轮不碰它的判定，只处理它反复写进 UNVERIFIED 的那条尾巴：**全量始终 `exit=1`，6 项失败只能「归因」不能「消掉」**。
+
+### 做了什么（TDD：先补测试 → RED → 改生产 → GREEN）
+
+1. 在生产未改的前提下新增回归测试 `MemoryStoreTest :: append replaces the existing file instead of failing on it`，实跑 **RED**（`MemoryStoreTest` 34 tests / 6 failed，新用例失败消息 `expected to be true`）。
+2. 根因（第55轮 JDK 探针已实测 `renameTo over EXISTING target = false`）：`MemoryStore.atomicWrite` 用 `File.renameTo` 覆盖已存在文件。改为 `Files.move(REPLACE_EXISTING[, ATOMIC_MOVE])`，仅在 `AtomicMoveNotSupportedException` 时降级，替换本身从不跳过；异常链保留原始 cause。
+3. `AgentSkillCatalogTest :: entry filePath points to SKILL md` 原断言 `endsWith("my-skill/SKILL.md")` 把 POSIX 分隔符写死（第55轮探针实测 `endsWith(...) = false`）。改成与 `java.io.File(root,"my-skill/SKILL.md").path` 的**全路径相等**：更严，且与分隔符无关。**没有删除或放宽任何断言。**
+
+### 实跑数据（HEAD = `197dd90cb6ed795f1393abd486ba410a3f787c1e`）
+
+| 任务 | 结果 | exit |
+|---|---|---|
+| 基线（改动前，`be6d87b`，两个失败类） | 55 tests / **6 failed** / 0 errors / 0 skipped | 1 |
+| RED（新增测试后、生产未改） | MemoryStoreTest 34 tests / **6 failed** | 1 |
+| 修后定向 `memory.*` + `cognition.skills.*` | **118 / 0 failed / 0 errors / 0 skipped** | 0 |
+| **全量 `:app:testDebugUnitTest`（`197dd90` 本体）** | **2529 / 0 failed / 0 errors / 8 skipped**，`BUILD SUCCESSFUL in 7m 5s` | **0（首次全绿）** |
+
+统计取自 `app/build/test-results/testDebugUnitTest/*.xml` 求和；机器生成汇总已入仓库 `docs/evidence/pr4-197dd90-junit-summary.txt`（271 类逐类计数 + 8 条 skipped 名单，全部是既有 Android-shell 环境跳过，本轮未增未减）。
+
+### 级别与边界（不升级）
+
+- 这只证明**在本验证宿主（Windows 11 / JDK 17.0.20.1+1）上全量 JVM 测试全绿**。**Linux/POSIX 宿主仍未跑**（WSL 无 `java`/`curl`/`wget`/`python3`/`unzip`，`sudo` 需密码，无 `docker`），所以「跨宿主一致」仍不成立。
+- 生产行为变化面：`MemoryStore` 的写路径（Android 上 POSIX `renameTo` 本就会替换，语义不变；Windows 从「第二次写必失败」变为正常替换）。`SessionStorage`（有 `writeText` 兜底）与 `BundledAgentSkillInstaller`（目录重命名）属同类写法，**本轮未改**，无失败测试作为证据。
+- 真机全部未测：本 SHA 未构建 APK、未安装、未操作手机；设备矩阵维持历史 **4 通过 / 0 失败 / 3 未测**（旧 APK/旧 SHA）。**新一轮实机需用户单独授权。**
+- 复审 B3 的另外两条（独立 CI、真机验收）依旧未闭合，且都需要用户决定；本轮未自行加 `.github/workflows`。
+
+### 仍需用户拍板（第51轮起提出，连续第 6 轮不代拍）
+
+①`tools/termux-bridge` + `copyClosePawBridge` 是否移出阶段 1；②是否授权限定环境（POSIX/Linux JVM 或 CI runner）或新一轮真机验收；③是否另立 Issue 承接阶段 2。在此之前的约束不变：不合并、不装包、不动手机、不 push main。
+
+
+## 第55轮：复审 `6557244443`（HEAD `a6a498f`）—— 验收阻塞不靠改代码解，改把证据搬到仓库里（JVM 实跑 + JDK 探针，未实机）
+
+复审 `6557244443`（`<!-- chatgpt-hourly-review SHA:a6a498f -->`，2026-11-01T11:20:32Z）是本 PR 最新一条审查，也是我上轮之后唯一的新评论。它的结论与前三轮不同：**没有指认新的代码缺陷**，只有一条 B3「阶段 1 的最终交付验收尚未闭合（验收门槛）」，并明确「不指派第三轮修复、不批准合并」。因此本轮**不改代码**（`src/` 零 diff），只做它逐条点出的证据缺口。
+
+### 复审指出的两个可核对事实，处理如下
+
+1. **「第54轮的 JVM 命令实际在其父提交 `179f762` 执行」——成立**，我第54轮评论自己也写的是 `179f762`。本轮在**当前 HEAD `a6a498f` 本体**上重跑了两档，消掉这个保留语：
+   - 定向 `ai.closepaw.voice.*`：**423 tests / 0 failed / 0 errors / 0 skipped**，`BUILD SUCCESSFUL`，exit=0（5m27s）。
+   - 全量 `:app:testDebugUnitTest`：**2528 tests / 6 failed / 0 errors / 8 skipped**，**exit=1，不是全绿**（6m20s），6 项与 `179f762`/`fafe365`/`5789be4` 逐条同名，本轮**未改、未跳过**。
+   - 顺带确认 `git diff --stat 179f762 HEAD` 只有 3 个 `docs/` 文件（61 行新增），即两档结果对应的源码完全相同——但这不再需要「父提交可参考」这种间接说法。
+2. **「报告中的日志位于提交者本机 gitignored 目录，审查方无法独立核验」——成立，本轮把它搬进仓库**：新增 `docs/evidence/pr4-a6a498f-junit-summary.txt`，由 JUnit XML **机器生成**（271 个测试类逐类 `tests/failures/errors/skipped/time`，加 6 条失败断言消息原文），不是手写转述；任何人 clone 后可直接与自己的重跑结果对照。
+
+### 6 项失败的性质：从「同名」推进到「机制级实证」
+
+前几轮只能写「与旧 SHA 同名 + 源码机制推断」。本轮用 JDK 自身 API 做了一次真实探针（源码 `docs/evidence/pr4-a6a498f-platform-probe/Probe.java`，输出同目录 `output-windows11-jdk17.txt`，Windows 11 / JDK 17.0.20.1+1；第57轮改名+脱敏+重跑复现）：
+
+| 探针 | 实得 |
+|---|---|
+| `tmp.renameTo(已存在的目标)`（= `MemoryStore.atomicWrite` 的写法） | **false**，目标内容仍是 `old`，tmp 仍在 |
+| 同一调用，目标不存在时 | **true**，内容变 `new` |
+| `Files.move(REPLACE_EXISTING)` 覆盖已存在目标 | **true**，内容 `v3` |
+| `new File(dir,"my-skill/SKILL.md").getPath().endsWith("my-skill/SKILL.md")` | **false**（`File.separator = \`） |
+
+这与两个失败类的断言原文一一对应：`MemoryStoreTest` 5 项全是 `expected to be true`（`append` 里 `renameTo` false → `IOException` → 返回 false）或内容未变；`AgentSkillCatalogTest` 的失败消息是把 `...\my-skill\SKILL.md` 与 `my-skill/SKILL.md` 做字符串后缀比较。**结论级别仍要说清**：这是「机制级实证 + 同环境旧 SHA 对照」，证明这 6 项在 Windows 宿主上必然红、且与本 PR 改动无关；**不等于**「Linux 宿主上已跑通」。
+
+### Linux 宿主对照：本轮仍做不了，且 blocker 更具体了
+
+实测（不是推测）：`wsl -e bash -lc 'java -version'` → `command not found`；`curl`/`wget`/`python3`/`unzip` **都不存在**；`sudo -n true` → `sudo: a password is required`；`docker` → `command not found`。即该 WSL 发行版无 JDK、无包管理器可用路径、无容器，`--offline` 的 Android 构建在 Linux 侧不可能成立。**要在 Linux 上复核这 6 项，需要用户提供 sudo 密码/预装 JDK，或授权加一个 CI runner。** 本轮不擅自装系统包（AGENTS.md 第 7 条同级风险），也不联网下载分发。
+
+### 待用户决定（复审第二次明写，本轮仍不代拍）
+
+①`tools/termux-bridge` + `copyClosePawBridge` 是否移出阶段 1 交付；②是否授权限定环境（POSIX/Linux JVM）或真机验收；③是否另立 Issue 承接阶段 2。在这三项之前的固定事实：**PR #4 不合并、不装包、不动手机**；本轮未 push main、未 force push、未改受保护规则、未 delegate、未调用付费 API。
+
+- 定向/全量命令：`source env.sh` → `cd src/closepaw` → `./gradlew --offline :app:testDebugUnitTest [--tests 'ai.closepaw.voice.*'] --rerun-tasks --console=plain`。
+- 设备矩阵维持 **4 通过 / 0 失败 / 3 未测**（旧 APK、旧 SHA）；`closeAlarm` 仍安全 BLOCKED、计时器对象级终态 UNPROVEN、阶段 2 未开始、Issue #6 未并入。
+
+## 第54轮：无新审查，给当前 HEAD `179f762` 补第一次 Kotlin 实跑证据（JVM，未实机）
+
+PR #4 无新审查（最新复审仍是 `6556347173`，针对 `fafe365`，第52/53轮已处理；`created_at > 2026-11-01T10:29Z` 的评论为空）。按「无新审查推进可离线项」，本轮补的是**证据缺口**，不是新功能，也不是第54次扩项：第51–53轮只跑过 Python（第53轮明写「没有 Kotlin 改动，因此没有跑 Gradle」），因此 **HEAD `179f762` 这个 SHA 在 Kotlin 侧一次实跑都没有**，PR 正文里的 423 / 2528 全部是 `5789be4`/`fafe365` 的数字。复审 B3 反复要的就是「同一 HEAD 可独立复核」，本轮把它补齐。
+
+- **定向实跑（HEAD `179f762`，`--offline`，JDK 17，`:app:testDebugUnitTest --tests ai.closepaw.voice.* --tests ai.closepaw.termux.*`）**：**459 tests / 0 failed / 0 errors / 0 skipped**，`GRADLE_EXIT=0`（`ai.closepaw.voice` 423 + `ai.closepaw.termux` 36）。
+- **全量实跑（同 SHA，`:app:testDebugUnitTest`）**：**2528 tests / 6 failed / 0 errors / 8 skipped**，`GRADLE_EXIT=1`，**不是全绿**。6 项失败与 `fafe365`/`5789be4` 逐条同名：`AgentSkillCatalogTest :: entry filePath points to SKILL md` + `MemoryStoreTest` 5 项（`MemoryStore.atomicWrite` 的 `File.renameTo` 覆盖既有目标在 Windows 返回 false）。本轮**没有**改、没有跳过这 6 项。
+- **过程问题（如实）**：第一次前台调用被 180 s 上限截断，残留 Gradle/Kotlin 守护进程占住 `R.jar`，下一次 `processDebugResources` 报 `Couldn't delete ...R.jar`（BUILD FAILED in 25s）。`--stop` + 删该文件 + 清空 `test-results` 后重跑，上面两行数字来自这次干净重跑；被截断那次留下的 423 条旧 XML 已删除，未混入统计。
+- **POSIX（WSL）Kotlin 对照：本轮做不了，有实证**。`wsl -e bash -lc` 实测 `java: command not found`，`~/.gradle` 不存在（无 caches），本机 WSL 无 JDK、无 Gradle 分发、无 Android SDK；`--offline` 构建在该环境不可能成立，联网下载又超出「不引入新依赖/不调用外部服务」的边界。因此「两个失败类在 Linux 宿主上转绿」仍**未验证**，6 项失败的性质仍是**源码机制归因 + Windows 同环境旧 SHA 对照**，不升级为「已证明与本 PR 无关」。
+- **无代码改动**：本轮只写文档，`src/` 零 diff；未构建 APK、未安装、未操作手机、未改受保护规则、未 push main、未合并、未 delegate、未调用付费 API。
+- **仍待用户决定（第51–53轮提出，本轮不代拍）**：①把 `tools/termux-bridge` 与 `copyClosePawBridge` 移出阶段 1；②授权限定 POSIX/真机环境验收；③另立后续 Issue。复审 `6556347173` 已宣布「两轮停止」，在这些选择做出前 **PR #4 不合并**。
+- 设备矩阵维持 **4 通过 / 0 失败 / 3 未测**（旧 APK/旧 SHA）；`closeAlarm` 仍安全 BLOCKED、计时器对象级终态 UNPROVEN、阶段 2（在线 `ToolRouter` 同门禁）未开始、Issue #6 未并入。
+
+## 第53轮：无新审查，把「7 条 Python 失败」的归因用 POSIX 实跑闭合（源码 + Python 双平台，未实机）
+
+PR #4 无新审查（最新复审仍是 `6556347173`，针对 `fafe365`，已由第52轮评论 `IC_kwDOVdfNwc8AAAABhsyBgg`（HEAD `fc2cef5`）处理；其后只有我自己的评论）。按「无新审查推进可离线项」，本轮做第52轮自己标注为未完成的一件事：**7 条 Python 失败逐条归因 + 「POSIX 上是否转绿未验证」**。复审 B3 要求的就是这种可独立复核的证据，本轮不扩项、不碰 bridge 去留（仍待用户拍板）。
+
+- **方法**：整份 `tools/termux-bridge` 复制到 WSL Ubuntu 原生文件系统，源文件 sha256 与仓库逐一同（同源码）；WSL 无 pytest，用 Windows 侧 venv 的纯 Python `site-packages` 经 `PYTHONPATH` 注入（pytest 9.2.0，无 C 扩展，不是依赖变更）。
+- **结果（真跑）**：Windows **21 passed / 7 failed / 1 skipped**；WSL（修前，同源码）**28 passed / 1 failed**；WSL（修后）**29 passed / 0 failed**；Windows（修后）失败项名称不变。
+- **归因闭合**：7 条里 **6 条确认为宿主语义**（`Popen.pid` 怪癖、`~` 走 `USERPROFILE`、WSAEACCES 10013、无 POSIX 进程组），**1 条是测试缺陷**：`test_client_disconnect_kills_process_group_and_releases_exec_lock` 手写的 HTTP 请求**不带 `Authorization`**，第51轮加鉴权后必得 401，命令从未启动 → POSIX 上也红。实证：WSL 下无 token 请求得 `401 Unauthorized` 且 pidfile 不存在；带 token 后同一测试全绿。Windows 上它被另一层假象掩盖（命令里传的是 Windows 路径，`bash -c` 吃掉反斜杠写成一个字面文件名，probe 直接复现）。
+- **改了什么**：只改测试——那条手写请求补 `Authorization: Bearer {TOKEN}`，**断言一条未改**、未放宽鉴权、生产代码零改动。仓库内唯一改动文件 `src/closepaw/tools/termux-bridge/tests/test_closepaw_bridge.py`。
+- **边界**：本轮**没有 Kotlin 改动，因此没有跑 Gradle**（第51轮的全量 2528 / 6 failed / 8 skipped 仍是最近一次 Kotlin 数字，未重跑）；真实 Android/Termux 上跑这套测试仍未验证；Windows 侧 7 条仍红，第 7 条的 Windows 归因是本次 probe 实证，其余 6 条以「POSIX 全绿」为判定依据。
+- 设备矩阵维持 **4 通过 / 0 失败 / 3 未测**（旧 APK/旧 SHA），本 SHA 未构建/未安装/未实测，实机需用户**重新授权**。`closeAlarm` 仍安全 BLOCKED；计时器对象级终态仍 UNPROVEN；阶段 2（在线 `ToolRouter` 同门禁）未开始；Issue #6 未并入。
+- **仍待用户决定**（第51/52轮提出，本轮不代拍）：①把 `tools/termux-bridge` 与 `copyClosePawBridge` 移出阶段 1；②授权限定 POSIX/真机环境验收；③另立后续 Issue。
+
+## 第52轮：冻结复审判定「两轮停止」后的自伤回归修复（源码 + Python 实跑，未实机）
+
+复审 `6556347173`（HEAD `fafe365a`，阶段 1 冻结收口）判定两轮修复用尽、**不指派第三轮**，并保留一条 BLOCKER **B3**：第51轮给 `/v1/health` 加 token 鉴权后，`health_is_bridge()` 仍发**不带 Authorization** 的 GET（`closepaw_bridge.py:82-91`），必然收到 401，`kill_old_bridge()` 因此把合法旧 daemon 判成「不是我们」→ `port_in_use` 退出。复审据此指出：`test_live_old_bridge_is_health_probed_then_replaced` 的失败**不是**环境问题，`TEST_RESULTS.md` 把它归为「POSIX 语义依赖」是错误归因。
+
+本轮**只做一件事**：把这条自查实的回归修掉（不属于扩项，也不改变复审要求用户拍板的问题——bridge 是否留在交付版本里仍待用户决定），并按复审 B3 的要求把 7 条 Python 失败**逐条**重新归因，不再笼统写「POSIX 语义」。
+
+- **[B3] 复审成立，且影响不止测试**：pidfile 指向合法旧 daemon 时，新 daemon 一律 `port_in_use` 退出 → App 的 `TermuxBridgeManager.restart()` 会被自己挡住。修法：`health_is_bridge(port, token=None)` 在拿到 token 时发 `Authorization: Bearer`，`kill_old_bridge(pidfile, token)` 传本地 token；**没有放宽鉴权**——无 token / 错 token 的探针仍判 `False`（失败关闭）。新增单测 `test_probe_with_the_daemon_token_recognizes_our_own_daemon`。
+- **实证（真跑，不是分析）**：修前 `%TEMP%/probe_bridge.py` → 无 token GET `401`、`health_is_bridge(port)=False`（daemon 在跑）、第二个 daemon `exit=1 stderr=port_in_use`、旧 daemon 存活、pidfile 未变；修后 `%TEMP%/takeover_probe.py` → 无 token `False` / 带 token `True`、第二个 daemon 存活接管、pidfile pid `415144`→`316828`、旧 pid `pid_alive=False`、带 token health `200 identity=closepaw-bridge`。
+- **7 条 Python 失败重新归因**（详见 `TEST_RESULTS.md` 第52轮）：1/2 两条 pidfile 用例的真实原因已定位为**本机解释器怪癖** `Popen.pid ≠ 子进程 os.getpid()`（纯 python `-c` 亦复现：`417856` vs `413252`；系统 python `16180` vs `404648`），与代码和 POSIX 语义都无关；3 是 `~` 在 Windows 读 `USERPROFILE`（实得 `400 invalid_request`）；4 是 WSAEACCES 10013（实得 `internal_error` 中文报错，非 `port_in_use`）；5/6/7 未逐行确证，标注为未确证，**不**宣称「全部是环境问题」。
+- **数字**：修前 `20 passed / 7 failed / 1 skipped`（exit=1）→ 修后 `21 passed / 7 failed / 1 skipped`（exit=1），失败项名称完全相同；本轮未跑 Kotlin（本轮未改 Kotlin）。接管链路已用脚本实证，但 **POSIX 上这 7 条是否转绿未验证**，**真实 Android/Termux `restart()` 未验证**（无实机、未装包）。
+- **待用户决定（复审已提出，我不代拍）**：①把 `tools/termux-bridge` 与 `copyClosePawBridge` 移出阶段 1（即该入口不进交付）；②授权限定环境（POSIX/真机）验收；③另立后续 Issue。在此之前本 PR **不合并**、不装包、不动手机。
+
+## 第51轮：复审 `6555767212`（针对 `5789be4`）B2 安全入口 + B3 归因（源码 + JVM + Python + 干净 clone，未实机）
+
+复审意见：B2/P1「新纳入版本控制并打包的 Termux bridge 允许未经认证的本地进程执行任意 shell 命令」，B3「阶段验收归因仍未闭合」。两条都离线处理；**同时接受审查的停止条件：不再扩项，B2 的处理方式（加认证而不是删除功能）需用户确认，若要改为「交付版本不含该入口」可整体回退本轮的 `tools/termux-bridge` 打包改动。**
+
+- **[B2/P1] 问题成立**：`closepaw_bridge.py` 的 `/v1/exec` 没有任何调用方鉴别，任何能访问设备 loopback 的本地进程 `POST {"command": ...}` 即以 Termux 权限执行 shell；`--host` 还能绑到 `0.0.0.0`；`cwd` 限定到 workspace 不是沙箱。改法（三条一起才有意义）：①所有端点要求 `Authorization: Bearer <token>`，token 由 App 生成并写入 Termux 私有目录 `~/.closepaw/token`（`umask 077`、`chmod 600`）；②**fail closed**——没有 token 文件或长度 < 32 时 daemon 打印 `token_missing` 退出，`--host` 非回环则 `host_not_allowed` 退出；③`BRIDGE_VERSION` 由 `1` 升到 `2`，App 侧 401 映射为 `HealthProbe.Unauthorized` → 视作 `BRIDGE_OUTDATED` 重新部署，`TermuxShellTool` 无 token 时本地拒绝、401 时报 `bridge_auth_rejected`。
+- **[B3] 审查给的基线方法在 `main` 上不可行**：真实干净 clone `main`（`580261f`）后只补 5789be4 的构建输入（launcher PNG、`tools/termux-bridge`、生成 `res/raw`），`:app:compileDebugKotlin` **53 处 `Unresolved reference`** 直接失败——`ai.closepaw.voice.tools` 整个包在 `main` 树上不存在（`git ls-tree` 为 0 项）。`main` 只有 2 个提交、是源码不完整的协作快照，因此「从 main 干净检出跑同一组 6 个测试」这条路当前走不通。
+- **[B3] 改用机制归因（比对照 SHA 更强）**：6 项失败的两处根因都是**Windows 宿主语义**，不是 PR 代码——①`AgentSkillCatalogTest` 断言 `endsWith("my-skill/SKILL.md")`，Windows 路径分隔符是 `\`；②`MemoryStoreTest` 5 项都走 `MemoryStore.atomicWrite` 的 `File.renameTo(target)`，Windows 上**覆盖已存在文件返回 false**（实测探针：`renameTo over existing target = false`，目标仍是旧内容），于是除首次建档外的每次 append 都抛 `IOException` 返回 `false`，表现为「expected to be true」「expected: 2 but was: 1」。**这 5 个文件（`MemoryStore.kt`/`MemorySchema.kt`/`MemoryStoreTest.kt`/`AgentSkillCatalog.kt`/`AgentSkillCatalogTest.kt`）在 `main` 与 HEAD 的 blob SHA 完全相同**，且本 PR 对 `memory`/`skills` 目录的 diff 为 0。本 PR 未改、未跳过这些测试。
+
+### 实跑数字
+
+| 阶段 | 结果 |
+|---|---|
+| 新 Python `test_bridge_auth.py`(9)（生产未改） | **RED 5 failed / 3 errors / 1 passed** |
+| Python 全套（改后） | **20 passed / 7 failed / 1 skipped**（⚠ **第52轮更正**：其中 `test_live_old_bridge_is_health_probed_then_replaced` 是本轮鉴权改动引入的回归，已修；逐条归因见第52轮） |
+| Python 全套（改前，同机） | **1 passed / 7 failed / 11 errors**（未隔离 `CLOSEPAW_HOME`，worker 共用真实 `~/.closepaw/bridge.pid` 互相 kill） |
+| Kotlin `ai.closepaw.termux.*` + `TermuxShellToolTest` | **52 / 0 failed**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **423 / 0 failed / 0 errors / 0 skipped**，exit=0 |
+| 全量 | **2528 / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**；6 项即上面两个宿主语义缺陷 |
+
+### 边界（未验证）
+
+- 全部 **源码 + JVM + Python(Windows)**，`CameraManager`/`AlarmManager` 与真实 Termux 都是 mock/模拟。**没有构建 APK、没有安装、没有操作手机**。
+- 真实 Termux 是否允许 `chmod 600 ~/.closepaw/token`、`RUN_COMMAND` 下 `umask 077` 是否生效、Android 上跨应用能否访问另一应用的 loopback 端口（威胁模型前提）、旧 daemon 被 401 后重新部署的端到端链路：**均未实机**。设备矩阵仍是 **4 通过 / 0 失败 / 3 未测（旧 APK/旧 SHA）**，本 SHA 实机需用户**重新授权**。
+- **残余风险（未消除）**：token 作为部署命令的一部分出现在 Termux 侧一次性 `bash` 进程的 argv 里。Android 对 `/proc/<pid>/cmdline` 的跨 uid 读取限制（hidepid）理论上挡住其它应用，**未在本机/真机验证**；同 uid 的 Termux 进程可读，属同一信任域。要彻底消除需改为 stdin 传 token（会改动 RUN_COMMAND 的 stdin 协议，未做）。
+- 若用户决定「该危险入口不应出现在交付版本」，正确做法是把 `tools/termux-bridge` 与 `copyClosePawBridge` 一并移出 PR（bridge 仅是 B3 构建输入的副产品），而不是继续加认证——这要用户拍板，我不擅自删除功能。
+- `closeAlarm` 仍安全 BLOCKED；计时器对象级终态仍 UNPROVEN；阶段 2（在线 `ToolRouter` 同门禁）未开始；Issue #6 未并入。
+
+## 第㊿轮：复审 `6555456830`（针对 `50a4c6a`）2 个 BLOCKER 处理（源码 + JVM + 干净 clone，未实机）
+
+复审意见：B2/P1「撤销首次发现目标态已由用户手动恢复时，不消费旧记忆」，B3「交付证据不能独立复核」。两条都属可离线处理，本轮全部处理，HEAD 现为 **`5789be4`**。
+
+- **[B2/P1] 撤销记忆的消费条件错了**：`ActionMemory.undo()` 原来按 `dispatched != false` 决定是否消费，把 `dispatched = false` 当成"设备没收到，可安全重试"。但同一标志还覆盖「逆操作目标已成立」——用户自己关了手电再说「撤销」时，`TorchControl.set(false)` 走 `alreadySatisfied(...)`，返回 `SUCCESS + verified=true + dispatched=false`。旧记忆被保留，用户在窗口内再把灯打开并第二次「撤销」，就会下发 `set(false)` 关掉**用户新开的状态**，并把这次变更归到助手更早的动作上。改法把判据从"是否下发"改成"是否成功"：`keepForRetry = !r.ok && r.dispatched == false`，成功（已下发 或 目标已成立）一律消费，只有证明未触达设备的失败才保留重试。开关两向对称。
+- **[B3] 干净检出不可构建**：根 `.gitignore` 的 `*.png` 吃掉了 `res/drawable-*/ic_launcher_foreground.png` 与 `res/mipmap-*/ic_launcher{,_round}.png`（`AndroidManifest` 引用 `@mipmap/ic_launcher`、anydpi-v26 引用 `@drawable/ic_launcher_foreground`），`/src/closepaw/tools/` 吃掉了 `preBuild` 的 `copyClosePawBridge` 输入 `tools/termux-bridge/closepaw_bridge.py`。两处改成精确反向包含（其余图片/工具仍忽略，生成物 `res/raw/closepaw_bridge_py` 仍不入库），并新增 `docs/BUILD_REPRODUCIBILITY.md`。
+
+### TDD 与实跑数字
+
+| 阶段 | 结果 |
+|---|---|
+| 新增 `TorchUndoConsumptionTest` 2 例（实现前） | **RED 7 tests / 2 failed**，两条新用例全红，旧 5 条仍绿 |
+| 实现后同任务 + `TorchUndoDispatchTest` | `BUILD SUCCESSFUL`，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **423 / 0 failed / 0 errors / 0 skipped**，exit=0（㊾ 421，+2） |
+| 全量（本机） | **2513 / 6 failed / 0 errors / 8 skipped**，exit=1，不是全绿（既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5） |
+| 干净 clone `50a4c6a`（修复前） | `:app:processDebugResources` **BUILD FAILED in 3s**，`AAPT: resource drawable/ic_launcher_foreground not found` |
+| 干净 clone `5789be4`（修复后） | `RES_LINK_EXIT=0`；全量 **2513 / 6 failed / 8 skipped**，`TESTS_EXIT=1`，失败名逐条相同 |
+
+即 B3 的"能不能独立复核"现在有答案：从 GitHub 干净 clone 即可复现资源链接与 2513 个 JVM 测试的同一套结果。
+
+### 边界
+
+- 全部 **源码 + JVM**；真实相机回调时序、`alreadySatisfied` 在 `1200 ms` 基线窗口内能否稳定拿到 baseline，**未实机**。
+- 6 项失败"非本 PR 引入"仍是**源码分析 + 同环境旧 SHA(`4d1e78d`) 对照**，未在 `main` 干净检出上复跑——留作下一轮离线项。
+- 未构建 APK、未安装、未操作手机、未调用付费 API。设备矩阵维持 **4 通过 / 0 失败 / 3 未测**（旧 APK/旧 SHA），本 SHA 实机需用户**重新授权**。
+- 未解：`closeAlarm` 仍安全 BLOCKED；计时器对象级终态 UNPROVEN；阶段 2/3 未开始；Issue #6 未并入。
+- 未 push main、未合并、未改受保护规则、未 delegate。
+
+## 第㊽轮：复审 `6554387042`（针对 `278fdce`）3 条处理（源码 + JVM，未实机）
+
+**更正**：第㊼轮判「无新审查」是错的——该复审 06:22:02Z 到达（早于我 06:37:52Z 的评论），只是我开工时（06:17Z）还没出现。已在其评论下更正。
+
+- **[P1] 手电基线归属**：`RequestTracker` 把第一条事件无条件当基线，不管它是否早于 `markRequested()`。基线窗口（1200 ms）超时后照常下发请求，迟到事件就可能是**请求后**状态被记成基线 → 下一条匹配事件判 `verified=true` 并写出可撤销 `ENABLE/TORCH`；反向则吞掉真实事后事件导致假超时。改法：新增 `baselinePreRequest`（记录第一条事件时 `requested` 仍为 false），`outcome` 成功分支加此硬条件，否则 `verified=null` + `detail` 标 `late-baseline`。
+- **[P2] 蓝牙窗口时钟**：`awaitState` 的 deadline 原用 `System.currentTimeMillis()`（校时可使 1.2 s 窗口延长/缩短）。改为单调源 `System.nanoTime()/1_000_000` 毫秒（可注入）+ 硬读数上限 10 次防自旋。
+- **[P2] 蓝牙异常误报平台限制**：非 `SecurityException` 异常原被吞成 `false` → 播「Android 不允许普通应用直接切换蓝牙」。改为单独捕获并 `ToolResult.error(..., "…threw <类名>")`；`SYSTEM_RESTRICTED` 只留给 API 真返回 `false`。
+
+### TDD 与实跑数字
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TorchLateBaselineTest`(4) + `BluetoothSettleClockTest`(5)，旧行为脚手架 | **RED 9 / 3 failed / 0 errors**：迟到基线后 `verified` 实得 `true`、`baselinePreRequest` 实得 `true`；两次命中回调后 `verified` 实得 `true`；蓝牙抛 `IllegalStateException` 实得 `SYSTEM_RESTRICTED` |
+| 实现后 `ai.closepaw.voice.tools.*` | **GREEN**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **409 / 0 failed / 0 errors / 0 skipped**，exit=0（㊼ 400，+9） |
+| 全量 | **2499 / 6 failed / 0 errors / 8 skipped**，exit=1，不是全绿（既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5） |
+
+**自造缺陷（如实）**：`awaitState` 默认时钟先写成裸 `System.nanoTime()`（纳秒）却与毫秒窗口比较 → 立即超时；既有控制组两例因此变红（`verified` 实得 null），改成 `/1_000_000` 后转绿。P2 时钟修复**没有真正的 RED**（改前无注入点、无法在 JVM 模拟校时），注入点与实现同批提交，默认源改 `nanoTime` 属源码审查证据。
+
+### 边界
+
+- 全部源码 + JVM（`BluetoothAdapter`/`CameraManager` 均 mock）；真实注册事件时序、迟到时长、`enable()` 在目标机是返回 false 还是抛异常，**未实机**。
+- 可用性代价：注册事件不到的设备上，手电只能报「已下发、未确认」，不再报成功。
+- 设备矩阵维持 **4 通过 / 0 失败 / 3 未测**；本 SHA 未构建、未安装、未实测，实机需用户**重新授权**。
+- 未解：`closeAlarm` 仍 BLOCKED；计时器创建/取消对象级终态仍 UNPROVEN；阶段 2 未开始；Issue #6 未并入。
+- 未 push main、未合并、未装 APK、未操作手机、未调用付费 API、未 delegate、未改受保护规则。
+
+
+## 第㊼轮：无新审查，推进离线项「查询倒计时的『至少 N 个在运行』」（源码 + JVM，未实机）
+
+本轮开工时 PR #4 最新评论是 `6554195052`（第㊻轮回帖，06:01:19Z），处理的是复审 `6553705515`；其后无新评论，因此无新审查。按「无新审查则推进可离线项」修**同一错误在查询路径上的残留**。
+
+### 缺陷
+
+`cardRunningState` 的收紧只落在 `cancelTimer` 上。`queryTimers` 的兜底仍用 `visibleTimerCards`——纯文本计数：有任一时长文本 + 任一卡片控件（`暂停`/`继续`/`重置`）+ 至少一个 `取消`，就把 `取消` 个数播成「在运行的倒计时下限」。于是（1）两张**暂停**卡 → 「页面上至少能看到2个倒计时在运行」；（2）计数不看节点，树来自 `ai.closepaw` 也照样播出运行中数量。
+
+### 改法
+
+- `bindTimerCards(root)`：抽出唯一的卡片绑定（最小子树 = 恰好一个原始时长标签 + 恰好一个 `取消`，连同子树全部文本）。`cancelTimer` 与 `runningBound` 共用它，播报计数与点击卡片不会对「什么是一张卡」有分歧。
+- `runningBound(ctx, truncated)`：只数 `cardRunningState == true` 的卡片。截断 / 窗口不可确认 / 不在定时器页 / 行走超出预算 → `running=-1`，不下结论。
+- 删除 `visibleTimerCards`（契约错误，留着即是下一个误用点），并把 `TimerCountShapeTest` 中针对它的 4 条改写成 1 条 `cardRunningState` 断言——原「two fully attributed cards are a lower bound of two」本身就把 `继续` 的暂停卡当运行中，属改错为正，不是放宽。
+
+### TDD 与实跑数字（`--offline --rerun-tasks`，JDK 17）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TimerQueryRunningBoundTest`(6)，生产未改 | 首跑 **RED 6 / 5 failed**，含 1 条我自己的断言写错（`doesNotContain("倒计时在运行")` 误伤诚实兜底句）；改断言后 **RED 6 / 4 failed / 0 errors**，以此为准。实得：暂停卡视口 → `SUCCESS` + 「至少能看到2个倒计时在运行」；运行+暂停 → 播 2（应为 1）；树属于自身包 → 仍 `SUCCESS`；读数卡 → 无 `running=` 事实 |
+| 实现后同组（+`TimerCountShapeTest`/`TimerCancel*`/`TimerPausedFrozenReadoutTest`） | **GREEN**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **400 / 0 failed / 0 errors / 0 skipped**，exit=0（㊻ 397，+6−3） |
+| 全量 `:app:testDebugUnitTest` | **2490 / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（`AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过、未重跑旧 SHA 基线） |
+
+### 边界
+
+- 全部为源码 + JVM 合成树；三星真实卡片是否暴露状态专属控件、暂停态控件在 `text` 还是 `contentDescription`，**未实机**。
+- 可用性代价：真实卡片不给状态控件时，「现在有几个倒计时」只能答「没法确认」——本轮之前会给出一个可能错的数字。
+- 下界仍不是总数，不参与「那个倒计时没了」的判断。
+- 设备矩阵维持 **4 通过 / 0 失败 / 3 未测**；本 SHA 未构建、未安装、未实测，实机需用户**重新授权**。
+- 未解：`closeAlarm` 仍 BLOCKED；计时器创建/取消对象级终态仍 UNPROVEN；阶段 2（在线 `ToolRouter` 同门禁）未开始；Issue #6 未并入。
+- 未 push main、未合并、未装 APK、未操作手机、未调用付费 API、未 delegate、未改受保护规则。
+
+
+## 第㊹轮：复审 `6553305508`(针对 `57b2741`) 3 条处理（源码 + JVM，未实机）
+
+本轮开工读到 PR #4 新复审 `6553305508`（2026-11-01T04:16:49Z，审的是当前 HEAD `57b2741`）：1 条 P1（撤销已下发但 TIMEOUT 仍可重放）+ 1 条 P1/P2（可滚动计时器的「覆盖总数」混用运行总数与卡片总数）+ 1 条 P2（撤销记忆无时效）。三条都**先在 JVM 上跑出实证再改**，没有把审查描述当事实直接采信。
+
+### 已修 1 — [P1] 「逆操作已下发」≠「逆操作已确认」
+
+`TorchControl.set` 先 `cm.setTorchMode(...)` 再最多等 4 s 回调；回调不来就是 `TIMEOUT`——灯可能已经换了，但我们证明不了。第㊸轮只在 `status == SUCCESS` 时消费记忆，于是这条路径把「可能已经动过」的记录留下了：第一次撤销（未确认）真的点亮了灯，用户手动关掉，第二次「撤销」又发 `set(true)`，把用户刚关的灯打开。
+
+改法：`ToolResult` 新增 `dispatched: Boolean?`（是否真的交给了系统），与 `verified`（能否证明结果）分开。`TorchControl` 明确落值：没有闪光灯/没有相机服务/`CameraAccessException` → `false`；`setTorchMode` 返回后（含 TIMEOUT、onTorchModeUnavailable、状态不符） → `true`；其它 `Throwable` → 用 `issued` 局部标记（只有 `setTorchMode` 返回后才为真）。`ActionMemory.undo` 改为 `if (r.dispatched != false && last === e) last = null`：只有**能证明没下发**才保留记忆供重试，其余一律消费。
+
+### 已修 2 — [P1/P2] 运行总数与卡片总数不是同一个集合
+
+`N 个定时器正在运行` 数的是**运行中**的倒计时；`candidates.size` 数的是所有带「初始时长/总时长」+ 一个取消控件的卡片，而**暂停中的卡片两样都还在**。视口里 1 张运行中 + 1 张已暂停、页面声明 2 个运行中、视口外还有一张同样时长的运行中卡片时：`candidates.size == statedTotal == 2` 成立，`matching.size == 1`，于是点掉视口里那张。
+
+改法：只有**能证明自己在运行**的卡片才参与计数比较。新增 `ClockControl.cardRunningState(texts)`：命中「已暂停/暂停中/已结束/已响铃/已完成/已停止/剩余 0 秒」→ `false`（非运行）；命中「剩余」/「倒计时」或剩余读数形（`4 分 32 秒`，且排除 `初始时长`/`总时长` 标签）→ `true`；其余 → `null`（无证据）。`comparableSet = stopped == 0 && unproven == 0` 才允许 `candidates.size >= statedTotal` 成立；否则拒绝并说明「列表可以滚动，而且没法确认视口里每张卡片都在运行」，`detail` 记 `running=/stopped=/unproven=` 与 `set-mixed`。为此扫描时把每张绑定卡片的子树文本一起带出（`BoundTimerCard` / `TimerScan` / `textsUnder`）。
+
+### 已修 3 — [P2] 撤销记忆没有时效
+
+`Entry.at` 从第㊸轮起就被记录、但从没被读过，所以「撤销刚才的操作」可以落在几小时前的记录上；手电还可被手动或其它 App 改动，此时的逆操作是**新的一次变更**。改法：`ActionMemory.MAX_AGE_MS = 120_000L`，`undo(ctx, now = System.currentTimeMillis())` 在 `now - e.at > MAX_AGE_MS` 时拒绝并丢弃记录（`stale memory age=… window=…`），零下发。窗口内同样不知道外部有没有变过，所以结果仍是未验证——这一点照实写在措辞与文档里。
+
+### TDD 与实跑数字（`--offline --rerun-tasks`，JDK 17）
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TorchUndoDispatchTest`(6) + `UndoMemoryExpiryTest`(3) + `TimerCancelRunningSetTest`(4)，生产未改 | **RED 13 tests / 8 failed / 0 errors**：`TimerCancelRunningSetTest` 两例实得 **`SUCCESS`**（旧代码真的点了取消，期望 BLOCKED）；`TorchUndoDispatchTest` 实得 `getLast()` 非空、二次撤销实得「已关闭手电筒」、`getDispatched()` 实测 `null`（期望 `true`/`false`）；`UndoMemoryExpiryTest` 过期记录实得 `SUCCESS`（期望拒绝）。5 条控制组本就通过 |
+| 实现后同 5 组（含旧 `TorchUndoConsumptionTest`/`TimerCancelViewportCompletenessTest`） | **GREEN 23 / 23**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **373 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊸轮 360，+13） |
+| 全量 `:app:testDebugUnitTest` | **2463 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿** |
+
+全量 6 项失败仍是既知两类：`AgentSkillCatalogTest > entry filePath points to SKILL md` 1 + `MemoryStoreTest` 5，未改、未跳过，本轮未重跑旧 SHA 基线。日志只留本机（`$LOCALAPPDATA/Temp`→实际落在仓库 `logs/pr4-review44-{red,green1,green2,targeted,full}.txt`，未提交）。
+
+**改了旧夹具的地方（如实）**：`TimerCancelViewportCompletenessTest` 的 `card()` 现在每张卡带一行「剩余 4 分 50 秒」——新契约要求卡片自证在运行，旧夹具的卡片只有时长标签；断言一条未改。`TorchUndoConsumptionTest` 的「逆操作没跑成可重试」用例把桩改成 `ToolResult.unavailable(..., dispatched = false)`，因为真实工具现在会这么说；断言同样未改。
+
+### 边界（必须看清）
+
+- 全部为**源码 + JVM 合成树**：三星时钟在暂停/结束时**到底还显不显示「初始时长」**、运行卡片的真实剩余时间文案、`setTorchMode` 后回调超时在真机上是否真的发生过，**均未验证**。
+- **可用性代价（真实）**：可滚动计时器列表里，只要有一张卡片读不出运行证据，「覆盖总数」这条就不再成立 → 取消会被拒绝。真机若不给剩余文本，取消功能实际等于关闭（只能靠不可滚动的完整树）。这是把「猜一个」换成「说不知道」的代价，只能靠真机数据定。
+- 撤销窗口 120 s 是我选的经验值，不是从用户习惯推出来的；窗口内外部改动仍不可知，`verified` 仍是 `null`。
+- 「卡片数 ≥ 声明总数」+「集合口径一致」只证明**数量与人群**，不证明绑定到的就是用户说的那一个；对象级身份仍未解决，回读结论仍是 `UNPROVEN`。
+- 设备矩阵维持历史 4 通过 / 0 失败 / 3 未测；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+- `closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+- 未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未改受保护规则、未 push main、未合并。
+
+## 第㊸轮：撤销被使用后没有失效（源码 + JVM，未实机）
+
+本轮 PR #4 **无新审查**（最新复审仍是 `6552469328`，已由第㊷轮评论回复；其后 PR 无新评论）。按「无新审查则推进可离线项」取遗留清单里的 **undo 安全性**。
+
+**缺陷（源码分析 + JVM 实证）**：`ActionMemory.undo` 发出逆操作后不清除记忆，而记忆断言的是「刚刚哪次变更、对象当时是什么状态」。撤销一旦执行，那个状态就不成立了：
+
+- 「打开手电筒」→「取消刚才的操作」→ 灯灭，记忆仍是 `ENABLE/TORCH`；
+- 再说一次「取消刚才的操作」→ 又发一次 `set(false)`，播「已关闭手电筒」——把空操作说成刚做完的动作；
+- 对 `DISABLE` 记录，重复的逆操作是 `set(true)`：撤销过一次关灯后，用户若手动关灯，再说「撤销」会**把灯点亮**，对自己造成的状态动手。
+
+**改法**：逆操作 `status == SUCCESS` 即消费记忆（`verified` 不参与——已发出的逆操作已经改变对象，重复它就是双重翻转）；逆操作没跑成（设备不可用/无对应逆操作）保留记忆，允许诚实重试。
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TorchUndoConsumptionTest`(5)，生产未改 | **RED 5 / 4 failed / 0 errors**（`getLast()` expected null but was `Entry(ENABLE/TORCH…)`；二次撤销实得「已关闭手电筒」；`DISABLE` 条实得「已开启手电筒」） |
+| 实现后同组 | **GREEN 5 / 5**，exit=0 |
+| 定向 `ai.closepaw.voice.*` | **360 / 0 failed / 0 errors / 0 skipped**，exit=0（第㊷轮 355） |
+| 全量 `:app:testDebugUnitTest` | **2450 / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**；失败仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过 |
+
+**假设被推翻的记录**：开工假设是「二次撤销会把灯重新打开」，RED 实跑证明对 `ENABLE` 记录不是——它重复发 `set(false)` 并**谎报新动作**；真正翻转的是 `DISABLE` 记录。断言按实跑结果重写。
+
+边界：全部为源码 + JVM（`Context`/`CameraManager` 被 mock），证明账本不符实机灯光；只有手电进撤销记忆，时钟创建/取消仍是安全拒绝；**记忆仍无过期时间**（`Entry.at` 未被读过，列为待办，本轮未做）；设备矩阵维持 4 通过 / 0 失败 / 3 未测，本 SHA 未构建/未安装/未实测，实机需用户重新授权；`closeAlarm` 仍 BLOCKED；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
+环境事故：一次前台 `gradlew` 被工具超时中断，孤儿构建持有 `R.jar` 导致两次 `:app:processDebugResources` 报 `Couldn't delete R.jar`（不是测试失败）；`./gradlew --stop` 后重跑成功，上面数字均来自成功运行。
+
+## 第㊷轮：点击身份与动作面的页面绑定（源码 + JVM，未实机）
+
+见 `docs/phase6-stage1-semantic-gate.md` 与 PR #4 第㊷轮评论：`UiAutomator.featureControlOnce` 只保留「唯一可点击目标」才点；新增 `UiAutomator.clickIdentityMiss`（view-id/className/label/windowId/无文本页面结构指纹）；修正 `SemanticExecutionTest` 桩错重载。数字：semantics 252 / voice 355 / 全量 2445、6 failed、8 skipped、exit=1。
+
+## 第㊶轮：取消倒计时的「唯一绑定」只在视口内成立（源码 + JVM，未实机）
+
+本轮 PR #4 **无新审查**（最新复审仍是 `6551941593`，已由评论 `6552207011` 回复；其后 PR 无新评论）。按「无新审查则推进可离线项」取任务清单里的**计时器唯一绑定**（剩余的一半）。
+
+**缺陷（源码分析 + JVM 实证）**：`ClockControl.cancelTimer` 的候选扫描用 `complete`（只在 800 节点预算耗尽时置 false）当作「候选全集」。`isScrollable` **从未被读过**——而同一文件里的 `closeAlarm` 早就把可滚动列表当作「不是全列表」直接 `BLOCKED`。计时器列表可滚动时，视口下方可能还有一张相同时长的卡片：手机真有两张 5 分钟倒计时，本轮之前的代码只看到一张，`matching.size == 1` 通过，于是点掉视口里的那张并播「已请求取消指定倒计时」。这就是审查反复点出的「部分扫描当成全集」。
+
+**改法（不用「一律拒绝」换安全）**：区分两种计数——`N 个定时器正在运行` 是页面**自己声明**的总数（`timerCountFrom` 已有此契约），视口卡片数只是下界。所以：
+
+```
+statedTotal = timerCountFrom(boundTexts, truncated = !complete)
+viewportComplete    = complete && !scrollable
+coveredByPageTotal  = statedTotal >= 0 && candidates.size >= statedTotal
+if (!viewportComplete && !coveredByPageTotal) → BLOCKED，零点击
+```
+
+即可滚动时**只要完整绑定到的卡片数 ≥ 页面声明的总数**，仍可证明「这个时长只有一张」，功能不被一刀切掉；没有声明总数或绑定数不足则拒绝，`speak` 按事实分两句（可滚动 / 读取被截断），`detail` 记 `complete/scrollable/stated`。
+
+TDD 与实跑数据（`--offline --rerun-tasks`，JDK 17）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 新 `TimerCancelViewportCompletenessTest`(5)，生产未改 | **RED 5 tests / 2 failed / 0 errors**（Truth 断言：`expected: BLOCKED but was : SUCCESS`——旧代码在「可滚动 + 页面声明 2 个 + 视口 1 张」和「可滚动 + 无总数」两种情形下都真的点了取消）；3 条控制组本就通过 | 控制台输出；未单独留 RED 日志文件 |
+| 实现后同组 | **GREEN 5 / 5**，exit=0 | 本机临时日志 |
+| 定向 `ai.closepaw.voice.*` | **348 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊵轮 343，+5） | 本机临时日志 |
+| 全量 `:app:testDebugUnitTest` | **2438 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**；失败仍是既知两类 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过，本轮未重跑旧 SHA 基线 | 本机临时日志 |
+
+边界（必须看清）：
+- 全部为**源码 + JVM 合成树**：三星时钟的定时器列表页是否真的上报 `isScrollable=true`、页头那句「N 个定时器正在运行」在真机上的实际文案与是否只统计运行中的卡片，**均未验证**。若真机既不上报 `isScrollable` 又不给总数，本改动不生效（等于旧行为）；若上报了 `isScrollable` 但从不给总数，`cancelTimer` 会**全部拒绝**——这是真实的可用性代价，必须靠真机数据确认。
+- 「卡片数 ≥ 声明总数」只证明**数量**覆盖，不证明绑定到的就是用户说的那一个；对象级身份仍未解决，回读结论仍是 `UNPROVEN`。
+- 本轮的 5 条测试夹具是我自己构造的树，不是真机脱敏树。
+- 设备矩阵维持历史 4 通过 / 0 失败 / 3 未测；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+- `closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
+## 第㊵轮：功能身份（精确标签≠业务身份）、扫码/扫一扫同义词、点击边界重解析（源码 + JVM，未实机）
+
+本轮处理新复审 `6551941593`（针对 `8252913`）的 1 条 P1/P2 + 2 条 P2，三条全部已修，且三条都先用**真实返回值**证实在旧代码上成立，不是推断。
+
+1. **P1/P2 精确标签会把说明卡当真入口**：`val tier = if (scan.exact.isNotEmpty()) scan.exact else scan.loose` 一旦发现精确标签就**整层丢弃**包含匹配。实测（RED）：帮助卡片子节点文字「扫一扫」+ 真按钮 `contentDescription=「扫一扫，打开相机」`，旧代码返回 `FeatureControl(node=…, label=扫一扫)`——即返回**帮助卡片**作点击目标。改法：两层都保留为候选，按「点击目标**自身**标签是否精确等于目标名」判 direct 层；direct 恰好一个才用，否则目标只有一个才用，其余一律 `ambiguous(n)` 失败关闭。不引入角色/resource-id 猜测（缺真机树证据，见边界）。
+2. **P2 「扫码」与「扫一扫」未归一化**：实测旧行为说「打开微信扫码」、界面只有「扫一扫」时，回答 **`打开了微信，但界面上没有找到扫码`**。改法：新增 `AppFeatureAliases`（口语词→功能身份 + 允许的界面标签集，如 扫一扫/扫码/扫描/扫二维码 归一到「扫一扫」，付款码/收付款/收钱码 归一），`SemanticParser` 写入规范化 `feature`，`UiAutomator.featureControl` 增加标签集重载，任一标签命中即可，多候选歧义规则不变。
+3. **P2 扫描与点击之间无窗口再校验**：旧代码点的是**早先那次读取**里的节点对象，改法是不再点旧节点——`featureControlOnce` 在动作边界重读活动窗口并重新解析，点的是**重解析后的新节点**；重解析失败（窗口换了 App / 标签消失 / 候选变多）则拒绝点击并说明「界面又变了」，`verified=false`。
+
+TDD 与实跑数据（`--offline --rerun-tasks`，JDK 17）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 新 `AppFeatureIdentityTest`(10)，生产未改（仅先放 `AppFeatureAliases` 直通骨架以便编译） | **RED 10 tests / 6 failed / 0 errors**，全部 Truth 断言：实得 `FeatureControl(label=扫一扫)`（帮助卡）、实得 feature=`扫码`、实说「没有找到扫码」、三例在窗口已换后仍执行了点击 | `logs/pr4-review40-red.txt`（从测试 XML 抽的真实失败值） |
+| 实现后同组 | **GREEN 10 / 10**，exit=0（同一次定向运行内，未单独留 green1 日志） | `logs/pr4-review40-targeted.txt` |
+| 定向 `ai.closepaw.voice.*` | **343 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊴轮 333，+10） | `logs/pr4-review40-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2433 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**；失败仍是既知两类 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过 | `logs/pr4-review40-full.txt` |
+
+为适配新契约改了既有测试的桩：`featureControl` 变为标签集重载后，4 个测试文件里的 `any()` 需显式 `any<List<String>>()`；`AppFeatureWindowIdentityTest` / `AppFeatureReadCompletenessTest` / `SemanticExecutionTest` 补上 `featureControlOnce` 桩（真实重解析行为由 `AppFeatureIdentityTest` 覆盖）。
+
+边界（必须看清）：
+- 全部为**源码 + JVM 合成树**：真机上帮助卡片/真入口的节点角色、`className`、resource-id、无障碍树结构，以及「扫码」这类口语词在三星设备上的实际映射，**均未验证**。本轮**没有**引入按控件角色识别业务入口的规则，因为那需要真机脱敏只读树做依据；现在的规则是「证明不了就拒绝」，代价是保守。
+- **可用性代价（真实）**：同页面只要有两个不同控件能对上一个标签（含同义词），就拒绝打开。微信这类页面是否频繁撞上，只能真机看。
+- 点击前多一次全树解析（约一次 BFS），页面很大时会增加延迟并更容易触发 `candidates-truncated` 拒绝。
+- 设备矩阵维持历史 4 通过 / 0 失败 / 3 未测；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+- `closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
+## 第㊴轮：跨单位「或者」时长 + 可点击窗口根 + 功能候选歧义（源码 + JVM，未实机）
+
+本轮处理新复审 `6551563018`（针对 `19f4a9c`）的 1 条 P1 + 1 条 P1/P2 + 1 条 P2，三条全部已修。
+
+1. **P1 跨单位二选一仍被加成一个数**：`take()` 按单位各自消费一条短语，`RESIDUAL_DURATION` 只看**剩余**文本，所以「一小时或者十分钟」（4200 s）、「五分钟或者半分钟」（330 s）两段都被吃掉、残留为空、和值又像一个合法的复合时长（`一小时十分钟` 确实是 4200 s）。改法：消费前用 `hasChoiceBetweenDurations(text)` 找出全部时长短语的位置，**只在两个短语之间的间隙**里找 `或者/或是/还是/或/二选一`，命中即整句 `null`（追问，不猜）。复合时长间隙为空，不受影响。
+2. **P1/P2 `clickableWithin` 先判可点、后判窗口根**：标签与中间父节点都不可点、而活动窗口根可点时，旧循环把**整个窗口根**当点击目标返回，`openFeatureResolved` 随后对它 `ACTION_CLICK`——既违反「不越过窗口根」的注释契约，也不能证明点到的是用户说的功能。改法：`sameNode(node, root)` 的判断移到 `isClickable` 之前，根节点永不作点击目标。
+3. **P2 `featureControl` 只取 BFS 首个包含匹配**：可能在「扫一扫说明」卡片上点击，也可能因首个命中是不可点标题而直接报 `label-not-clickable`，后面的真按钮根本没被看过。改法：`collectFeatureCandidates` 枚举同包可见候选并区分**精确标签**（text/contentDescription 去空格后全等）与**包含匹配**；有精确标签时只看精确层；可点目标按 `sameNode` 去重后**恰好一个**才点，>1 返回 `ambiguous(n)` 失败关闭，0 个返回 `label-not-clickable`；节点预算/候选上限被截断时返回 `candidates-truncated`，不把部分扫描当全集。`AppNavigator` 为 `ambiguous` 与 `candidates-truncated` 各加独立措辞（「有多个都像X的地方，没有点」「界面太大没数完，没有点」），都 `verified=false`。
+
+TDD 与实跑数据（`--offline --rerun-tasks`，JDK 17，先 `source env.sh`）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 新 `ChineseTimeChoiceUnitTest`(9) + `TimerChoiceUnitArgumentTest`(3) + `AppFeatureControlAmbiguityTest`(6)，生产未改 | **RED 18 tests / 13 failed / 0 errors**，全部 Truth 断言失败：`durationSeconds` 期望 null 实得 **4200 / 330**、`featureControl` 期望 null 实得**根节点/「扫一扫说明」卡片**、歧义路径实得 `FeatureControl` | RED 那次的日志**没有留存**（只有控制台输出与当时的 XML，后续运行已覆盖），如实标注 |
+| 实现后同组 | **GREEN 18 / 18**，exit=0 | `logs/pr4-review39-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **333 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㊳轮 315，+18） | `logs/pr4-review39-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2423 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**；失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改、未跳过，本轮未重跑旧 SHA 基线 | `logs/pr4-review39-full.txt` |
+
+过程中一次编译失败如实记录：三处消息串用了 `$feature的地方`，Kotlin 把 `feature的` 当标识符 → `Unresolved reference`；改成 `${feature}` 后重跑。那是编译错误，不计入 RED。
+
+边界（必须看清）：
+- 全部为**源码 + JVM 合成树**：三星真机上同一页面出现多个同名可点控件的频率、「扫一扫」这类功能的真实标签是精确还是带后缀（`扫一扫，打开相机`）、活动窗口根是否常带 `isClickable=true`，**均未验证**。
+- **可用性代价（真实）**：`featureControl` 现在对大页面更保守——节点预算 600 内数不完候选即拒绝打开。微信这类大树是否经常撞上限，只能真机看。
+- 设备矩阵维持历史 4 通过 / 0 失败 / 3 未测；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。
+- `closeAlarm` 仍 `BLOCKED`（安全拒绝）；计时器创建/取消对象级终态仍 `UNPROVEN`；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
+## 第㉞轮：真实回读被终态闸门丢掉——手电/Wi-Fi 从「确认」退回「没法确认」（源码 + JVM，未实机）
+
+本轮无新审查（最新 review `6549082221` 已由第㉜轮处理、第㉝轮已回复 `6549757219`，其后 PR 无新评论），按「无新审查则推进可离线项」处理遗留清单里的 **「手电/Wi-Fi 缺对象级回读」**。查下来不是没有回读，是**回读没交给闸门**。
+
+1. **缺陷（真实，不是措辞问题）**：`TorchControl.set` 会等 `onTorchModeChanged`，`WifiControl.enable/disable` 会前后读 `isWifiEnabled`；两者都用这份真实读回置 `verified = true`，但 `observed` 一直是 `null`。第㉔轮起的 `TerminalState` 对声明了 `expectedState`（`on:WIFI`、`off:TORCH`）的任务要求结构化证据，于是**真的开了的手电、真的切了的 Wi-Fi** 被统一改写成「请求已经发出，但没能确认结果」。过度保守也是不准确——证据存在而契约把它丢掉了。
+2. **改法（最小）**：从 `TorchControl.set` 抽出纯判定 `outcome(on, cameraId, observed, unavailable)`，成功分支填 `ObservedState("torch", "on"|"off", "camera2:torch-callback")`；`WifiControl` 四条成功返回统一走 `stateResult(...)`，填 `ObservedState("wifi", "on"|"off", "wifi-manager:isWifiEnabled")`。identity 与 `SemanticParser.identityOf` 的 `target.name.lowercase()` 对齐（测试里直接解析原话并断言，不靠假设）。超时 / 相机被占用 / 反状态 / 平台拒绝这些分支**不加**证据。
+3. **新测试 `SwitchReadbackEvidenceTest`(10)**：
+   - Wi-Fi 三条成功分支走真实 `WifiControl` 调用（MockK 桩 `Context`+`WifiManager.isWifiEnabled`/`setWifiEnabled`），断言 `observed` 的 identity 与 state；
+   - 手电四条纯判定：`on`/`off` 成功、无回调 → TIMEOUT 无证据、相机被占用 → DEVICE_UNAVAILABLE 无证据、回读为反状态 → EXECUTION_ERROR 无证据；
+   - 端到端：`SemanticParser.parse("打开wifi"/"打开手电筒")` 的任务经 `TerminalState.verdict` 判 `CONFIRMED`、`enforce` 不改写句子；控制组「同一 SUCCESS 结果去掉证据」仍判 `UNPROVEN`。
+
+TDD 与真实数据（全部 `--offline`，仓库根先 `source env.sh`）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 先写测试 + 只把手电判定抽成函数（行为未变） | **RED 10 tests / 6 failed / 0 errors**，全是 Truth 断言失败（`expected: wifi but was: null` 等），4 条控制组本来通过 | `logs/pr4-round34-red.txt` |
+| 实现后同组 | **GREEN 10 / 10**，exit=0 | `logs/pr4-round34-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **265 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㉝轮 255，+10 为本轮新测试） | `logs/pr4-round34-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2355 tests / 6 failed / 0 errors / 8 skipped**，Gradle exit=1，**不是全绿**；失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（本轮未改、未跳过，也未重跑旧 SHA 基线） | `logs/pr4-round34-full.txt` |
+
+边界与遗留（如实）：
+- **手电的 CameraManager 布线仍只有真机证据**：JVM 侧 `Handler(Looper.getMainLooper())` 与回调等待跑不起来（本仓无 Robolectric），本轮只覆盖「回调证据 → 结论」这一步，不覆盖回调是否按时到达。
+- **Wi-Fi 的 `SYSTEM_RESTRICTED` 分支仍不可 JVM 测**：`openWifiPanel` 需要 `Intent(...)`，mockable android.jar 的构造返回 null，测试里会在断言前 NPE，故该分支未纳入（本轮也没有改它）。
+- 首次 RED 用过 `returnsMany`，夹具在第三次读之后拿不到值抛 NPE——那是夹具问题，不是被测行为；改成「超出脚本值后重复最后一个值」，RED 才干净。这一条写在这里，免得把夹具报错误记成 RED。
+- 设备矩阵不变：4 通过 / 0 失败 / 3 未测；本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未并入 Issue #6、未改受保护规则、未 push main、未合并 PR。实机需用户**重新授权**。
+- 遗留不变：`closeAlarm` 缺全列表枚举/稳定身份仍 `BLOCKED`；计时器创建/取消的对象级终态仍是 `UNPROVEN`；创建 undo 安全拒绝；在线 `ToolRouter` 同门禁（阶段 2）。
+
+## 第㉝轮：语音时长到工具参数之间的一处 60 倍错误（源码 + JVM，未实机）
+
+本轮无新审查（最新 review `6549082221` 已由第㉜轮回复 `6549362112` 处理，其后 PR 无新评论），按「无新审查则推进可离线项」处理遗留清单里的 **「五分钟真实工具参数」**。它不是设备项才有的问题——先补端到端参数断言时，发现解析层就有一个能直接算错的形状。
+
+1. **发现的缺陷（真实存在，非风格问题）**：`ChineseTime.durationSeconds` 先由小时段把 `total` 置为整秒，再由分钟段把**分钟数**加进同一个累加器，然后把**整个累加器** `* 60`。于是任何「小时+分钟」的说法都被放大 60 倍：`一小时十分钟` → `(3600+10)*60 = 216600 s`（要求 4200 s），`1小时30分` → `217800 s`。只有小时、只有分钟、只有秒的说法都正确，所以既有测试没有一条命中。
+2. **闸门为什么没拦住（这是本轮最该记住的一条）**：`IntentGate` 用 `ChineseTime.durationSeconds(said)` 和工具参数比对，**两侧都来自同一个解析器**，所以两边一起错、比对通过。参数正确性没有被独立验证过——这正是「解析 300 秒」曾被当成「工具参数 300 秒」的同类风险。
+3. **改法（最小）**：分钟段改成 `total += 分钟数 * 60`，不再缩放整个累加器。行为影响面：`IntentPlanner` 与 `SemanticParser`/`IntentGate` 共用该函数，含小时的时长现在按和计算。
+4. **新测试（TDD 先写）**：
+   - `ChineseTimeDurationTest`（4 条）：分钟/秒/半小时为控制组；`一小时十分钟=4200`、`1小时30分=5400`、`两小时十五分钟=8100`、`一小时45分30秒=6330` 为本轮契约；`六十分钟=3600`（防止把「分钟」当独立项重复计）；无时长返回 null。
+   - `TimerCreateArgumentTest`（3 条，真实 parser→能力表→闸门→Runner，只 mock `ClockControl`）：`开始五分钟倒计时` → `createTimer(ctx, 300)` 恰好一次且**不是** 5 / 3000；`设置一小时十分钟的倒计时` → `createTimer(ctx, 4200)` 且不是 216600；`设一个倒计时`（无时长）→ 追问「多久」且零工具调用。
+5. **净效果（如实）**：第 2 条测试在修复前**真实拿到 216600**——不是假设出来的风险，是 MockK 记录的入参。第 1 条（五分钟=300）修复前后都通过，属回归锁，不冒充 RED。
+
+TDD 与真实数据（全部 `--offline --rerun-tasks`，仓库根先 `source env.sh`）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 先写两组测试、生产代码未改 | **RED 7 tests / 2 failed / 0 errors**；失败为 `ChineseTimeDurationTest.hours plus minutes…`（expected 4200 / was 216600）与 `TimerCreateArgumentTest.hours plus minutes…`（`createTimer` 实收 216600），其余 5 条为控制组 | `logs/pr4-round33-red.txt` |
+| 实现后同组 | **GREEN 7 / 7**，exit=0 | `logs/pr4-round33-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **255 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㉜轮 248，+7 为本轮新测试） | `logs/pr4-round33-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2345 tests / 6 failed / 0 errors / 8 skipped**，Gradle exit=1，**不是全绿**；失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（本轮未改、未跳过） | `logs/pr4-round33-full.txt`、`logs/pr4-round33-full2.txt` |
+
+边界与遗留（如实）：
+- **仍是 JVM 契约，不是实机**：这些只证明「说法→工具入参」这一跳正确。三星时钟是否接受 4200 s、创建后能否核对，全部**未验证**；设备矩阵维持历史 4 通过 / 0 失败 / 3 未测，实机需用户**重新授权**。
+- 顺带看到一个**未改**的语义问题（属建议，不是本轮任务）：`一个半小时` 现在解析成 1800 s（半小时），而口语含义是 5400 s。改它需要决定「一个半」「两个半」这类说法的处理规则，本轮没有擅自改，也未把当前值写进测试当成正确值。
+- 本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未并入 Issue #6、未改受保护规则、未 push main、未合并 PR。
+- 遗留不变：`closeAlarm` 缺全列表枚举/稳定身份仍 `BLOCKED`；查询结果截断未当作不完整；计时器唯一绑定；创建 undo 安全拒绝；在线 `ToolRouter` 同门禁（阶段 2）。
+
+## 第㉜轮：撤回创建/取消里最后一处「同类证据」冒充对象结论（源码 + JVM，未实机）
+
+处理新复审（HEAD `54039d1`，2 条：1 P1 + 1 P2；https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6549082221 ）。核心一句话：**一次视口读取不是枚举，相同时长不是同一个对象**。上一轮把「视口」当成了列表全貌，本轮把两处判定一起撤回到 `UNPROVEN`。
+
+1. **[P1] `createTimer` 不再判 `CONFIRMED`**：`timerDraft` 只在**已加载的无障碍树**里数 `初始时长/总时长` 文本，`textsTruncated=false` 只说明遍历没超预算，**不说明可滚动/虚拟化列表已全量枚举**。因此「基线无同长度卡 + 表头 +1 + 回读恰好一张该长度卡」与「本次请求没生效 + 视口外的同长度卡滚进来 + 别人新建了另一个长度」同构。三条全过时的分支改为 `sentWithoutProof`（`verified=null`、`observed=null`），`detail` 记 `readback=count-plus-one-duration-card-unattributed`，句子为「…页面上出现了这个时长的卡片，但没法确认是这次创建的，请在时钟里核对」，不再出现「已经设好」。
+2. **[P2] `cancelTimer` 不再判 `CONTRADICTED`**：`boundStillListed` 只证明**页面上还有某个同长度计时器**，不证明被点的那个还在（点它真的成功了、另一张同长度卡滚进来，也会命中）。该分支改为 `sentWithoutProof`，`detail` 记 `readback=same-duration-still-listed`，句子为「…页面上仍有一个同样时长的倒计时，无法确认是不是刚才那个」。同时把 `stillListed` 的判断移到**页面/截断门之后**（此前它抢在 `truncated` 之前，截断页也可能被判成取消失败）。
+3. **净效果（如实）**：`TerminalState` 对计时器创建/取消**目前没有任何路径能判 `CONFIRMED`/`CONTRADICTED`**——`timer_running:<秒>` 与 `no_running_timer` 在真机上只能是 `UNPROVEN`。这是有意的：要判终态，先要有稳定对象 ID 或全量枚举，二者都还不存在。回读仍然做，事实仍写进 `detail`，只是不再替你下结论。
+
+TDD 与真实数据（全部 `--offline --rerun-tasks`，仓库根先 `source env.sh`）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 先改 `TimerCreateReadbackTest`(10)、`TimerCancelReadbackTest`(8)，生产代码未改 | **RED 28 tests / 5 failed / 0 errors**，Truth 断言失败（非编译失败）；5 条正是本轮要改的契约，含两条复审给出的反例布局 | 控制台输出，未单独存盘 |
+| 实现后同组 | 首跑 **1 failed**（`before=2` 用例返回 `DEVICE_UNAVAILABLE`：测试换了绑定根节点，`selectedState` 桩未跟着换）；补桩后 **28 / 28 GREEN**，exit=0 | 控制台输出，未单独存盘 |
+| 定向 `ai.closepaw.voice.*` | **248 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㉛轮 245，+3 净增） | 控制台输出 + `app/build/test-results` 聚合 |
+| 全量 `:app:testDebugUnitTest` | **2338 tests / 6 failed / 0 errors / 8 skipped**，Gradle exit=1，**不是全绿**；失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（本轮未改、未跳过） | `logs/pr4-r33-full.txt` |
+
+边界与遗留（如实）：
+- 证据全部来自 **JVM 合成无障碍树**，不是三星真实时钟 UI；真机上计时器列表是否虚拟化、卡片是否用 `初始时长/总时长` 表达原始时长、表头刷新时序**仍未验证**。
+- 待办性质变化：创建/取消的「对象级终态」现在是**已知不可达**，而不是待调参。下一步要么拿到稳定对象 ID（真机采集脱敏树后确认有无 resource-id/可跨读关联的稳定字段），要么先做列表全量枚举（滚动+合并多次读，需实机验证滚动边界），两者都需要**用户重新授权实机**。
+- `closeAlarm` 仍 `BLOCKED`（缺全列表枚举/稳定身份，安全拒绝）；`cancelTimer` 未校时钟窗口的旧项本轮未动；查询结果截断未当作不完整、计时器唯一绑定、五分钟真实工具参数等遗留不变。
+- 本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、未并入 Issue #6、未改受保护规则、未 push main、未合并 PR。
+
+## 第㉛轮：创建倒计时首次有可归因的对象级回读（源码 + JVM，未实机）
+
+本轮无新审查（最新 review `6548293536` 已由第㉚轮回复 `6548650998` 处理，其后 PR 无新评论），按「无新审查则推进可离线项」处理遗留清单里的**创建路径**：`createTimer` 此前完全不做回读，`expectedState = timer_running:<秒>` 在真机上永久 `UNPROVEN`。
+
+1. **回读契约**：`ClockControl.createTimer` 现在做**两次完整读**——发 Intent 之前一次（基线）、之后一次（回读），两次都必须满足「同一窗口门 / `rootPackage` 是时钟 / `selectedTabs["定时器"] == true` / 未被截断 / 表头计数可解析」。
+2. **唯一允许的肯定结论**（三条同时成立）：
+   - 基线页面上**没有任何**卡片声明被请求的原始时长（`初始时长/总时长` 解析值 ≠ 目标）；
+   - 回读表头计数 **恰好 +1**；
+   - 回读页面上**恰好一张**卡片声明该原始时长。
+   成立时 `verified=true` + `ObservedState("timer:<秒>", "running:<秒>")`，`TerminalState` 才能对 `timer_running:<秒>` 判 `CONFIRMED`。
+3. **其余全部 fail-closed**（`ToolResult.sentWithoutProof`，`verified=null`、`observed=null`）：基线/回读不可读（`readback=before-page-unconfirmed|before-truncated|before-count-unparsed` / `after-…`）、同长度倒计时已存在（`readback=same-duration-twin`）、计数没有 +1（`count-not-plus-one`）、回读页面看不到该时长（`duration-card-not-found`）、出现多张同长度卡（`duration-card-not-single`）。Intent 层被系统拒绝时原样透传，不拿页面评价（`EXECUTION_ERROR`）。
+4. **残留假设照写不藏**：时长标签是卡片**声明的原始时长**，不是稳定对象 ID；两个读之间若有第三方创建了同长度倒计时，同一判据也会成立。计数必须 +1 是把这条口子收窄的措施，不是消除。
+
+TDD 与真实数据（全部 `--offline --rerun-tasks`，JDK 17 本地，仓库根先 `source env.sh`）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 先写 `TimerCreateReadbackTest`(9)，生产代码未改 | **RED 9 tests / 8 failed / 0 errors**，Truth 断言失败（非编译失败）；唯一先绿的是「Intent 被拒绝时原样透传」 | `logs/pr4-round31-red.txt` |
+| 实现两段回读后同组 | **GREEN 9 / 9**，exit=0 | `logs/pr4-round31-green1.txt` |
+| 定向 `ai.closepaw.voice.*` | **245 tests / 0 failed / 0 errors / 0 skipped**，exit=0（第㉚轮 236，+9 为本轮新测试） | `logs/pr4-round31-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2335 tests / 6 failed / 0 errors / 8 skipped**，Gradle exit=1，**不是全绿**；失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（本轮未改、未跳过） | `logs/pr4-round31-full.txt` |
+
+边界与遗留（如实）：
+- 全部证据来自 **JVM 合成无障碍树**，不是三星时钟的真实 UI。真机上表头计数刷新时序、卡片是否用 `初始时长/总时长` 表达原始时长、双标签卡结构**仍全部未验证**；若表头滞后，结果会落到 `count-not-plus-one` → `UNPROVEN`（保守，不假报成功）。
+- 既有副作用：创建前多了一次定时器页面读取（约 +0.4 s 与一次 tab 点击），在时钟不在前台的场景会额外拉起时钟再读一次。这是取得基线的代价，未做性能测量。
+- 本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、不并入 Issue #6、不改受保护规则、不 push main、不合并。实机验收需用户**重新授权**。
+- 仍缺对象级回读的：`closeAlarm`（缺全列表枚举/稳定身份，继续 `BLOCKED`）、手电/Wi-Fi；在线 `ToolRouter` 同门禁（阶段 2）仍未做。
+
+## 第㉚轮：撤回「取消即成功」；计数与视口不再当对象证据（源码 + JVM，未实机）
+
+处理新复审 `6548293536`（HEAD `4f5734e`，2 条 P1 + 1 条 P2；https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6548293536 ）。上一轮（`4f5734e`）让 `cancelTimer` 点击后回读，方向对但判据不足：**视口缺失 + 计数下降不能归因到被点的那个对象**。本轮把结论收紧到「只能证明它还在，不能证明它没了」。
+
+1. **[P1] 取消成功判定撤回**：`ClockControl.cancelTimer` 点击后仍回读同一页面，但**唯一允许的对象级结论是否定的**——同一形态的 `初始时长/总时长` 标签仍在 → `verified=false` + `ObservedState("timer:<秒>","running:<秒>")`（`TerminalState` 判 `CONTRADICTED`）。标签消失 + 计数下降**不再**推出 `verified=true`：一次读只覆盖当前视口、计数会被「另一个计时器自然结束」改变、时长标签也不是稳定 ID。其余全部 `sentWithoutProof`（`verified=null`、`observed=null`），`detail` 记 `readback=page-unconfirmed|truncated|count-not-lower|count-not-attributable`，句子固定「已请求取消指定倒计时，但无法确认最终状态」，不再出现「已取消」。
+2. **[P1] 计数只认页面自己的陈述**：`timerCountFrom` 现在只从 `N 个定时器正在运行` 表头或明确空态句（`没有正在运行的定时器` / `暂无定时器` / `无正在运行的定时器`）取总数。`添加定时器`（创建入口）、创建 picker、可见卡片数量**一律不再当 0 或当总数**。新增 `visibleTimerCards` 作为「视口内至少几张卡」的下界，`queryTimers` 在总量未知但下界 > 0 时只说「页面上至少能看到 N 个倒计时在运行，但没法确认一共有几个」；总量与下界都没有时 `DEVICE_UNAVAILABLE` 且不播确定数字。
+3. **[P2] 身份对应不再默认放行**：`TerminalState.identityMatches` 原先在 `task.targetIdentity == null` 时直接返回 `true`，等于真实语音路径从未核对对象身份。现在**双侧都必须声明身份且相等**；`SemanticParser.identityOf` 从与 `expectedState` 同一批参数派生身份（`timer:<秒>`、`alarm:H:M`、开关的 `torch|wifi|bluetooth` 小写，与工具边界既有 `target.name.lowercase()` 对齐），`SemanticRunner` 的 `ToolCall` 同步携带 `timerIdentity(secs)`，避免新身份把合法 timer 调用误判成 identity drift。
+
+TDD 与真实数据（全部 `--offline --rerun-tasks`，JDK 17 本地）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 先写/改测试，生产代码未改 | **RED 是编译失败**：`visibleTimerCards` 未解析，断言未执行；`isEqualTo` 未解析是连带 | `logs/pr4-review29-red.txt` |
+| 按新契约实现后首次定向 | **236 tests / 10 failed / 0 errors**：6 条 `IntentGateTest` 旧夹具未携带工具边界的新身份、`ClockSelectionEntryMatrixTest`（`verified` 由 null 变 false）、`TerminalUnprovenMutationTest`（身份不再可省），以及本轮我自己 2 条新测试期望写错（utterance 与 reason 串） | `logs/pr4-review29-targeted.txt` |
+| 夹具对齐新契约后 | **236 tests / 0 failed / 0 errors / 0 skipped**，exit=0 | `logs/pr4-review29-targeted3.txt` |
+| 全量 `:app:testDebugUnitTest` | **2326 tests / 6 failed / 0 errors / 8 skipped**，Gradle exit=1，**不是全绿**；失败仍是 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5（本轮未改、未跳过、未重跑旧 SHA 基线） | `logs/pr4-review29-full.txt` |
+
+断言变动如实说明（没有整类删除）：
+- `ClockSelectionEntryMatrixTest`「取消已绑定的卡片」：原断言 `verified == null`（旧实现根本不回读），改为 `verified != true`——回读后既可能 `null`（无法归因）也可能 `false`（卡片仍在），两者都不是成功。
+- `TerminalUnprovenMutationTest`「CONFIRMED 直通」：原夹具不声明身份，正是 P2 指出的漏洞；改为声明 `timer` 后仍断言 `CONFIRMED` 且结果不被改写；同时 `TerminalExpectedStateTest` 新增用例断言「未声明身份 + 有身份证据 = UNPROVEN」。
+- `IntentGateTest`：`allow()` 按 `SemanticRunner` 的真实约定补上工具侧身份；「5 秒 vs 300 秒」那条改为断言 `identity drift`（比原来的参数不一致检查更早拒绝），不是放行。
+- `TimerCancelReadbackTest`：原来两条「必须 CONFIRMED」的正向用例改为断言 `verified=null` + `UNPROVEN`，并新增「另一个计时器自然结束 + 目标卡移出视口」负例。
+
+边界与遗留（如实）：
+- 三星时钟是否暴露稳定 timer 对象 ID、页头计数刷新时序、可滚动列表完整性、导航栏与正文双标签卡片结构：**仍全部未验证**；本轮未构建/安装 APK、未操作手机。取消功能在真机上仍只会说「无法确认」——这是合规结果，不是功能完成。
+- 可见副作用：在总量未知的页面上，`queryTimers` 会从「现在有 N 个」退到「至少 N 个」或「没法确认」。旧 picker 空态判定来自一次真机采集，但「picker 出现」不等于「列表为空」，按审查要求撤回；真正空页面的文案需重新实机采集后才能恢复确定性播报。
+- `createTimer` / `closeAlarm` / 手电 / Wi-Fi 仍无对象级回读；`closeAlarm` 因缺全列表/对象身份继续 `BLOCKED`；在线 `ToolRouter` 同门禁（阶段 2）仍未做。
+- 未调用付费 API、未 delegate 给本地小模型、不并入 Issue #6、未改 `AGENTS.md` 等受保护规则、不 push main、不合并。
+
+## 第㉙轮：取消倒计时首次给出对象级回读证据（源码 + JVM，未实机）
+
+第㉘轮遗留的最大缺口是「`observed` 没有真实生产者」：所有声明了 `expectedState` 的变更在真机上一律 `UNPROVEN`，`CONFIRMED` / `CONTRADICTED` 只有 JVM 夹具可达。本轮先补最容易证伪的一处：**取消计时器点击之后回读同一个定时器页面**。
+
+1. **回读契约**（`ClockControl.cancelTimer`）：`performAction(ACTION_CLICK) == true` 只证明手势投递，旧实现据此返回 `sentWithoutProof`。现在点击后 700 ms 重新走 `readClockScreen("定时器")`，四个事实分别记录、互不替代：
+   - 页面身份：`rootPackage == 时钟包` 且同一次读回的 `selectedTabs["定时器"] == true`；
+   - 读回是否被截断（`textsTruncated || nodesTruncated`）；
+   - 回读后的运行中计数（`timerCountFrom`，同一棵树；页面被判非计时器页时不算）；
+   - 被点击那张卡片的**同一形态**时长标签（`初始时长` / `总时长` + `ChineseTime.durationSeconds`）是否还在。
+2. **判定**：
+   - 页面无法确认 / 截断 / 计数不可解析 → `verified = null`、`observed = null`，句子仍是「无法确认最终状态」（`readback=page-unconfirmed|truncated|count-unparsed`）；
+   - 时长标签仍在且回读计数 > 0 → `verified = false` + `ObservedState(identity="timer:<秒>", state="running:<秒>")`，`TerminalState` 判 `CONTRADICTED` 并降级为 `EXECUTION_ERROR`；
+   - 标签消失 **且** 计数确实下降（或页面变为 0 个）→ `verified = true` + `ObservedState(identity="timer:<秒>", state="none")`，`no_running_timer` 判 `CONFIRMED`；
+   - 标签消失但计数没降 → 两个观测互相矛盾，一律 `verified = null`（`readback=count-not-lower`），不拿其中任一条当完成。
+3. **身份**：`identity = "timer:<绑定时的秒数>"`，与 `SemanticParser` 的 `no_running_timer` 期望配合；`task.targetIdentity` 为空时不强制身份相等（与 `TerminalState.identityMatches` 现有语义一致）。计数与标签取自同一棵树的文本，避免「截断的页面报告了一个下降」。
+
+TDD（全部 `--offline --rerun-tasks`，JDK 17 本地）：
+
+| 阶段 | 结果 | 日志 |
+|---|---|---|
+| 新 `TimerCancelReadbackTest`(5) 先写，实现未改 | **RED 5 tests / 5 failed**，全部是 Truth 断言失败（无编译错误） | `logs/pr4-review29-red.txt` |
+| 实现回读后同组 | **GREEN 5 / 5**，exit=0 | `logs/pr4-review29-green1.txt` |
+| 定向 `voice.semantics.*` + `voice.tools.*` | **224 tests / 0 failed / 0 errors / 0 skipped**，exit=0（上一轮 219，+5 为本轮新测试） | `logs/pr4-review29-targeted.txt` |
+| 全量 `:app:testDebugUnitTest` | **2314 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，本轮未改、未跳过、未重跑旧 SHA 基线） | `logs/pr4-review29-full.txt` |
+
+边界（如实）：
+- 这是**第一次有一个真实路径会给出 `observed`**，但仍然只是 JVM 合成树。三星真机上「取消后卡片是否立刻消失」「运行计数表头是否随取消同步更新」都**未验证**；若表头滞后，真实结果会落到 `count-not-lower` → `UNPROVEN`（保守，不假报成功）。
+- `createTimer` / `closeAlarm` / 手电与Wi-Fi 仍**没有**对象级回读：创建后无法从 UI 读回「原始时长」这个身份（剩余时间不是原始时长，已在第㉕轮说明），所以创建仍一律 `UNPROVEN`；`closeAlarm` 仍因缺全列表/对象身份 `BLOCKED`，是安全拒绝不是功能完成。
+- 在线 `ToolRouter` 同门禁（阶段 2）、正文双标签卡片身份仍待办；后者需实机采集脱敏 UI 树。
+- 本轮未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、不并入 Issue #6、不改受保护规则、不 push main、不合并。实机验收需用户**重新授权**。
+
+## 第㉖轮：`expectedState` 真正参与判定 + `OPEN` 不再绕过闸门（源码 + JVM，未实机）
+
+针对定时复审 `6546660320`（针对 `2048f6d`，https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6546660320 ）的 P1 与 P2 第 2 条。上一轮（`b1922dc`）评论误称「最新已审 SHA 是 `2212ed6`」，漏掉了这条复审，本轮补上。
+
+1. **[P1] 终态闸门不再只信一个布尔值**：新增 `tools/ObservedState(identity, state, source)`，`ToolResult` 增加 `observed` 字段。`TerminalState.verdict` 现在的规则是：
+   - 任务声明了 `expectedState`（`timer_running:300` / `no_running_timer` / `alarm_exists:HHMM` / `on|off:TARGET` / `feature_visible`）时，**`verified=true` 本身不再算证据**；
+   - `observed == null` → `UNPROVEN`（请求已发出，但没有对象级回读）；
+   - `observed.identity` 与 `task.targetIdentity` 不符或缺一 → `UNPROVEN`（读到的是别的对象，不能升级成"完成"，也不谎报"没变化"）；
+   - 同一对象但 `observed.state` 与 `expectedState` 不符 → `CONTRADICTED`，`enforce()` 降级为 `EXECUTION_ERROR`；
+   - 声明了闸门没有判定谓词的 `expectedState` → 一律 `UNPROVEN`（拒绝默认放行）。
+   - 未声明 `expectedState` 的任务保持旧的 `verified` 三态分级（没有可比对的东西，不假装做了对象级校验）。
+2. **[P2] `OPEN` 不再豁免**：`promisesState` 纳入 `Action.OPEN`。「打开微信扫一扫」和「开始五分钟倒计时」一样是对终态的承诺。`AppNavigator.openFeatureResolved` 的「同包内新增 ≥2 条文字就算进入」改为 `verified=null` + 「点了…界面有变化，但没能确认已经进入」，`TerminalState.enforce` 再兜一层：`OPEN` + `verified=true` + 无页面身份证据 → 句子改写、`verified=null`、`detail` 追加 `postcondition=unproven(no page identity)`。
+
+TDD（全部 `--offline --rerun-tasks`）：
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TerminalExpectedStateTest`(14) 先写，`ObservedState`/`observed` 仅做类型铺垫后跑 | **RED 14 tests / 9 failed**（Truth 断言失败，非编译错误；`logs/pr4-review26-red.txt`） |
+| 实现 `TerminalState` 谓词 + `AppNavigator` 降级后同组 | **GREEN**：`TerminalExpectedStateTest` + `TerminalStateGateTest` + `SemanticExecutionTest` 定向全绿，exit=0 |
+| 定向 `voice.semantics.*` + `voice.tools.*` | **202 tests / 0 failed / 0 errors / 0 skipped**，exit=0 |
+| 全量 `:app:testDebugUnitTest` | **2292 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，本轮未改、未跳过、未重跑旧 SHA 基线） |
+
+边界（如实）：**目前没有任何生产者会填 `observed`**，所以声明了 `expectedState` 的任务在真机上一律落到 `UNPROVEN` —— `CONFIRMED` 现在只有 JVM 夹具可达。这是刻意的保守：先前那条「`verified=true` 即 CONFIRMED」的路径本来就是误报来源。真正要恢复 `CONFIRMED`，得让 `cancelTimer`/`closeAlarm`/`setTimer` 回读时给出对象身份与状态 token，属后续离线工作。本轮仍未实机、未构建安装 APK。
+
+**未做（如实）**：同一复审的 P2 第 3 条（`IntentActions.kt:58-77` 计时器创建后仍用 `fg.contains("clock")` + `UiAutomator.clickText("定时器")` 模糊点击，绕开 `ClockControl.clickClockTab` 的精确标签/窗口归属/禁坐标回退）本轮未修改，留待下一轮；它需要把 `ClockControl` 的安全 tab 导航暴露给 `tools` 层并补 MockK 零点击断言。
+
+## 第㉔轮：`expectedState` 通用终态校验（离线源码 + JVM，未实机）
+
+第⑳轮复审（`6545877923`）与更早的复审都把「`expectedState` 通用业务终态校验」列为未完成项。本轮把它落成一个**证据分级契约**，并清掉 `verified` 的 `false`/`null` 混用：
+
+1. **新增 `voice/semantics/TerminalState.kt`**（纯 Kotlin，无 Android import，可 JVM 测）。执行前由 `IntentGate` 判「这是不是用户要做的那件事」，执行后由它判「工具带回来的证据支不支持我们承诺的终态」：
+   - `CONFIRMED`：变更类任务 + `SUCCESS` + `verified=true`（回读一致）。
+   - `UNPROVEN`：`SUCCESS` + `verified=null`（请求已发出，什么都没回读）——仍是成功、仍可播报，但不得说成「做好了」。
+   - `CONTRADICTED`：`SUCCESS` + `verified=false`（回读和期望不一致）——`enforce()` 降级为 `EXECUTION_ERROR`，句子明说「设备状态没有变化」，原 `detail` 保留并追加 `postcondition=contradicted`。
+   - 查询任务、以及 BLOCKED / PERMISSION_DENIED / DEVICE_UNAVAILABLE 等拒绝结果一律 `NOT_APPLICABLE`，原句不改写；`enforce()` 幂等。
+2. **接线点唯一**：`SemanticRunner.run` 里每个任务的 `dispatch` 结果统一过 `TerminalState.enforce`，日志照实打 `status/verified/detail`（降级后的值）。
+3. **`false` 与 `null` 不再混用**：原代码有 11 处「只投递了 Intent / 只点了控件、没有业务回读」却返回 `SUCCESS + verified=false`，而 `ToolResult` 的文档语义里 `false` 是「回读了、状态没变」。新增 `ToolResult.sentWithoutProof(...)`（`SUCCESS + verified=null`）并替换：timer 创建 3、alarm 创建 3、`cancelTimer` 1、`dial` / `maps` / `web`×2 / `camera` 共 6。这是本轮唯一改变既有播报语义的地方：这些路径从「被当成已确认失败」改为「未知」，播报文本不变。
+
+TDD（真实执行，`--offline --rerun-tasks`）：
+
+| 阶段 | 结果 |
+|---|---|
+| 新 `TerminalStateGateTest`(11) 先写、实现未写 | **RED = 编译失败**（`Unresolved reference 'TerminalState' / 'sentWithoutProof'`），不是断言失败；如实记为弱 RED |
+| 实现 + 接线 + 11 处替换后 | 定向首次 **183 tests / 6 failed**：6 条全部是旧断言 `verified isFalse` 遇到新语义 `null`（`ClockAlarmPageEvidenceTest` 1、`ClockSelectionEntryMatrixTest` 1、`ClockUndoSafetyTest` 1、`IntentCreationVerificationTest` 3） |
+| 更新为 `isNull()` 并补 `status=SUCCESS` 断言后 | 定向 **183 tests / 0 failed / 0 errors / 0 skipped**，exit=0 |
+| 全量 `:app:testDebugUnitTest` | **2273 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与基线同类，未改、未跳过） |
+
+6 条旧断言是**语义纠正**而非弱化：`isFalse` → `isNull()`，同时新增 `status == SUCCESS` 断言，没有删除任何断言。基线（本轮改动前，同一套定向过滤）：172 tests / 0 failed。
+
+边界（如实）：这一轮只是**把「有没有证据」分级并强制在返回边界执行**，不是业务状态回读本身。仍然是 `源码分析 + JVM 合成结果`，不是实机。还没有任何生产者会在回读后给出 `verified=false`，所以 `CONTRADICTED → EXECUTION_ERROR` 这条分支目前只有 JVM 夹具覆盖，真机未出现过。真正缺的仍是：创建/取消后回读对象存在性与计数、在线 ToolRouter 同门禁（阶段 2）、正文双标签卡片身份（需实机采集）。
+
+## 第㉓轮局部修复：第⑳轮定时复审的节点身份与候选完整性（源码 + JVM，未实机）
+
+针对 PR #4 定时复审 `chatgpt-hourly-review SHA:f5d877a`（评论 15:32Z，https://github.com/mo-mx/AndroidAgent/pull/4#issuecomment-6544851243 ）的两条离线项，先写回归再改代码：
+
+1. **[P1] 引用身份判等**：`navControl`/`isNavBar`/`depthBelow`/`clickUnit`/`insideScrollable`/`clickTabControl`/`selectedState` 原来用 `===` / `!==` / `IdentityHashMap` 判断「同一个 tab 条」「是否到容器边界」「两个标签是否共用点击单元」。平台的 `getParent()/getChild()` 不保证同一逻辑节点返回同一包装对象，后果：①同一条通过两个包装对象上报时被判成两条 → 误判歧义、导航不可用；②`node === root` / `node === nav.container` 失效 → 容器/窗口根的点击边界不再兜住；③`depthBelow` 返回 1000 哨兵。现统一改为 `sameNode()`：先 `===`，再 `runCatching { a.equals(b) }`（AOSP 的 `equals` 比较 windowId + sourceNodeId 这类逻辑身份），拿不到等价时退回引用身份。点击单元去重从 `IdentityHashMap` 改为按逻辑等价比较（每栏最多 4 个标签，线性比较即可，也不依赖 `hashCode` 一致性）。
+2. **[P1 附带] 深度哨兵显式拒绝**：两个标签都「走不回本栏」时深度同为 1000、极差为 0，旧的「同深度」规则会在没有任何归属证明的情况下通过。现在 `depthBelow` 结果为 `UNREACHABLE_DEPTH` 直接拒绝该候选。
+3. **[P2] 候选上限 8 静默截断**：旧 `collectExactLabels` 到 8 个后继续遍历却丢弃匹配，调用方以为拿到了全集。现返回 `CandidateScan(nodes, complete)`；候选溢出或遍历未走完（`MAX_NODES` 截断）都标记为不完整，`navControl` 直接返回 null——部分证据不再当作全集，也不会拿预算内的第一条 tab 条当唯一。
+
+TDD（全部 `--offline --rerun-tasks`）：新 `ClockNodeIdentityTest`(5) 在上一 head `2212ed6` 上 **RED 5 / 5 failed**（断言失败，非编译错误，`logs/pr4-review23-identity-red.txt`），修后 **5 / 5 通过**（`logs/pr4-review23-identity-green.txt`）。定向 `voice.semantics.*` + `voice.tools.*` **172 tests / 0 failed / 0 errors / 0 skipped**，exit=0；全量 `:app:testDebugUnitTest` **2262 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与前轮同类，本轮未改、未跳过、未重跑旧 SHA 基线）。日志只留本机。
+
+边界（如实）：这仍是 JVM 合成树契约。**三星真机在一次遍历里是否真的返回等价但不同实例的包装对象未验证**；如果 `AccessibilityNodeInfo` 在该 ROM 上不按逻辑身份实现 `equals`，行为会退回旧的引用身份语义（不比旧版更差，但收益也不成立）。P2 提到的「小型正文双标签卡片」仍需实机采集脱敏 resource-id/role/层级后才能定策略，本轮未做、也不冒充已关闭。
+
+## 第㉒轮局部修复：选中态判定在查询/绑定入口的联动矩阵（源码 + JVM，未实机）
+
+第㉑轮把 `selectedState` 收窄到「只在识别出的 tab 条内判选中」后，留下的是**这条改动在出口处是否放宽准入**的疑问（复审 `6544694121` 第 3 条）。本轮把它按入口逐条钉住，并修掉一处诊断混淆：
+
+1. **新回归 `ClockSelectionEntryMatrixTest`(11)**，覆盖 `readTree.selectedTabs` → `onTargetPage`（`queryTimers`/`queryAlarms`/`closeAlarm`）→ 绑定门 `verifiedClockWindow`（`cancelTimer`）三处出口的双向矩阵：`null`（栏内没有任何选中上报）在每一处都**拒绝**且零点击；`false`（栏内另有 tab 选中）同样拒绝；`true` 仍放行（控制组，防止「全靠拒绝通过」）。同时钉住：正文卡片 `isSelected=true` 在栏内无上报时读数必须是 `null` 而不是 `false`。
+2. **诊断区分（代码改动）**：`verifiedClockWindow` 里 `null`/`false` 原本都落到同一个 `binding-tab-unproven`，且其后 `when(selected)` 分支与两个调用方的 `window.selected == false` 检查已不可达。现改为 `binding-tab-unreported` / `binding-tab-not-selected` 两值，并把 `why=<reason>` 加进 `cancelTimer` / `closeAlarm` 的 `detail`（仍不含任何屏幕文本）。安全行为未变：两者都拒绝、都不点击。
+
+TDD：新测试对上一 head `2cda031` **RED 3 / 11 failed**（`selectedState` 期望 null 实得 false；两处 `why=` 期望 unreported/not-selected 实得 `binding-tab-unproven`），修后 11/11 绿。定向 `voice.semantics.*`+`voice.tools.*` **167 tests / 0 failed / 0 errors / 0 skipped**；全量 **2257 tests / 6 failed / 0 errors / 8 skipped**，exit=1，**不是全绿**（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与前轮同类，未改未跳过）。全部 `--offline --rerun-tasks`，日志 `logs/cron-full-r21b.txt` 只留本机。
+
+仍未完成（可离线）：`expectedState` 通用终态校验、在线 ToolRouter 同门禁（阶段 2）、对象身份适配；小型正文双标签卡片的区分与三星真实选中态暴露仍需用户**重新授权**的实机采集。未构建/安装 APK、未操作手机、未调用付费 API、未 push main、不合并。
+
+## 第㉑轮局部修复：第十九轮审查（源码 + JVM，未实机）
+
+按 PR #4 定时复审 `6544694121` / `6544641476`（第⑲轮，针对 `3b7cc66`）的头部 P2 修两处，第三处如实未做：
+
+1. **`navControl` 只取全树第一个精确同名节点**（`findFirst`）→ 正文里先出现的「闹钟」段标题/设置行会抢占，真 tab 条即使合格也无法识别，导航被错误拒绝。改为收集全部精确同名候选（上限 8），逐个用 `barFor` 向上验证导航身份；**两条不同容器都合格时判歧义返回 null**，不取第一个。
+2. **`selectedState` 在栏内无 `selected=true` 时扫描整棵窗口树**找任意 `isSelected` → 正文里无关的选中元素会把「无法确认」误诊为「目标未选中」。改为只在识别出的 tab 条子树内判断（含容器自身，兼容容器级上报）；栏内没有任何选中上报时返回 null。安全方向不变：任何情况都不会返回 true。
+3. **未做**：小型正文双标签卡片（≤40 节点、同深度、各自可点）仍能通过结构规则。离线只有合成树，没有真实资源 ID/角色证据；再叠结构启发式只会让真 tab 条更容易被拒，不能证明区分能力。需要实机采集 tab 条与正文卡片的 resource-id/role/层级，属**需授权实机**项。
+
+TDD：新 `ClockNavCandidateTest`(5) 在旧实现上 **RED 4 / 5 failed**（`navControl` 返回 null 而非 tab 条、两条 tab 条未判歧义、两处 `selectedState` 期望 null 实得 false），修后 5/5。定向 `voice.semantics.*`+`voice.tools.*` **156 tests / 0 failed / 0 errors / 0 skipped**，exit=0；全量 **2246 tests / 6 failed / 0 errors / 8 skipped**，exit=1，不是全绿（仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，本轮未重跑旧 SHA 基线）。全部 `--offline --rerun-tasks`，日志 `logs/pr4-review20-*` 只留本机。
+
+仍未完成（可离线）：`selectedState` 在查询/绑定入口的联动负向矩阵、`expectedState` 通用终态校验、在线 ToolRouter 同门禁（阶段 2）、对象身份适配。实机（selected 暴露、真实 tab 条布局、抢焦点恢复、计时器唯一对象绑定）与上面第 3 条的证据采集需用户**重新授权**。未构建/安装 APK、未操作手机、未调用付费 API、未 delegate、不改受保护规则、不 push main、不合并。
+
+## 第⑲轮局部修复：第十八轮审查（导航栏容器边界 + 容器不可点；源码 + JVM，未实机）
+
+`UiAutomator.navControl` 不再把窗口根/正文容器当导航栏：从 control 父节点起爬，`isNavBar` 要求非窗口根、peer 标签深度极差 ≤1、容器子树 ≤40 节点、≥2 个不同 peer 标签；缺证据返回 null。`clickTabControl` 先判 `cur === container` 即拒绝，容器永不点击；`selectedState` 只读容器之前的祖先，容器自身 `isSelected` 不作证据。新 `ClockNavBarBoundaryTest` 6 项，旧实现有效 RED 6 tests / 5 failed（断言失败），修后 6/0，其中「真实 tab 条仍可点击选中」为控制组、修前已过。旧 fixture 补「窗口根在 tab 条之上」结构，断言未删弱。
+
+定向 semantics.* + tools.*：144 tests / 0 failed / 0 errors / 0 skipped，exit=0。全量 2234 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿；失败仍是 AgentSkillCatalogTest 1 项、MemoryStoreTest 5 项，未改未跳过，本轮未重跑旧 SHA 基线。日志 logs/pr4-review19-{red1,green1,targeted,targeted2,full}.txt 只留本机。
+
+仍可离线推进：真实三星 tab 条布局下的层级假设（本条启发式仍非已证明的导航身份）、查询/绑定端 selectedState 联动负向矩阵、对象身份适配、阶段2 在线 ToolRouter 同门禁。实机（selected 暴露、抢焦点恢复、计时器唯一绑定）需用户重新授权。未构建安装 APK、未操作手机、未调用付费 API、未 delegate、不改受保护规则、不 push main、不合并。需要复审。
+
+## 第⑰轮局部修复：审查 6543364579（源码分析 + JVM，未实机）
+
+clickClockTab 在遍历前检查 root 包名、点击前检查目标节点包名，非时钟包或包名缺失安全拒绝；初始/查询恢复/绑定恢复共用该入口。新增私有导航入口的 root跨包与node跨包零点击回归（反射调用真实方法，Android边界MockK）；有效 RED 1 test / 1 failed，修后两种组合均通过。该测试不是完整查询/绑定集成负向矩阵。
+
+定向 --offline --rerun-tasks：131 tests / 0 failed / 0 errors / 0 skipped，exit=0。全量2221 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿；AgentSkillCatalogTest 1、MemoryStoreTest 5，本轮未重跑旧SHA。初次定向131/3 failed为旧fixture未提供包名，仅补root/node包名后原断言全保留。日志logs/pr4-review17-{red,targeted,full}.txt及JSON本机保留。
+
+仅完成包名门禁切片：通用click的父级/坐标回退仍待移除，精确标签仍缺导航控件身份、selectedState同名非导航节点拒绝仍待修；审查未关闭，仍可离线推进。源码/JVM不等于实机，历史设备矩阵不变；新一轮实机需用户重新授权。本轮未构建安装APK、未操作手机、未调用付费API、未delegate、不合并、不push main、不动Issue6。需要复审。
+
+
+## 第⑯轮局部修复：审查 6543146968（源码 + JVM，未实机）
+
+移除 selectedState 的包含匹配回退；仅提示卡且父 selected=true 时返回 null。旧兼容用例收紧为拒绝，新增提示卡父选中回归。有效 RED：9 tests / 2 failed / 0 errors；最终定向130 tests / 0 failed / 0 errors / 0 skipped；全量2220 tests / 6 failed / 0 errors / 8 skipped，不是全绿。全部 --offline --rerun-tasks；日志 logs/pr4-review16-{red,targeted,full}.txt，失败名称 JSON 留本机。失败仍为 AgentSkillCatalogTest 1项、MemoryStoreTest 5项，本轮未重跑旧SHA。
+
+仅完成模糊选中证据切片，不代表审查关闭：精确标签仍缺导航容器身份，外来窗口导航点击、通用父节点/坐标回退仍待离线修复；查询/绑定端真实 selectedState 联动负向矩阵尚未补齐。仍有离线任务，不是只能等待实机。未构建安装APK、未操作手机、未调用付费API、不合并、不push main、不动Issue6。新实机需用户重新授权。需要复审。
+
+
+## 第⑮轮：审查 6542779543（针对 d543cd3；离线源码 + JVM）
+
+需要复审，尚无独立 reviewer 批准。定时任务由用户暂停，本轮唯一写者；进入时 O_CREAT|O_EXCL 原子创建 .git/semantic-gate-writer.lock（owner/pid/started），完成时仅删除自有锁并检查不存在。
+
+1. P2 模糊点击：openClockTab 移除 clickClockTab(tab)==null 时的 clickText(tab) 包含匹配兜底；精确缺失/点击失败均不授权模糊点击。新增无精确 tab、只有“对关联闹钟进行分组”提示卡的 fixture，断言 verified=false、tab=click-failed-label-only、通用文字点击/节点点击/提示卡 performAction 均0。真实行为 RED 1 tests / 1 failed / 0 errors → GREEN 1 / 0；不是编译错误。
+2. P2 身份一致性：queryAlarms.alarmPage 统一调用 onTargetPage(read, "闹钟")，包名与 selected=true 必须来自同一 ScreenRead；checkableCount 和空态不能建立页面身份。旧实现已有 pageOk 阻止 verified=true，因此不虚构“旧版成功绕过”：新增 switches>0 + selected=false 在旧实现 verified=false，但错误诊断 alarmPage=true；有效 RED 2 tests / 1 failed / 0 errors（alarmPage 断言失败），修后 GREEN 2 / 0。empty + selected=null 在旧实现已安全拒绝，本轮增加防回归，不宣称曾 RED。两条均断言无法确认、不播确定可见列表/确定空态、verified=false。
+3. selected 在三星真实 UI 是否稳定暴露仍待重新授权实机验证；JVM 合成树不证明可用性或跨调用原子快照。本轮未构建 APK、未上机；历史设备矩阵仍4通过/0失败/3未测，当前 SHA 未实测。
+
+测试全部带 --offline --rerun-tasks，仓库根先 source env.sh，再 cd src/closepaw：
+
+    ./gradlew --offline :app:testDebugUnitTest --tests '*ClockTabReachTest.missing exact*' --rerun-tasks --console=plain
+    ./gradlew --offline :app:testDebugUnitTest --tests '*ClockAlarmPageEvidenceTest.*without selected tab*' --rerun-tasks --console=plain
+    ./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.voice.semantics.*' --tests 'ai.closepaw.voice.tools.*' --rerun-tasks --console=plain
+    ./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain
+
+最终定向129 tests / 0 failed / 0 errors / 0 skipped，exit=0；全量2219 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿。AgentSkillCatalogTest 1项、MemoryStoreTest 5项原失败未改、未跳过，未重跑旧SHA基线。全量失败名称见本机 logs/pr4-review15-full-summary.json；日志 logs/pr4-review15-{click-red,click-green,page-red,page-green,targeted,full}.txt，XML与汇总只留本机，不提交日志。
+
+移除模糊点击后首次定向129/11 failed，补全旧 fixture 的导航选中或真实精确节点证据；中间129/3 failed因新导航点击违反既有零点击断言，改fixture为已选中+无点击且显式控制等待，保留原断言，最终129/0。恢复精确tab=1/提示卡=0断言保留，旧 clickText=1 收紧为 clickText=0，未删弱既有安全断言。Android/UI边界 MockK，真实 ClockControl/Runner 执行。
+
+剩余：实机 selected 暴露、抢焦点恢复、真实布局及计时器唯一绑定仍需用户新授权；closeAlarm 因缺全列表/业务对象身份继续 BLOCKED，关闭功能未完成；对象身份适配、在线ToolRouter同门禁（阶段2）和通用业务终态校验（阶段3）属于后续源码工作，不是只能等待实机。未delegate、未调用付费API、未并入Issue6、未改受保护规则、不push main、不合并。回滚用git revert。
+
+## 第⑭轮：接管 cron 未完成修改，审查 6542191769（离线源码 + JVM）
+
+需要复审；A–D 离线项已完成，尚无独立 reviewer 批准，不合并。接管时保留 cron worker 未提交的 ClockControl.clickClockTab Boolean? 与 ClockTabReachTest 新用例；先临时还原生产代码至 HEAD 验证 RED，再恢复并验证 GREEN，未丢弃这两处来源修改。
+
+- A：精确控件点击返回 false 后不再进入 clickText；仅未找到精确控件（null）允许原有兼容回退。ClockTabReachTest 有效 RED 7 tests / 1 failed，GREEN 7 / 0。保留 hint card 不点击、精确节点仅点1次断言。
+- B：ScreenRead.selectedTabs 在 readTree 中从同一个 r 计算；onTargetPage 只接受该 read 的包名与目标 selected=true，不再读取恢复前 reach.selected。null/false/缺 key 一律不可确认。查询恢复三条独立负向，以及新读 alarm=false：有效 RED 5 / 4，GREEN 5 / 0。初次修复将 verified 降为 null 未满足明确 false 断言，补显式 false 而非弱化断言。
+- 同源采集回归 UiAutomatorReadTest：拿掉采集逻辑的旧实现有效 RED 5 / 1（期望 true 实际 null）；恢复采集后最终定向 GREEN，检验同树 alarm=true/timer=false 与无 tab 时 null。
+- C：verifiedClockWindow 所有 attempt 都只读绑定 root 的 selectedState，缺失/false 返回不可确认；删除 reach 参数与旧回退。新增初始绑定 null、初始 false、恢复 false 独立调用回归。有效 RED 8 / 1（应 DEVICE_UNAVAILABLE 实 BLOCKED），GREEN 8 / 0；false 及点击失败本身是已有安全拒绝，不伪称这些用例曾 RED。
+- D：独立覆盖查询 false、绑定 false（初始/恢复）、点击失败（query 精确失败、cancel 失败）、closeAlarm（新读 false、恢复 null/false）；保持 verified=false、不报确定数量、不进入绑定/业务点击断言。closeAlarm 恢复两条单独在 HEAD 旧实现跑出 RED 2 / 2（错用旧证据进入“当前可见区域未找到”），修后最终定向全部 GREEN。追加 closeAlarm 绑定阶段 null/false 独立回归：在 HEAD 有效 RED 2 / 1（null 错入 BLOCKED），修后全部 GREEN；保留同树读取1次、节点操作0次断言。
+
+最终测试（每次 --offline --rerun-tasks，无 APK 构建任务）：
+
+    source env.sh
+    cd src/closepaw
+    ./gradlew --offline :app:testDebugUnitTest --tests 'ai.closepaw.voice.semantics.*' --tests 'ai.closepaw.voice.tools.*' --rerun-tasks --console=plain
+    ./gradlew --offline :app:testDebugUnitTest --rerun-tasks --console=plain
+
+定向 126 tests / 0 failed / 0 errors / 0 skipped，exit=0。全量 2216 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿。AgentSkillCatalogTest 1 项与 MemoryStoreTest 5 项原失败未改、未跳过，本轮未重跑旧 SHA 基线。首次小范围定向 94 / 25 failed、首次全量 2214 / 8 failed，均因旧正向 fixture 未携带新同树证据；只补 fixture 证据、保留既有断言（正向 fixture 名称同步），最终收敛为以上数字。日志及 XML/JSON 留本机 logs/pr4-review14-*，不提交日志或个人设备数据。
+
+风险与剩余：selected 不暴露时会比旧实现更保守地拒读，不以 checkableCount/空态或导航成功覆盖缺失选中证据。JVM 同源树证据并非 Android 跨调用原子快照或终态验证。三星是否稳定暴露 selected、窗口抢焦点恢复、真实布局与计时器唯一对象绑定仍需另行授权实机；历史矩阵仍 4 通过 / 0 失败 / 3 未测。closeAlarm 缺全列表/业务对象身份继续 BLOCKED，是不可用的安全拒绝，不是实机验收通过；补对象身份和阶段2/3是后续源码工作，不能说所有项目剩余均只能等实机。
+
+未 delegate、未调用付费 API、未并入 Issue6、未改受保护规则、未构建安装 APK、未操作手机、不 push main、不合并。回滚用 git revert，不改写历史。
+
+
+
+## 第⑬轮局部更新（源码分析 + JVM；未实机）
+
+处理新复审 `6541929671` 的绑定恢复切片：`verifiedClockWindow` 在发生窗口恢复后，只使用最终绑定树的 selected，null 不再回退窗口切换前的 true，而是安全拒绝。新增真实 cancelTimer 调用回归：旧 selected=true、外来窗口抢焦点、恢复树 selected=null，断言 DEVICE_UNAVAILABLE / verified=false / 取消节点点击0次。正向恢复 fixture 显式提供同树 selected=true，保留既有调用/点击断言，不弱化断言。
+
+TDD 有效 RED：12 tests / 1 failed；最终定向（`*Clock*Test`、TimerObjectExecutionTest、IntentGateTest、SemanticExecutionTest，`--rerun-tasks`）85 tests / 0 failed / 0 errors / 0 skipped。全量2201 tests / 6 failed / 0 errors / 8 skipped，Gradle exit=1，不是全绿；失败AgentSkillCatalogTest 1项、MemoryStoreTest 5项，未重跑旧SHA基线。首次定向85项有2项旧恢复fixture缺少新同树证据而失败，补证据后重跑全绿。日志 `logs/pr4-review13-{red,targeted,full}.txt`、汇总JSON本地保留。
+
+**仅局部修复，复审未关闭**：查询恢复仍使用旧 reach.selected；未发生恢复的绑定仍保留旧 selected 回退；初始模糊 tab 点击兜底仍待移除；查询/绑定恢复 false、点击失败及 closeAlarm 独立负向矩阵仍待补。仍有离线工作，不是只能等待实机。未构建安装APK、未操作手机、未调用付费API、未动Issue #6、不合并、不push main。新实机需重新授权。需要复审。
+
+
+## 第⑫轮更新（源码分析 + JVM；未实机）
+
+继续处理复审 `6541088857` P1：关闭闹钟不再以 `isScrollable=false` 或完整遍历已加载树证明全局唯一。当前适配器没有完整列表枚举及业务对象身份，故即使唯一可见开关也返回 BLOCKED / verified=false，不点击、不声称目标已关闭；删除复用该安全拒绝。关闭能力当前不可用，不是对象身份能力已实现。
+
+TDD 新增 OEM 不暴露 scrollable、视口外重复对象无节点的回归：有效 RED 11 tests / 1 failed（预期 BLOCKED 实为 SUCCESS）。修后定向 `--rerun-tasks` 110 tests / 0 failed / 0 errors / 0 skipped；全量 2200 tests / 6 failed / 0 errors / 8 skipped，Gradle exit=1，不是全绿。失败为 AgentSkillCatalogTest 1项、MemoryStoreTest 5项，未重跑旧 SHA 基线。旧两条关闭成功测试改为更严格的拒绝及点击零次，保留窗口恢复调用和错误对象不点击断言。日志 `logs/pr4-review12-{red,targeted,full}.txt` 和汇总 JSON 本地保留。首次未加载 env.sh 的 JAVA_HOME 启动失败不作为 RED。
+
+P1 的可见对象误操作路径已失败闭合，待复审；**P2 恢复后同树页面证据、旧 selected 回退、绑定恢复独立负向回归仍待修**，继续存在离线任务。未构建安装 APK、未操作手机、未调用付费 API、未动 Issue #6、不合并、不 push main。新一轮实机需用户重新授权，既有实机矩阵不变。需要复审。
+
+
+## 第⑪轮局部更新（源码分析 + JVM；未实机）
+
+继续处理复审 `6541088857` 的 P1：绑定树中出现 `isScrollable` 时，当前唯一可见开关不再作为全列表唯一性证明，返回 BLOCKED / verified=false，且不点击开关。新增仅加载一个 08:00、另一重复对象在视口外无节点的合成树回归，保留关闭点击零次断言。TDD RED 10 tests / 1 failed；定向 `--rerun-tasks` 109 tests / 0 failed / 0 errors / 0 skipped；全量 2199 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿（AgentSkillCatalogTest 1项、MemoryStoreTest 5项；本轮未重跑旧 SHA 基线）。日志 `logs/pr4-review11-{red,targeted,full}.txt` 本地保留。
+
+这是已暴露滚动结构的失败闭合切片，**不是 P1 全部关闭**：平台不暴露 scrollable 时仍缺全列表/业务对象身份证明；应继续离线处理，不把 scrollable=false 当完整性证据。P2 恢复后同树页面证据、旧 selected 回退与绑定恢复独立负向回归尚待修复。源码/JVM 不等于实机，未构建安装 APK、未操作手机、未调用付费 API、未动 Issue #6、不合并、不 push main。新实机需用户重新授权；需要复审。
+
+
+## 第⑩轮局部更新（源码分析 + JVM；未实机）
+
+处理复审 `6541088857` 的 P1 否定结论切片：当前可见区域未找到目标，不再声称“没有这个闹钟/不用关闭”，改为“不能确认不存在，没有执行关闭”。新增未加载滚动区域目标回归：有效 RED 7 tests / 1 failed。既有 Runner 空态回归改为更保守的范围反馈断言，保留读取一次、创建零次、通用点击零次断言。最终定向 `--rerun-tasks` 108 tests / 0 failed / 0 errors / 0 skipped；全量 2198 tests / 6 failed / 0 errors / 8 skipped，exit=1，不是全绿（AgentSkillCatalogTest 1项、MemoryStoreTest 5项；本轮未重跑旧SHA基线）。日志 `logs/pr4-review10-red.txt`、`pr4-review10-targeted.txt`、`pr4-review10-full.txt` 本地保留。
+
+**仅修复不可证明不存在的播报，不关闭 P1**：可见目标仍缺全局唯一身份，关闭路径的全局唯一性防护、视口外重复目标回归仍待处理。P2 恢复后同树页面证据、移除旧 selected 回退、绑定恢复独立负向回归仍待处理。仍有离线任务，不是只能等待实机。未构建/安装 APK、未操作手机、未调用付费 API、未动 Issue #6；新实机需重新授权。需要复审，阶段1未整体通过、不合并。
+
+
+## 第⑨轮局部更新（源码分析 + JVM；未实机）
+
+继续处理审查 `6540570445`：两条错窗口恢复路径 `readClockScreen` / `verifiedClockWindow` 改为 `clickClockTab(tab)`，恢复时不再退回 contains 模糊点击。新增 VoiceActivity 窗口→重开时钟→提示卡位于真正 tab 之前的查询回归，要求点精确 tab 且不点提示卡；有效 RED 6 tests / 1 failed，修后定向 107 tests / 0 failed / 0 errors / 0 skipped（`--rerun-tasks`）。全量 2197 tests / 6 failed / 0 errors / 8 skipped，Gradle exit=1，失败仍为 AgentSkillCatalogTest 1项、MemoryStoreTest 5项；未重跑旧SHA基线，不称全绿。日志 `logs/pr4-review9-tab-red.txt`、`pr4-review9-targeted.txt`、`pr4-review9-full.txt` 本地保留。
+
+**仅完成精确重试点击切片，审查未关闭**：P1 全列表对象唯一性仍待修；P2 恢复后同树页面证据与移除旧 selected 回退仍待修，当前不能把重试点击修复等同页面身份已证明。绑定路径这次只同步同一精确点击实现，未新增该路径独立回归。未构建/安装 APK、未操作手机、未调用付费 API；设备验收仍需用户重新授权。阶段1未整体通过、不合并。
+
+## 第⑧轮局部更新（2026-10-31，源码分析 + JVM；未实机）
+
+处理最新复审 `6540570445` 的隐私日志切片：`closeAlarm` 不再向 Logcat 写目标时间/整页文本，`IntentActions.setTimer` 不再写整页文本，只保留计数与非敏感状态。新增两条实际能力调用测试，用私密标记断言 Log.i 不泄漏；分别先 RED（1/4、1/7 失败）后 GREEN。定向 106 tests / 0 failed / 0 errors / 0 skipped；全量 2196 tests / 6 failed / 0 errors / 8 skipped，Gradle exit=1，不是全绿。失败仍为 AgentSkillCatalogTest 1项 + MemoryStoreTest 5项，本轮未重跑旧SHA基线。
+
+**复审尚未全部处理**：同评论 P1 可滚动闹钟列表的全局唯一性、P2 恢复路径精确 tab 点击/新树证据仍待修复；本轮仅完成隐私切片，不能据此批准合并或声称关闭闹钟安全验收通过。未构建/安装 APK、未操作手机；新一轮实机仍需用户授权。第⑦轮设备矩阵不变。日志 `logs/pr4-review8-*-red.txt`、`logs/pr4-review8-targeted.txt`、`logs/pr4-review8-full.txt`（本地，不提交）。
+
+最后更新：2026-10-31（第⑦轮：同一窗口校验门 + 截断不再当完整 + tab 精确匹配；JVM 全量 + 真机只读复测）
+
+本轮最新状态（第⑦轮，源码分析 + JVM 单测 + 真机只读复测）：处理复审 `6539848799` 对 head `3253319` 的三项遗留。
+
+1. **P1 同一窗口校验门（已修，JVM）**：`cancelTimer` / `closeAlarm` 原来在 `openClockTab` 之后各自 `UiAutomator.root()` 扫描并绑定节点，`foregroundPackage()` 是另一次读——检查能通过，但绑定/点击用的是别的窗口的树。现两处都走 `verifiedClockWindow(ctx, tab, reach)`：返回的根**就是**通过 `packageName == com.sec.android.app.clockpackage` 校验的那个对象，并复用 `readClockScreen` 的“重开时钟 + 重选 tab”有界重试；无法确认即 `DEVICE_UNAVAILABLE`（“无法确认当前是时钟窗口”），绝不说“目标不存在”、绝不点击。点击前再加两条：被点的节点自身 `packageName` 必须是时钟；当前活动窗口仍属时钟。无坐标、无盲点。
+2. **P2 截断不再变确定结论（已修，JVM）**：`timerCountFrom` 的「添加定时器」空态标记移到截断闸门之后（截断时只有「N 个定时器正在运行」这种陈述式文本可用）；`queryAlarms` 除“截断即不可读”外，还要求页面**结构上**是闹钟列表（tab 报告选中 / 页面存在闹钟开关，新增 `ScreenRead.checkableCount` / 明确空态），世界时钟的 `H:mm` 行不再被枚举成闹钟；`closeAlarm` 在回答“没有X点的闹钟”前同样要求该证据。
+3. **tab 到达语义复核（已修，含真机证据）**：第六轮后已无“标签可见即到达”的路径（点击失败仍算 `click-failed-label-only`）。但真机复测暴露新问题：`clickText("闹钟")` 与选中态读取都用了“包含”匹配，命中了闹钟页的提示卡「对关联闹钟进行分组」——于是 tab 有时没切、且已选中的 tab 被报成未选中。现改为**精确标签优先**（`selectedState` 与新增 `clickClockTab`），包含匹配仅作回退。
+
+测试（真实执行，先 RED 后 GREEN）：`ClockWindowGateTest`(8) 在上一提交上 4 项红（外来窗口绑定计时器/闹钟、节点属于别的应用、截断下的「添加定时器」、无闹钟结构证据的时钟页），修后全绿；`ClockAlarmPageEvidenceTest`(6) 钉住新证据契约与窗口恢复；`TabSelectedStateTest` +2、`ClockWindowGateTest` +1 先红后绿（提示卡被当成 tab、tab 未被点击）。定向 101/101 通过；全量 `:app:testDebugUnitTest` **2194 tests / 6 failed / 8 skipped / 0 errors**，失败仍是既知 `AgentSkillCatalogTest`(1) + `MemoryStoreTest`(5)，**不是全绿**。
+
+真机复测（SM-F731U1 / Clock 12.5.60.27，APK SHA256 `c42d7222…d00347a`，`install -r` 后无障碍仍 Bound、`voice_interaction_service` 未改）：ALARM QUERY 3 次 → 2 次 `verified=true visible=[6:00, 7:30, 8:00, 9:20, 10:00, 11:00] tab=clicked checkables=6 rootPkg=clock`，1 次 `verified=false tab=clicked-not-selected visible=[]`（宁可拒读也不报数）；TIMER QUERY 空态 `verified=true`（`nodes=44`），自建 2 分钟倒计时后 `count=1 verified=true`（`nodes=27`）；对自建对象执行 `取消` → `BLOCKED candidates=0 complete=true`（未点击、失败闭合）；测试对象已跑完并用 `ACTION_DISMISS_TIMER` 结束，终态查询回到空态。
+
+残余：`selected` 在本机是否稳定暴露仍未确定（2/3 次读为 `tab=clicked`，1 次 `clicked-not-selected`），因此**到达判定仍非 100% 确定性**，已如实写进 `detail`；取消/关闭路径在真机仍为 BLOCKED（无「初始时长」证据），矩阵维持 通过 4 / 失败 0 / 未测 3。
+
+上一轮状态（第④~⑥轮，源码分析 + JVM）：按复审 `6539752681` 的 P2 修 `openClockTab` 的假到达——旧逻辑 `clickText(tab) || waitForText(tab, 800)` 在点击失败时只要标签还可见就算到达，而时钟四个底部标签每页都在。现拆成三个事实（导航控件存在 / 点击已投递 / 目标 tab 报告选中）：`UiAutomator.selectedState` 返回 `true / false / null`，`null`（平台不暴露选中态）与 `false`（明确未选中）不再混同；读取前用 `onTargetPage` 复核“时钟包名 + 该 tab 未报告未选中”。`closeAlarm` 不再读原始活动窗口，外来窗口一律 `DEVICE_UNAVAILABLE`，不把“读不到”说成“没有这个闹钟”。同轮按复审 `6539848799` 补齐：`closeAlarm`/`cancelTimer` 在 scan 前与 click 前各复核一次前台包名（窗口变了就拒绝、不点击），截断读取不再产生确定计数/确定空态。新增 `ClockTabReachTest`(6) + `TabSelectedStateTest`(6) + `ClockWindowBindingTest`(6)，先 RED 后 GREEN；定向 74/74；全量 2177 tests / 6 failed / 8 skipped / 0 errors（仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与基线一致，不是全绿）。第六轮同样未上机；`selected` 是否暴露当时未验证（第⑦轮已部分实测）。
+上一轮状态（第③轮，实机验证）：按 PR #4 复审 `6539505148` 先采只读证据再修。根因是**读到了 ClosePaw 自己的窗口**：`VoiceActivity` 全屏窗口中途抢焦点，`rootInActiveWindow` 变成 `ai.closepaw nodes=3`，旧代码点完 tab 固定 sleep 500ms 就读且不校验根节点包名，于是把空窗当“时钟页不可读”；次因是 `runningTimerCount` 只认「添加定时器/正在运行」，而本机空态是 `小时/分钟/秒 + 开始` 选择器、运行态是 `取消/暂停` 卡片。已按 TDD 修复并复测：ALARM QUERY `verified=true readable=true`，TIMER QUERY 1 个运行→`count=1`、清理后→0（verified=true）。构建 APK SHA256 `45e74c03…b60a2333`，install -r 后无障碍仍 Bound。矩阵：通过 4 / 失败 0 / 未测 3；计时器取消绑定、五分钟工具参数、取消不存在目标、undo 仍缺安全对象证据。
+
+更早（第②轮）：按复审 P1 做了源码级可观测性改造（`readScreen` 报告 `nodesVisited/nodesTruncated/textsTruncated/rootPkg`，`ClockControl` 报告 tab 到达方式），当时未实机、根因未定位。
+上一轮状态（第②轮）：解锁已读回 deviceLocked=0，无障碍仍Bound，安装APK哈希与2ff514f构建记录一致。两商店身份及二级页不虚报通过；时钟查询业务失败，其他4项安全条件不足未测。未重建/改源码/触碰个人时钟对象。详见 docs/phase6-stage1-device-acceptance.md 第②轮。
+
+上一轮部署记录：源码SHA 2ff514ff0b333f9dafe6947685c059fff91cf475；原APK/配置已本地备份，安装前后shared_prefs归档相同，无障碍均已绑定。未绕过锁屏、未改高风险设置、未调用付费API。详见 docs/phase6-stage1-device-acceptance.md。阶段1不是已通过，阶段2/3未推进。
 设备：Samsung SM-F731U1（Z Flip5，美版）/ Android 17（SDK 37）/ One UI 9
 状态标注约定：`实机验证` = 真机跑过且有日志；`源码分析` = 只读了代码；`未验证` = 没测过。
 
@@ -24,7 +1065,7 @@
 | 4.6 | Direct Boot 救援通道（未解锁也能被查询/拉起/播报） | 完成 | `docs/direct-boot-rescue-report.md`（实机） |
 | 4.7 | scrcpy 无线投屏 | 视频链路完成，控制注入待人工确认 | `docs/scrcpy-wireless.md` |
 | 5 | 唤醒词 + 声纹（sherpa-onnx KWS + SpeakerEmbedding） | **未开始** | — |
-| 6 | 语义闸门 + 把自研能力包成 ClosePaw ToolSpec | **未开始（已有方案）** | `docs/closepaw-reuse-review.md`（源码分析） |
+| 6 | 语义闸门 + 把自研能力包成 ClosePaw ToolSpec | **进行中（阶段 1：第③轮时钟读取已实机修好；第⑦轮同一窗口门/截断/tab 精确匹配已修，JVM 全绿定向 + 真机只读复测；取消/关闭仍 BLOCKED 未测）** | `docs/phase6-stage1-semantic-gate.md`（源码 + JVM 单测）、`docs/phase6-stage1-device-acceptance.md`（实机） |
 | 7 | GitHub 协作仓库 | 完成（本次） | 本仓库 |
 
 ## 3. 已验证可用的功能（实机）
@@ -68,8 +1109,40 @@
 
 ## 5. 正在执行的任务
 
-无进行中的开发任务。本次提交只做协作环境部署（仓库、文档、Issue 模板），不改源码、不构建 APK、
-不操作手机。下一轮功能开发需用户指定目标。
+（第64轮，离线，源码 + JVM，未实机）**PR #4 无新审查**（最新复审 `6576888477`，针对 `efd0f9c`，已于第63轮处理；其后 PR 与 Issue #3 均无新评论）。本轮**不改 `src/`**，只做两件可核实的事。**（一）核对"可离线项"是否真的都已落地**：`cancelTimer` 在取树前已走 `verifiedClockWindow`（`ClockWindowGateTest` / `ClockWindowBindingTest` / `ClockForeignWindowTest`）；"查询截断未当作不完整"由 `TimerReadTruncationTest` / `AppFeatureReadCompletenessTest` 覆盖；"计时器唯一绑定"由 `TimerCancelViewportCompletenessTest` / `TimerCancelRunningSetTest` / `ClockClickTimeBindingTest` 覆盖；"五分钟真实工具参数"由 `TimerCompoundDurationArgumentTest` / `TimerAmbiguousDurationArgumentTest` / `TimerCreateArgumentTest` 覆盖；"创建 undo 安全拒绝"由 `ClockUndoSafetyTest` / `TorchUndoConsumptionTest` / `TorchUndoDispatchTest` 覆盖。结论：这 5 条**不再是未完成项**，清单里剩下的都属实机验收、B3 交付边界或阶段 2（在线 `ToolRouter`）范畴，离线不可再推进。**（二）在当前 HEAD `a041c50` 本体跑全量 JVM**（不再引用 `efd0f9c` 的记录）：`271 classes / 2529 tests / 0 failed / 0 errors / 8 skipped`，`BUILD SUCCESSFUL in 6m 28s`，exit=0；机器汇总入仓 `docs/evidence/pr4-a041c50-junit-summary.txt` 并登记进 `sanitize_evidence.py` 的 `EVIDENCE_TARGETS`，`python docs/evidence/sanitize_evidence.py --scope all --check` **exit=0**（逐行求和与 TOTAL 行一致），`py_compile` 通过。边界：`a041c50` 相对 `efd0f9c` 是纯文档提交（4 文件 +328 行，无 `src/` 改动），跑绿只证明 JVM 单测，**不证明真机行为**；本轮未构建/未安装 APK、未操作手机（实机需用户**重新确认授权**）；`closeAlarm` 仍 BLOCKED；计时器/闹钟对象级终态仍 UNPROVEN；阶段 2 未开始；Issue #6 未并入；未合并 PR、未 push main。
+
+（第㊾轮，离线，源码 + JVM，未实机）本轮处理 **PR #4 复审 `6555010682`**（针对 HEAD `8b48f3a`，2026-11-01T07:33:17Z）的 **B1/B2 BLOCKER 与 B3 证据门槛**。**B1/B2**：手电「本来就是目标状态」时，旧成功分支只要 `confirmed && observed == on && baseline != null && baselinePreRequest`，没要求 `baseline != on`——用户自己开着的灯 → 注册回调 `baseline=true` → 说「打开手电筒」→ 同状态回调 → `SUCCESS + verified=true` → `ActionMemory` 记下可撤销 `ENABLE/TORCH` → 之后「撤销」执行 `TorchControl.set(false)` 把灯关掉（关闭方向对称）。改三层：新增 `alreadyAtTarget`（只认**可信请求前**基线，迟到基线不算）、`set()` 在基线已等于目标时**不再下发** `setTorchMode` 并返回 `alreadySatisfied`（`verified=true` + 真实 `observed` + **`dispatched=false`**）、`outcome()` 同分支（放在「事后回调报相反状态」之后并要求 `confirmed`）、`ActionMemory.recordResult` 增加 `dispatched != false` 硬条件。**B3**：首次真正跑出**同环境旧 SHA 基线**——`4d1e78d` worktree（补齐被 gitignore 的 launcher PNG 与 `res/raw`）上两个失败类 **55 tests / 6 failed / 0 errors / 0 skipped**，失败名与当前 HEAD 逐条一致，证明全量 6 项失败不是本 PR 引入。**同轮离线项**：`IntentActions.setAlarm` 的 6 s 等待用墙上时钟、且 `nextAlarm(ctx)` 丢掉 `known`，把「读不到闹钟状态」与「系统没登记闹钟」合成一句「已经打开闹钟界面，可能还需要你按一下保存」（请求带 `EXTRA_SKIP_UI=true`，可能根本没有界面）；改为单调 `awaitNextAlarm`（+ 硬读数上限，`why ∈ found/timeout/read-failed/read-cap`）并按 `lastKnown` 分措辞。TDD：新 `AlarmTriggerWaitTest`(6) 生产仅加旧行为脚手架 → **RED 6/4 failed/0 errors**（反向校时后读数实得 35562739 次、前跳后 96949444 次，期望 3 / 1）；`TorchAlreadyAtTargetTest`(6) 生产未改 → **RED 6/3 failed/0 errors**（已在目标态播「手电筒已打开」、`verified=true + dispatched=false` 的结果被记成撤销记忆）→ 实现后定向 `ai.closepaw.voice.*` **421 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊽轮 409，+12）；全量 **2511 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败名与旧 SHA 基线一致，未改未跳过）。过程中两处自造缺陷如实记录：`AlarmTriggerWaitTest` 首跑 3 条 NPE（夹具没桩 `putExtra(String, Boolean)`）；B1/B2 首版把「已满足」分支放在矛盾分支前导致 3 条既有断言变红，改顺序并把 `TorchLateRegistrationAttributionTest` 夹具补上 `baselinePreRequest`（断言未改）。边界：真实 CameraManager 是否会对重复设置同状态再发回调、`baseline` 是否可靠、`nextAlarmClock` 何时抛异常、三星时钟是否弹保存界面**均未实机**；设备矩阵维持 4 通过 / 0 失败 / 3 未测（属旧 APK/旧 SHA），本 SHA 未构建/未安装/未实测，实机需用户**重新授权**。`closeAlarm` 仍 BLOCKED；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
+（第㊻轮，离线，源码 + JVM，未实机）本轮处理 **PR #4 复审 `6553705515`**（针对 HEAD `b1355f0`，2026-11-01T05:04:05Z）的 2 条 P1 + 1 条 P2，并**更正第㊺轮的判断错误**：㊺写「本轮无新审查」，实际该复审在第㊺轮评论之前 17 分钟就已发出，是去重窗口算错漏读。**P1 暂停卡片**：`cardRunningState` 把任何「剩余/倒计时」文本或 `4 分 32 秒` 形状判为运行中，而三星暂停中的卡片保留冻结读数、按钮写「继续」而不是「已暂停」——于是暂停卡片算进 `runningProven`，页头总数（只数运行中）与 `candidates.size` 又对上，集合判为可比，视口外同时长运行卡片被忽略后照点。改为**只认状态专属证据**：精确「继续」控件 → `false`，精确「暂停」控件 / 「正在运行·计时中·倒计时中」→ `true`，纯剩余读数与 `初始时长`/`总时长` → `null`（未证明），`null` 使 `comparableSet=false` → `BLOCKED` + 零点击；不可滚动且读取未截断的 `viewportComplete` 路径不受影响。**P1/P2 手电归属**：`set()` 在 `baselineLatch` 1200 ms 超时后先 `markRequested()` 再 `setTorchMode`，迟到的注册回调会被记成 post-request → `confirmLatch` 放行 → 报「手电筒已打开」并记 `ENABLE/TORCH` 撤销记忆，之后「撤销」会关掉用户原本开着的灯。改为 `RequestTracker.sawReport`：**回调第一条事件无论多晚都只作 baseline**，第二条才可归属；`outcome` 成功分支加 `baseline != null` 硬条件，无基线即无归属、不 `verified`、不产生撤销记忆。**P2 撤销时钟**：`Entry.at`/`undo(now)` 改用单调时钟 `System.nanoTime()`，并把 `age < 0` 与超窗同判（负年龄=两个读数不在同一时间线，不能证明记忆新鲜）。TDD：新 `TorchLateRegistrationAttributionTest`(5)+`TimerPausedFrozenReadoutTest`(6)+`UndoMonotonicClockTest`(4) 先写、生产未改 → **RED 15 tests / 9 failed / 0 errors**（全为 Truth 断言失败，非编译错误）→ 实现后 **GREEN 15/15**，exit=0；定向 `ai.closepaw.voice.tools.*`+`ai.closepaw.voice.semantics.*` **397 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊺轮 382，+15）；全量 `:app:testDebugUnitTest` **2487 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过）。旧夹具按新规则收紧：两处「正在运行」控制组原先只给剩余读数，现补状态专属「暂停」控件文字，断言未放宽。边界：全为源码 + JVM 合成树/MockK 回调；三星暂停卡片真实节点结构（是否暴露「继续」、控件是文字还是 contentDescription）、手电注册事件是否总先于 `setTorchMode` 到达**均未实机**——若真实卡片两者都不给，可滚动列表上的计时器取消会一律安全拒绝；`nanoTime` 不含深度睡眠，对 120 s 窗口的偏差方向是偏宽松，已如实记录。设备矩阵维持 4 通过 / 0 失败 / 3 未测，本 SHA 未构建/未安装/未实测，实机需用户**重新授权**。`closeAlarm` 仍 BLOCKED；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
+（第㊺轮，离线，源码 + JVM，未实机）本轮 **PR #4 无新审查**（最新复审 `6553305508` 已由第㊹轮评论 `6553509252` 回复，其后无新评论），按「无新审查则推进可离线项」做遗留清单里与三处开关回读同一类的最后一块：`LocalCapabilities.btSet`。**缺陷 1（证据被丢）**：`btSet` 读 `a.isEnabled` 后置 `verified=true`，但 `observed` 一直为 null；解析器为「打开蓝牙」声明 `expectedState="on:BLUETOOTH"`、`targetIdentity="bluetooth"`，第㉔轮起的 `TerminalState` 要求结构化证据，于是**真读回成功**的蓝牙开关被判 `UNPROVEN` 并改写成「请求已经发出，但没能确认结果」。**缺陷 2（一次读当定论）**：`BluetoothAdapter.enable()/disable()` 是异步的，返回 true 只代表流程已开始；旧代码下一行立刻读 `isEnabled`，读到旧值就播「Android 不允许普通应用直接切换蓝牙」并打开设置——把未稳定的采样说成平台限制；`SecurityException`（缺 `BLUETOOTH_CONNECT`）也被 `runCatching` 吞进同一分支，权限问题被说成平台不允许。**改法**：新增 `awaitState` 有界只读轮询（150 ms 步长 / 1200 ms 上限，不重发请求）；读到目标值 → `SUCCESS + verified=true + ObservedState("bluetooth","on"/"off") + dispatched=true`；接受请求但未稳定 → `SUCCESS + verified=null + dispatched=true` + 「已经请求…但没能在 1 秒内看到状态变化，请在设置里确认」；API 返回 false 保留 `SYSTEM_RESTRICTED` 平台限制措辞；`SecurityException` 改为 `PERMISSION_DENIED` + 权限措辞；`before == 目标` 路径补 `observed` 且 `dispatched=false`。TDD：新 `BluetoothReadbackEvidenceTest`(9) 先写、生产未改 → **RED 9 tests / 7 failed / 0 errors**（全为断言失败，非编译错误：端到端判 `NOT_APPLICABLE`、permission 实得 `SYSTEM_RESTRICTED`、`observed=null`、`[false,false,true]` 实得 `SYSTEM_RESTRICTED` 且播报含「不允许」、未稳定实得 `verified=false`；2 条控制组本就通过）→ 实现后 **GREEN 9 / 9**，exit=0；定向 `ai.closepaw.voice.*` **382 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊹轮 373，+9）；全量 `:app:testDebugUnitTest` **2472 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，未重跑旧 SHA 基线）。边界：夹具是 MockK 合成的 adapter，只证明 `btSet` 内部契约；目标机（SM-F731U1 / Android 17）上 `enable()/disable()` 是否被直接拒绝、真实稳定时间、`BLUETOOTH_CONNECT` 授权状态、`ACTION_BLUETOOTH_SETTINGS` 跳转**全部未实机**；`btState` 查询不承诺终态故未加 `observed`；撤销仍只覆盖手电，对蓝牙说「撤销刚才的操作」继续是安全拒绝。设备矩阵维持 4 通过 / 0 失败 / 3 未测，本 SHA 未构建/未安装/未实测，实机需用户**重新授权**。
+
+（第㊷轮，离线，源码 + JVM，未实机）本轮处理 **PR #4 新复审 `6552469328`**（针对 HEAD `4d23e5c`，2026-11-01T02:43:31Z）的 3 条意见。上一轮（㊶）把它误判成「无新审查」，实际是复审与㊶评论几乎同时到达后漏读——本轮更正并补上。**P1/P2 点击身份**：`featureControlOnce` 仍保留 `direct.size == 1` 优先返回，即「自身标签精确」仍能直接胜出；可点击帮助卡片自身 `text="扫一扫"`、真入口 `contentDescription="扫一扫，打开相机"` 时，前者被点。这和第㊵轮修的是同一个错误的下一层：精确文本不是业务身份，而 resource-id/类名/角色在没有真机证据前都不带业务语义。改为**只有唯一可点击目标才点**，两个不同可点击控件都答得上名字即 `ambiguous` 并零点击（`direct` 层删除）。真实代价：入口旁只要有可点帮助卡片就一律拒点，这条可用性损失如实记录，不做调参。**P2 动作边界的身份绑定**：`featureControlOnce` 只重查包名与候选数，同包同窗口换页后 B 页若有唯一同名控件仍会被点。新增 `UiAutomator.clickIdentityMiss`，按序核对 target 的 `viewIdResourceName`、`className`（角色）、label、两次 root 的 `windowId`，以及**页面结构指纹** `pageSignature`（按遍历序拼接每节点 class+viewId，**不含任何文本**，因此计时器跳动不会破坏它；撞 600 节点预算则返回 null 视为不可证）；任一不成立即 `DEVICE_UNAVAILABLE`、`detail` 记 `beyond-scan-identity=<原因>`、零点击。`AppNavigator` 在点击前插入此闸。边界写清：结构指纹是**反换页证据而非页身份证明**，同骨架同 id 的两页会碰撞；无 view-id 的界面（Compose/WebView）只剩 class+label 一层，弱于资源 id；真实 App 是否暴露这些信号**未验证**。**P2 测试有效性**：`SemanticExecutionTest` 桩住的是 `featureControl(String…)` 重载，生产走 `List<String>` 重载，所以「not-found」从未注入、测试以错误原因通过。改为 `capture` 桩 `List<String>` 重载并 `verify(exactly = 1)` + 断言捕获到「扫一扫」，证明别名集真的到达了真实重载。TDD 与实跑：新 `AppFeatureClickBindingTest`(7) 先写、生产未改 → **RED 17 tests / 5 failed / 0 errors**（Truth 断言失败，非编译错误：帮助卡片自身精确 1、`扫一扫设置` 对照 1、换页 1、资源 id 变化 1、windowId 变化 1；2 条控制组本就通过）；实现后同组 **GREEN**，随后 `ai.closepaw.voice.semantics.*` **252 tests / 0 failed / 0 errors / 0 skipped**（exit=0）；定向 `ai.closepaw.voice.*` **355 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊶轮 348，+7）；全量 `:app:testDebugUnitTest` **2445 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，未重跑旧 SHA 基线）。旧断言按新规则收紧而非放宽：`AppFeatureIdentityTest`、`AppFeatureControlAmbiguityTest` 里两条「精确标签胜出」改为断言 ambiguous + 双方零点击；两条只给桩控制、未给身份信号的夹具补上 viewId/className 与 window 快照（否则新闸会一律拒绝，测试将以错误原因变红）。边界：全部为源码 + JVM 合成树；三星微信/时钟真实资源 id、可点击帮助卡片是否存在、`windowId` 在同 Activity 换 Fragment 时是否变化、结构指纹在真实大页面上的截断率**均未实机**；本 SHA **未构建、未安装、未实测**，实机需用户**重新授权**。`closeAlarm` 仍 BLOCKED；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。本轮持 `O_CREAT|O_EXCL` 写者锁，结束仅删自有锁；未 push main、未合并。
+
+（第㊶轮，离线，源码 + JVM，未实机）本轮 **PR #4 无新审查**（最新复审 `6551941593` 已由评论 `6552207011` 回复，其后无新评论），按「无新审查则推进可离线项」推进任务清单里的**计时器唯一绑定**剩余一半。**缺陷**：`ClockControl.cancelTimer` 把 `complete`（只在 800 节点预算耗尽时才为 false）当作候选全集，`isScrollable` **从未读过**——同文件的 `closeAlarm` 早已把可滚动列表判为「不是全列表」直接 BLOCKED。可滚动计时器列表里视口下方可能还有一张同时长卡片：手机真有两张 5 分钟倒计时时，旧代码只看见一张，`matching.size == 1` 通过，点掉视口那张并播「已请求取消指定倒计时」。**改法**：区分「页面声明的总数」与「视口卡片数」——`statedTotal = timerCountFrom(boundTexts, truncated = !complete)`；`viewportComplete = complete && !scrollable`；`coveredByPageTotal = statedTotal >= 0 && candidates.size >= statedTotal`；两者都不成立才 `BLOCKED` + 零点击，措辞按事实分「列表可以滚动」/「读取被截断」两种，`detail` 记 `complete/scrollable/stated`。这样可滚动但页面给了总数且绑定数覆盖时仍能取消，不是一刀切拒绝。TDD：新 `TimerCancelViewportCompletenessTest`(5) 先写、生产未改 → **RED 5 tests / 2 failed / 0 errors**（`expected: BLOCKED but was : SUCCESS`，旧代码在两种情形下真的点了取消；3 条控制组本就通过）；实现后 **GREEN 5/5**，exit=0。定向 `ai.closepaw.voice.*` **348 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊵轮 343，+5）；全量 `:app:testDebugUnitTest` **2438 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，未重跑旧 SHA 基线）。边界：真机三星定时器页是否上报 `isScrollable`、页头「N 个定时器正在运行」实际文案是否只统计运行中，**均未验证**；若上报可滚动却从不给总数，`cancelTimer` 会全部拒绝（真实可用性代价）；「卡片数 ≥ 总数」只证数量覆盖、不证绑定对象就是用户说的那个，回读仍是 `UNPROVEN`；夹具是我自建的合成树。`closeAlarm` 仍 BLOCKED（安全拒绝）；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。本轮未构建/安装 APK、未操作手机、未调用付费 API、未合并 PR、未 push main。
+
+（第㊳轮，离线，源码 + JVM，未实机）按新复审 `6551213132`（针对 HEAD `86e9830`，2026-11-01T00:19:03Z）处理 1 条 P1 + 1 条 P1/P2 + 1 条 P2。**P1 时长参数完整性**：`ChineseTime.durationSeconds` 每类正则只 `find` 一次、消费后不检查剩余文本，于是「五分钟或者十分钟」→300 s（「或者十分钟」没读）、「十分钟和一分钟」→600 s（第二个被丢）、「一个半分钟」→30 s（`半分钟` 抢先命中，留下「一个」，本意 90 s）。现在新增 `($NUM)个?半(?:分钟|分)` 复合形（一个半分钟=90、两个半分钟=150），排在裸 `半分钟` 前；并把墙钟形 `N点(M)` 先剥掉，再用 `RESIDUAL_DURATION`（`N+小时/钟头/分钟/分/秒`）检查残留——只要还剩第二个时长就返回 `null`，调用方追问。`IntentGate` 用同一函数，所以下游拦不住，负向断言落在**工具入参**上。**P1/P2 点击前窗口归属**：`launch` 的前台验证在读屏之前，读屏只查 `serviceAvailable`，随后 `findNode(feature)` 在活动窗口里按包含匹配取首个节点、点完才查前台。新增 `UiAutomator.featureControl(pkg,text,timeout): FeatureLookup(control, why)`——root 包名必须等于目标包，命中节点自身也必须同包且 `isVisibleToUser`，点击目标取标签自身或**同包内**最近可点祖先（跳数有上限、不越窗口根），失败返回具名原因 `window-not-target(pkg)`/`not-found`/`label-not-clickable`/`no-window`；`openFeatureResolved` 读屏后先比对 `before.rootPackage`，不符即拒绝，命中后只对绑定节点 `performAction(ACTION_CLICK)`，不再用会父级上溯/坐标兜底的 `UiAutomator.click`。**P2 截断时的「找不到」**：`control == null` 且 `before` 被截断时改播「屏幕读取被截断，没法确认有没有X」，完整读取才保留「界面上没有找到X」。TDD：新 `ChineseTimeAmbiguityTest`(10)+`AppFeatureWindowIdentityTest`(6)+`TimerAmbiguousDurationArgumentTest`(3) 先写、生产未改 → **RED 19 tests / 14 failed / 0 errors**（断言失败非编译错误，6 条控制组本就通过）；实现后 GREEN，exit=0。定向 `ai.closepaw.voice.*` **315 tests / 0 failed / 0 errors / 0 skipped**（exit=0，第㊲轮 296，+19）；全量 **2405 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（仍为既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过）。两处自身问题如实记录：窗口用例复用同一份读屏桩导致走成 TIMEOUT（改为第二次读有新文本）；截断措辞初版含「没有找到」与 `doesNotContain("没有找到")` 冲突，改的是生产句子而非断言。`SemanticExecutionTest` 与 `AppFeatureReadCompletenessTest` 的原断言未改，只补新路径所需桩。边界：真机上 `root.packageName`/`isClickable`/`isVisibleToUser` 的表现、权限弹窗与分屏场景全部**未实机**；`openFeature` 完整读取下仍只播「界面有变化，但没能确认已经进入」、`verified=null`；`closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。本轮未构建/安装 APK、未操作手机、未调用付费 API、未合并 PR、未 push main。
+
+（第㊲轮，离线，源码 + JVM，未实机）本轮**无新审查**（最新复审仍是 `6550162379`，已由评论 `6550446557` 回复；其后 PR 无新评论），按「无新审查则推进可离线项」继续第㊱轮同一类问题——**把「我没采到」讲成「它不在」**，本轮落到剩下两个出口。**其一 `IntentActions.setTimer`**：发完 `ACTION_SET_TIMER` 后只读一次屏（`readScreen(80)`，上限 600 节点 / 80 文本），撞上限时 `countdown` 仍算 `false`，于是播「我在时钟界面里没看到倒计时」——用不完整采样断言时钟 UI。改为三态：找到运行证据→`true`；页头明确「0 个定时器正在运行」→`false`（显式 0 是关于页面的肯定证据，截断不能抹掉）；读取被截断→`null`；完整读取且没找到→`false`。新增 `pageOk && countdown==null` 分支：「…但屏幕读取不完整，没法确认新倒计时是否开始」，`verified=null`，`detail` 记 `countdown-ui=unknown readClipped=…`。**其二 `IntentActions.showAlarms`**：旧的 `runCatching{}.getOrNull()` 把「`nextAlarmClock` 返回 null」和「调用抛异常」合成同一个 null，两者都播「现在没有设置闹钟」且 `verified=true`——读到 null 只证明**当前没有已启用的闹钟**（禁用中的闹钟读出来一样），抛异常则是**读失败被说成空手机**。新增 `nextAlarmProbe(ctx): NextAlarm(info, known)`，`nextAlarm(ctx)` 保留原签名（`= probe.info`）不动其他调用方；播报改为读不到→「读不到系统的闹钟状态，没法确认有没有闹钟」+`verified=false`，读到 null→「系统里没有下一个已启用的闹钟」，`detail` 加 `nextKnown=`。TDD：新 `TimerReadTruncationTest`(5) + `AlarmAbsenceWordingTest`(3) 先写、生产未改 → **RED 8 tests / 4 failed / 0 errors**（Truth 断言失败，非编译错误；文本截断、节点截断、闹钟 null 措辞、闹钟读取失败各 1；4 条控制组本就通过）；实现后同组 + `TimerDiagnosticsEvidenceTest` **GREEN，exit=0**；定向 `ai.closepaw.voice.*` **296 tests / 0 failed / 0 errors / 0 skipped**（exit=0，上轮 288，+8）；全量 `:app:testDebugUnitTest` **2386 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，未重跑旧 SHA 基线）。过程中一次假失败：前台命令被 180 s 截断后残留 Gradle/Kotlin 守护进程占住 `R.jar`，`processDebugResources` 报 `Couldn't delete R.jar`；停守护进程并删文件后干净重跑，上面的数字来自重跑。边界：「完整」仍只指没撞上 600 节点/80 文本预算，不等于看到整屏（可滚动/虚拟化列表仍可能没枚举完）；`showAlarms` 现在**不再枚举闹钟列表**、也不再宣称「没有设置闹钟」，禁用中的闹钟仍需 `ClockControl.queryAlarms` 或后续全列表枚举；真机截断率、三星时钟节点规模、`nextAlarmClock` 何时抛全部**未实机**。`closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。本轮未构建/安装 APK、未操作手机、未调用付费 API、未合并 PR、未 push main。
+
+（第㊱轮，离线，源码 + JVM，未实机）本轮**无新审查**（最新复审仍是 `6550162379`，HEAD `1a77501`，已由评论 `6550446557` 回复；其后无新评论，HEAD 维持 `af8e901`），按「无新审查则推进可离线项」处理遗留清单里的**「查询结果截断未当作不完整」**，落点是 `AppNavigator.openFeatureResolved`（打开 App 内功能）：它判定「进了那个页面」用的是 `UiAutomator.screenTexts(120)`——`readScreen` 的投影，`textsTruncated`/`nodesTruncated`/`serviceAvailable` 在投进去时被丢掉。于是三个无证据结论都能出口：(a) 两次截断样本做集合差非空就播「界面有变化」（差集里的文本可能本来就在，只是上次没采到）；(b) 两次采样相同就播「界面没有明显变化」并返回 `TIMEOUT`（变化可能落在没走到的部分）；(c) 无障碍服务不可用时 `readScreen` 的空投影被播成「界面上没有找到X」，这是对 App UI 的断言，而事实是看不到 UI。改法：`before`/`after` 改取完整 `ScreenRead`，新增 `incompleteWhy()` 给出具名原因（`before-truncated`/`after-a11y-down`/`after-truncated`，全完整才 null），判定顺序改为「跳出 App（`EXECUTION_ERROR`，前台包名证据不受文本读取影响）→ 读取不完整（`SUCCESS` + `verified=null` + 「点了X的F，但屏幕读取不完整，没法确认是否进了那个页面」，`detail` 记两次读取的 `texts/nodes/truncated/pkg`）→ 有变化（原句，`verified=null`）→ 无变化（`TIMEOUT`）」；`serviceAvailable=false` 直接 `DEVICE_UNAVAILABLE` +「无障碍服务不可用，看不到X的界面」。既有断言一条未放宽，控制组播报不变。TDD：新 `AppFeatureReadCompletenessTest`(6) 先写、生产未改 → **RED 6 tests / 3 failed / 0 errors**（Truth 断言失败，非编译错误；3 条控制组本就通过；首跑还有 1 条失败是我自己控制组断言写错——原句含「已经进入」而断言用的是 `doesNotContain("已经进入")`，改的是测试断言不是生产句子，如实记录）；实现后 **GREEN 6 / 6**，exit=0。定向 `ai.closepaw.voice.*` **288 tests / 0 failed / 0 errors / 0 skipped**（exit=0，上轮 282，+6）；全量 `:app:testDebugUnitTest` **2378 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，未重跑旧 SHA 基线）。边界：「完整」只指没撞上 600 节点/120 文本预算，**不等于看到整屏**（可滚动/虚拟化列表仍可能没枚举完）；真机截断率、各 App 节点规模、无障碍被杀表现全部**未实机**；完整读取下 `openFeature` 仍只播「界面有变化，但没能确认已经进入」、`verified=null`，没有新增对象级证据。`closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。本轮未构建/安装 APK、未操作手机、未调用付费 API、未合并 PR、未 push main。
+
+（第㉟轮，离线，源码 + JVM，未实机）按 PR #4 新复审 `6550162379`（针对 HEAD `1a77501`，2026-10-31T22:46:52Z）处理 2 条 P1，**没有合并、没有构建或安装 APK、没有操作手机**。**P1-1 手电证据无法归因**：`onTorchModeChanged` 把**每个**事件（包括注册回调时 CameraService 推送的初始态）写进 `observed`，`set()` 也把 `confirmed` 丢掉、`outcome` 只看 `observed == on` 就返回 `verified=true`；于是「本来是开着的」能说成「我打开了」，请求后又收到 `onTorchModeUnavailable` 也照样报成功，新结构化 `observed` 还把假成功升格成 `TerminalState` 的 `CONFIRMED`。改法：新增 `TorchControl.RequestTracker` 明确归属契约——`markRequested()` 之前的事件只作 baseline、绝不当结果；`onTorchModeUnavailable` 只在请求后才有意义；`set()` 先有界等待 baseline（`BASELINE_TIMEOUT_MS=1200`）再 `setTorchMode`，把 `confirmed && tracker.confirmed` 交给 `outcome`；`outcome` 现在 `unavailable` 一律优先（成功之后又 unavailable 也不报成功），无 post-request 确认即 `TIMEOUT` + `verified=null` + 无 `observed`。**P1-2 时长解析**：`半分钟`→1800 s、`一个半小时`→1800 s、`1.5小时`→18000 s 三个口语仍在（`IntentGate` 用同一解析器交叉比较，两侧一起错所以拦不住）。`ChineseTime.durationSeconds` 改为**按整段短语消费**：优先复合形（`N个半小时`、`N小时半`、`半分钟`、`N分半`），数字支持小数，消费过的片段从待匹配串里移除，无法读出的数词整句返回 `null`（追问答话，不给后缀读数）。TDD：新 `ChineseTimePhraseUnitTest`(5) + `TimerCompoundDurationArgumentTest`(3，真实 `parse → 能力表 → IntentGate → SemanticRunner → ClockControl.createTimer` 入参) + `TorchAttributionTest`(9)，先写测试、只加 `confirmed/baseline` 参数与 `RequestTracker` 骨架（行为仍旧）：**RED 31 tests / 12 failed / 0 errors**，全部 Truth/MockK 断言失败，无编译错误（`ChineseTimePhraseUnitTest` 4/5、`TimerCompoundDurationArgumentTest` 3/3、`TorchAttributionTest` 5/9；控制组 `ChineseTimeDurationTest` 4/4、`SwitchReadbackEvidenceTest` 10/10 本就应绿）；实现后同组 **34 / 34 GREEN，exit=0**。定向 `ai.closepaw.voice.*` **282 tests / 0 failed / 0 errors / 0 skipped**（exit=0，上轮 265，+17）；全量 `:app:testDebugUnitTest` **2372 tests / 6 failed / 0 errors / 8 skipped**，Gradle **exit=1，不是全绿**（失败仍是既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过，本轮未重跑旧 SHA 基线）。边界：手电回调真实时序（JVM 无 Looper）、Wi-Fi 既有回读、三星时钟是否接受这些秒数全部**未实机**；`closeAlarm` 仍 BLOCKED（安全拒绝）；计时器创建/取消对象级终态仍 UNPROVEN；在线 `ToolRouter` 同门禁（阶段 2）未开始；Issue #6 未并入。
+
+（第㉘轮，离线，源码 + JVM）按新复审 `6547564219`（HEAD `cdf52b1`）修 1 条 P1 + 2 条 P2。先更正：上一轮文末写「最新已审 SHA 为 `2048f6d`」是错的，`6547520665` 已审 `67fa299`、`6547564219` 已审 `cdf52b1`，本轮按后者推进。**P1**：`TerminalState.enforce` 此前只改写 `Action.OPEN` 的 UNPROVEN，`CREATE/CANCEL/SET` 的 UNPROVEN 仍原样返回 `SUCCESS + verified=true` 和「已完成」句；现在所有承诺终态的动作在 UNPROVEN 且 `verified=true` 时统一改写为「请求已经发出，但没能确认结果，请你看一眼」、`verified=null`、`detail += "; postcondition=unproven(no object evidence)"`，幂等。**P2-1**：`IntentActions.setTimer` 不再用 `screenTexts` 把任意屏文本当证据，改为 `readScreen(80)` 并只在「同一次读回 `rootPackage == com.sec.android.app.clockpackage` 且 `selectedTabs["定时器"] == true`」时给出 `countdown-ui=true|false`，否则 `countdown-ui=unknown`（`page=unconfirmed`）——`ACTION_CLICK` 返回 true 只是动作投递，VoiceActivity 抢焦点是历史实证。**P2-2**：`contains("定时器正在运行")` 曾把「0 个定时器正在运行」判成运行中；改为解析 `(\d+)\s*个\s*定时器正在运行` 并要求 `N > 0`，显式 0 为 `countdown-ui=false`。TDD：新 `TerminalUnprovenMutationTest`(7) + `TimerDiagnosticsEvidenceTest`(6) 对旧实现 **RED 13 tests / 6 failed**（均为 Truth 断言失败，非编译错误），修后同组 13/13；定向 `voice.semantics.*` + `voice.tools.*` **219 tests / 0 failed / 0 errors / 0 skipped**（exit=0）；全量 **2309 tests / 6 failed / 0 errors / 8 skipped**（exit=1，**不是全绿**，失败仍为既知 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，未改未跳过）。未实机、未构建安装 APK；三星真实 tab 条身份与 `selected` 暴露仍待用户重新授权；`closeAlarm` 仍安全拒绝；`observed` 生产者、在线 `ToolRouter` 同门禁（阶段 2）仍未做。
+（第㉗轮，离线，源码 + JVM）无新审查（最新已审 SHA 为 `2048f6d`，其 P1、P2 第 2 条已在第㉖轮修完），本轮推进上轮文末明确列为「未做」的复审 `6546660320` P2 第 3 条：`IntentActions.setTimer` 切定时器页用的是 `UiAutomator.clickText("定时器")`——包含匹配 + 可点祖先上溯 + 坐标兜底，绕开了 `ClockControl.clickClockTab` 的全部约束。新增 `UiAutomator.clickClockNavTab(tab)`（root 必须时钟包 → 精确标签的导航栏控件 → 控件/容器同属时钟包 → 只 ACTION_CLICK），`ClockControl.clickClockTab` 改为委托它（单一实现），`setTimer` 只在 `tab=clicked` 时把屏幕文本当证据，否则写明 `tab=no-verified-tab-control|refused` 且不误点。TDD 新 `TimerTabNavigationSafetyTest`(4) 对旧实现 **RED 4/4**（断言失败，非编译错误），修后 4/4；定向 206 tests / 0 failed / 0 errors / 0 skipped（exit=0）；全量 2296 / 6 failed / 0 errors / 8 skipped（exit=1，不是全绿，失败仍为既知两类，未改未跳过）。未实机：三星真实 tab 条是否满足导航栏启发式未验证；业务回读、在线 `ToolRouter` 同门禁（阶段 2）、正文双标签卡片身份仍未完成。
+（第㉕轮，离线，源码 + JVM）无新审查（最新 reviewed SHA 仍是 `2212ed6`），本轮推进「计时器唯一绑定」的**点击时**一半：`cancelTimer` 的绑定只在扫描时证明过，点击的却是扫描时握住的 `AccessibilityNodeInfo`。新增 `ClockControl.clickTargetProblem`，`ACTION_CLICK` 前按序核对前台 root 是时钟、`node.refresh()` 存活、刷新后包名仍是时钟、`isVisibleToUser`、`isClickable`、`node.windowId == freshRoot.windowId`，任一不成立即 `DEVICE_UNAVAILABLE` + 零点击（不走 `UiAutomator.click` 兜底）。TDD 新 `ClockClickTimeBindingTest`(5) 对旧 head 有效 RED 4/5（另 1 条为控制组），修后 5/5；定向 188 tests / 0 failed / 0 errors / 0 skipped（exit=0）；全量 2278 / 6 failed / 8 skipped（exit=1，不是全绿，失败仍为既知两类，未改未跳过）。同时把 `/src/closepaw/logs/` 加入 `.gitignore`。未实机：`refresh()` 与 `windowId` 在该 ROM 的真实语义未验证；业务回读、在线 `ToolRouter` 同门禁（阶段 2）、正文双标签卡片身份仍未完成。
+（第㉔轮，离线，源码 + JVM）把复审长期挂着的「`expectedState` 通用终态校验」落成 `TerminalState` 证据分级契约（CONFIRMED / UNPROVEN / CONTRADICTED），在 `SemanticRunner` 的返回边界统一执行：变更类任务回读与期望不一致的 SUCCESS 一律降级为 `EXECUTION_ERROR`，查询与拒绝类不改写；同时用 `ToolResult.sentWithoutProof`（`verified=null`）替换 11 处「只投递 Intent / 只点控件」却标 `verified=false` 的假「已确认未变」。定向 183/0/0/0，全量 2273 / 6 failed / 8 skipped（exit=1，不是全绿，失败仍为既知两类，未改未跳过）。未实机；真正的业务回读（对象存在性/计数）、在线 ToolRouter 同门禁（阶段 2）、正文双标签卡片身份仍未完成。
+（第⑳轮，离线，源码 + JVM）按 PR 评论 `6544037799`（第⑱轮复审）要求补的负向夹具，并修掉夹具暴露出的真实误点击：内容页（`闹钟` 段标题 + 可点 `定时器` 设置行）此前被当成导航栏，`clickClockTab("定时器")` **真的返回 true 并投递了 ACTION_CLICK**（RED 实测 `expected null but was true`，detail `tab=clicked`）。`UiAutomator.isNavBar` 现再加两条有界规则：导航栏不得位于滚动容器内；每个 peer 标签必须各自拥有栏内点击目标且不得共用（同一可点卡片里的两个标签不成 tab）。`labelDepths` 改为 `labelNodes`+`depthBelow`（父链证明标签真在该栏内）+`clickUnit`+`insideScrollable`。新增 `ClockContentLabelGateTest`(7)：内容页两个标签的零点击、滚动列表内 tab 形容器、真导航条控制组、`queryTimers`/`queryAlarms`/`cancelTimer`/`closeAlarm` 四个入口的拒绝与零动作。TDD：新测试在旧实现上 RED 4/7（其中 2 条是 `navControl`/`clickClockTab` 误判，2 条是入口层误报 `tab=clicked`）；修后 7/7 绿。旧夹具把 tab 标签写成不可点，与新规则冲突（16 项失败），按真实 UI 补 `isClickable=true`（断言未删未弱化）。定向 `voice.semantics.*`+`voice.tools.*` **151 tests / 0 failed / 0 errors / 0 skipped**；全量 **2241 tests / 6 failed / 8 skipped / 0 errors**，exit=1，不是全绿（失败仍为 `AgentSkillCatalogTest` 1 + `MemoryStoreTest` 5，与基线同类，未改未跳过）。仍是 JVM 合成树，`isNavBar` 依旧是**启发式**；三星真实 tab 条是否满足「栏内每标签有可点单元」「栏不在滚动容器内」需用户**重新授权**的实机验证。未构建/安装 APK、未操作手机、未调用付费 API、不合并。
+（第⑲轮，离线）按 PR 评论 `6544037799` 前一轮（`56fd90b` 复审）的两条 P2：(1) `navControl` 的向上爬改为有界 `isNavBar`（非窗口根、peer 标签深度极差 ≤1、容器 ≤40 节点、≥2 peer 标签，缺证据返回 null）；(2) `clickTabControl` 进入循环先判容器即拒绝，容器永不作为点击目标。TDD RED 6/5 → 绿；定向 144/0，全量 2234 / 6 failed / 8 skipped。源码 + JVM，未实机。
+（第⑱轮，离线）按 PR 评论 6543364579 第 2/3 条：导航点击改为 `UiAutomator.clickTabControl`（只对导航栏内的 tab 控件/可点击祖先做 ACTION_CLICK，取消通用 click 的父级上溯与坐标手势兜底）；`selectedState` 现在要求精确标签位于可识别导航栏（同祖先子树 ≥2 个时钟 tab 标签）内，并把选中读取限定在控件→容器区间，同包非导航同名节点不再能当页面身份。TDD 有效 RED 6/5（旧实现），最终定向 137/0，全量 2228 tests / 6 failed / 8 skipped（exit=1，不是全绿，既知两类失败）。源码 + JVM，未实机。
+（第②轮，历史）按 PR 复审 `IC_kwDOVdfNwc8AAAABhcjt_A`（P1 先定位时钟 UI 读取失败 / P2 文档区分轮次）做了两件事：P2 订正 `docs/phase6-stage1-device-acceptance.md`（标题与轮次索引，历史第一轮不再冒充当前）；P1 只做源码级诊断，把 tab 到达方式与读屏边界暴露到 `detail`，定向 JVM 54/54 通过（含 6 条新增诊断用例，RED→GREEN 分段记录）。时钟 UI 读取失败**未定位根因**，需一次用户授权的只读运行采集前台包/根节点/是否截断/行文本形状。未实机、未装包、未推进阶段 2/3。
+上一轮按 PR 评论 6538790664 修复 undo 误取消既存对象：统一结果准入，时钟创建无本轮对象身份及身份绑定逆操作时不能安全撤销，移除时长/时分 undo；新尝试清除旧记忆。闹钟查询区分无下个已启用、可见非空（可能含关闭项）、明确空态、UI不可读。定向 JVM 48/48；全量 2138 tests / 6 failed / 8 skipped / 0 errors，未实机、未推进阶段2/3。
+上一轮按 PR 评论 6538288842 修复新建倒计时/闹钟的假验证：既存对象不作为本次创建证明，缺少唯一目标回读则 verified=false；删除闹钟反馈不再把点击说成关闭完成。定向 JVM 42/42；全量 2132 tests / 6 failed / 8 skipped / 0 errors，失败类仍为 AgentSkillCatalogTest / MemoryStoreTest。未实机、未推进阶段 2/3。
+上一轮：Issue #3 / PR #4 在 `feat/semantic-gate` 修复审查：ALARM CANCEL 可达、计时器取消保留时长并绑定唯一对象、一般 APP 必须用安装清单核对原话与实际包名。相关 JVM 回归 38/38；全量 2128 tests / 6 failed / 8 skipped。隔离修复前 head `4d1e78d` 复跑两个失败类 55 tests / 同样 6 failed，失败名称集合一致，未弱化断言。
+`expectedState` 未被通用终态验证器执行；取消 mutation 无最终业务回读时 `verified=false`。计时器适配仅 JVM fixture 验证，未知三星真实 UI 会拒绝，不能宣称已可用。阶段 1 待审查/设备验收。
+（该句属第②轮范围：当时未构建 APK、未上机；第③轮已构建并实机复测，第④轮又回到未实机。）普通代码修复已获自动推进授权，阶段 1 实机回归仍需单独授权，阶段 2（ToolSpec 适配）未在本次完成。
+细节与验收对照见 `docs/phase6-stage1-semantic-gate.md`。
 
 ## 6. 代码现状（与上游的关系）
 
