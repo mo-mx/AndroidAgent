@@ -85,4 +85,25 @@ class TimerCountShapeTest {
         // Text that both a running and a paused card carry decides nothing.
         assertThat(ClockControl.cardRunningState(listOf("5 分钟", "4 分 50 秒", "取消"))).isNull()
     }
+
+    // ── device shape 2026-11-03: the empty timer tab *is* the creation picker ──
+
+    @Test fun `the creation picker proves zero running timers`() {
+        assertThat(
+            count(
+                "更多选项", "小时", "分钟", "秒", "0 小时 30 分钟 0 秒钟", "开始",
+                "未选中, 预设定时器, 10 分钟 , 双击即可激活",
+            )
+        ).isEqualTo(0)
+    }
+
+    @Test fun `a timer card control anywhere disables the picker rule`() {
+        assertThat(count("小时", "分钟", "秒", "预设定时器", "取消")).isEqualTo(-1)
+        assertThat(count("小时", "分钟", "秒", "预设定时器", "10 分钟", "9 分钟 01 秒钟", "暂停")).isEqualTo(-1)
+    }
+
+    @Test fun `a truncated picker read stays unknown`() {
+        assertThat(ClockControl.timerCountFrom(listOf("小时", "分钟", "秒", "预设定时器"), truncated = true))
+            .isEqualTo(-1)
+    }
 }

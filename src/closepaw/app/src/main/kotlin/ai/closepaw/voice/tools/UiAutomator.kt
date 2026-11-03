@@ -881,7 +881,10 @@ object UiAutomator {
      * `null` = no verified tab control, `false` = a control exists but the click was refused.
      */
     internal fun clickClockNavTab(tab: String): Boolean? = runCatching {
-        val r = root() ?: return@runCatching null
+        // A missing accessibility root is *not* "the page has no tab control": reporting null there
+        // lets callers treat it as a strip-less page and press BACK. No root means no click was even
+        // attempted, so answer false.
+        val r = root() ?: return@runCatching false
         if (r.packageName?.toString() != CLOCK_PKG) {
             Log.i(TAG, "navTab($tab): refused, rootPkg=${r.packageName}")
             return@runCatching false

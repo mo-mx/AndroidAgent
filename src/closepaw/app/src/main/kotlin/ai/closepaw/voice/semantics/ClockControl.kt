@@ -249,8 +249,25 @@ object ClockControl {
         if (truncated) return -1
         val trimmed = texts.map { it.trim() }
         if (trimmed.any { t -> emptyTimerSentences.any { s -> t.contains(s) } }) return 0
+        // Device evidence (2026-11-03, One UI 9 / Clock 12.5.60.27): with no timer running the tab
+        // opens on the creation picker (小时 / 分钟 / 秒 + 预设定时器 presets) and there is no header
+        // sentence at all. Recognizing that shape as "zero running" is read-only evidence about this
+        // page, not a guess about unseen cards: the picker only appears when nothing is counting down,
+        // and the rule refuses as soon as any running/stopped card control is present.
+        if (looksLikeTimerCreator(trimmed)) return 0
         return -1
     }
+
+    /** The timer-creation picker: duration selectors + presets, and no timer card controls. */
+    private fun looksLikeTimerCreator(texts: List<String>): Boolean {
+        if (texts.any { t -> cardMarkers.any { m -> t.contains(m) } }) return false
+        val hasPresets = texts.any { it.contains("预设定时器") }
+        val selectors = listOf("小时", "分钟", "秒").count { unit -> texts.any { it == unit } }
+        return hasPresets && selectors >= 2
+    }
+
+    /** Controls that only exist on a timer card, i.e. when at least one timer is on the page. */
+    private val cardMarkers = listOf("取消", "暂停", "继续", "正在运行", "计时中")
 
     private val emptyTimerSentences = listOf(
         "没有正在运行的定时器", "没有在运行的定时器", "暂无定时器", "无正在运行的定时器",
