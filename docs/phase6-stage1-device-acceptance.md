@@ -24,7 +24,7 @@
 
 在第五轮修复基础上，用户解锁后补做真机验证，并根据实测继续修。
 
-### 真机结果（APK `d6d4c0ac…de6e`，`install -r`）
+### 真机结果（APK `3b762475…a8d3`，`install -r`；与 `2540/0/0/8` 的全量 JVM 同一源码树）
 
 | 场景 | 结果 |
 |---|---|
@@ -32,7 +32,7 @@
 | 倒计时查询（空态＝创建器） | `SUCCESS verified=true`（没有正在运行的倒计时） |
 | 倒计时查询（本轮自建 2 分钟） | `SUCCESS verified=true count=1` |
 | 创建 2 分钟倒计时 | `SUCCESS verified=null`；`after=count=1 cards@120s=0 why=ok`，`before=count=-1 why=page-unconfirmed` |
-| 取消倒计时 | `BLOCKED verified=false detail=duration=120 candidates=0 complete=true`（卡片无「初始时长」身份证据，零点击） |
+| 取消倒计时 | `BLOCKED verified=false detail=duration=120 candidates=0 complete=true`（卡片无「初始时长」身份证据，零点击）；另一次在页面未确认时返回 `DEVICE_UNAVAILABLE clock not reachable` |
 
 ### 本轮代码修复（TDD，+5 项测试）
 
@@ -45,6 +45,7 @@
 - BACK 恢复：JVM 已测；真机尚未捕获到「无 tab 栏」页面的正式证据（无运行倒计时时该页就是创建器，而创建器上仍能解析到 tab 节点）。
 - 取消倒计时：仍因 One UI 9 卡片不提供「初始时长」而一律 `BLOCKED`，属**失败闭合**，不是取消能力通过。
 - 创建倒计时的 `before` 仍 `page-unconfirmed`：创建前页面形态未被确认，因此仍不报 `verified=true`。
+- **进程冷启动时无障碍未就绪**：App 进程被系统回收后，直接注入命令会得到 `a11y=false nodes=0 rootPkg=null`，查询按失败闭合拒绝；把主界面拉到前台（`am start -n ai.closepaw/.app.MainActivity`）等待约 5 秒后恢复。已多次复现，属用法前提而非业务缺陷，但会污染自动化时序。
 - 真机静置一段时间会自动锁屏（`Bouncer` + Dozing），本轮部分用例因此中断；未猜 PIN、未绕锁屏、未改屏幕超时设置。
 
 
