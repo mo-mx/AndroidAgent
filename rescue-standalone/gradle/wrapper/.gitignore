@@ -1,0 +1,3 @@
+# 仓库根的 .gitignore 忽略所有 *.jar（并以 gradle/wrapper/gradle-wrapper.jar 例外放行主工程的 wrapper）。
+# 这里的路径带两层目录，不匹配根级例外规则，所以在本目录显式放行，让独立工程开箱可构建。
+!gradle-wrapper.jar
